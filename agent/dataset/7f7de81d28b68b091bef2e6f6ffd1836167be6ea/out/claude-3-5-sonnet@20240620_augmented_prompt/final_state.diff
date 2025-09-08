@@ -1,0 +1,43 @@
+diff --git a/snmpman/src/main/java/com/oneandone/snmpman/SnmpmanAgent.java b/snmpman/src/main/java/com/oneandone/snmpman/SnmpmanAgent.java
+index 4f19775..7aa5379 100644
+--- a/snmpman/src/main/java/com/oneandone/snmpman/SnmpmanAgent.java
++++ b/snmpman/src/main/java/com/oneandone/snmpman/SnmpmanAgent.java
+@@ -13,6 +13,8 @@ import org.snmp4j.TransportMapping;
+ import org.snmp4j.agent.*;
+ import org.snmp4j.agent.io.ImportMode;
+ import org.snmp4j.agent.mo.ext.StaticMOGroup;
++import org.snmp4j.agent.mo.MOAccessImpl;
++import org.snmp4j.agent.mo.MOScalar;
+ import org.snmp4j.agent.mo.snmp.*;
+ import org.snmp4j.agent.security.MutableVACM;
+ import org.snmp4j.mp.MPv3;
+@@ -386,7 +388,7 @@ public class SnmpmanAgent extends BaseAgent {
+         try {
+             final Field registry = server.getClass().getDeclaredField("registry");
+             registry.setAccessible(true);
+-            final SortedMap<MOScope, ManagedObject> reg = server.getRegistry();
++            final SortedMap<MOScope, ManagedObject<?>> reg = server.getRegistry();
+             DefaultMOContextScope contextScope = new DefaultMOContextScope(new OctetString(""), group.getScope());
+             reg.put(contextScope, group);
+             registry.set(server, reg);
+@@ -395,6 +397,20 @@ public class SnmpmanAgent extends BaseAgent {
+         }
+     }
+ 
++    protected void registerManagedObject(ManagedObject mo) {
++        try {
++            if (mo instanceof MOGroup) {
++                MOGroup group = (MOGroup) mo;
++                for (Map.Entry<OID, Variable> entry : ((SortedMap<OID, Variable>) group.getScope()).entrySet()) {
++                    ManagedObject<?> singleMO = new MOScalar<>(entry.getKey(), MOAccessImpl.ACCESS_READ_WRITE, entry.getValue());
++                    server.register(singleMO, new OctetString());
++                }
++            }
++        } catch (DuplicateRegistrationException e) {
++            log.error("Error registering managed object", e);
++        }
++    }
++
+     /**
+      * Reads all variable bindings using {@link #VARIABLE_BINDING_PATTERN}.
+      *

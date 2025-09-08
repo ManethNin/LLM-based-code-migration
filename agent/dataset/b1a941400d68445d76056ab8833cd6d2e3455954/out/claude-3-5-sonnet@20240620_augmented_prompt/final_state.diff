@@ -1,0 +1,140 @@
+diff --git a/compiler/src/test/java/com/fluxtion/compiler/builder/factory/GraphOfInstancesTest.java b/compiler/src/test/java/com/fluxtion/compiler/builder/factory/GraphOfInstancesTest.java
+index 8d7d7221..cbfebae6 100644
+--- a/compiler/src/test/java/com/fluxtion/compiler/builder/factory/GraphOfInstancesTest.java
++++ b/compiler/src/test/java/com/fluxtion/compiler/builder/factory/GraphOfInstancesTest.java
+@@ -10,6 +10,7 @@ import lombok.Data;
+ import org.junit.Test;
+ import org.yaml.snakeyaml.TypeDescription;
+ import org.yaml.snakeyaml.Yaml;
++import org.yaml.snakeyaml.LoaderOptions;
+ import org.yaml.snakeyaml.constructor.Constructor;
+ 
+ import java.util.ArrayList;
+@@ -75,7 +76,7 @@ public class GraphOfInstancesTest extends MultipleSepTargetInProcessTest {
+                 "- !stringHandler\n" +
+                 "  id: C";
+         sep(c -> {
+-            Constructor constructor = new Constructor();
++            Constructor constructor = new Constructor(new LoaderOptions());
+             constructor.addTypeDescription(new TypeDescription(DoubleSum.class, "!doubleSum"));
+             constructor.addTypeDescription(new TypeDescription(StringHandler.class, "!stringHandler"));
+             Yaml yaml = new Yaml(constructor);
+@@ -111,7 +112,7 @@ public class GraphOfInstancesTest extends MultipleSepTargetInProcessTest {
+                 "- !stringHandler\n" +
+                 "  id: C";
+         sep(c -> {
+-            Constructor constructor = new Constructor();
++            Constructor constructor = new Constructor(new LoaderOptions());
+             constructor.addTypeDescription(new TypeDescription(DoubleSum.class, "!doubleSum"));
+             constructor.addTypeDescription(new TypeDescription(StringHandler.class, "!stringHandler"));
+             Yaml yaml = new Yaml(constructor);
+diff --git a/compiler/src/test/java/com/fluxtion/compiler/builder/factory/RootNodeListFromYamlConfigTest.java b/compiler/src/test/java/com/fluxtion/compiler/builder/factory/RootNodeListFromYamlConfigTest.java
+index bc8cec3c..622867c7 100644
+--- a/compiler/src/test/java/com/fluxtion/compiler/builder/factory/RootNodeListFromYamlConfigTest.java
++++ b/compiler/src/test/java/com/fluxtion/compiler/builder/factory/RootNodeListFromYamlConfigTest.java
+@@ -4,6 +4,13 @@ import com.fluxtion.compiler.Fluxtion;
+ import com.fluxtion.compiler.builder.factory.GraphOfInstancesTest.DoubleSum;
+ import com.fluxtion.compiler.builder.factory.GraphOfInstancesTest.StringHandler;
+ import com.fluxtion.runtime.EventProcessor;
++import org.yaml.snakeyaml.Yaml;
++import org.yaml.snakeyaml.constructor.Constructor;
++import org.yaml.snakeyaml.representer.Representer;
++import org.yaml.snakeyaml.LoaderOptions;
++import org.yaml.snakeyaml.DumperOptions;
++import org.yaml.snakeyaml.nodes.Tag;
++import org.yaml.snakeyaml.resolver.Resolver;
+ import org.junit.Test;
+ 
+ import java.io.StringReader;
+@@ -20,19 +27,33 @@ public class RootNodeListFromYamlConfigTest {
+             "  generateDescription: false\n" +
+             "  writeSourceToFile: false\n" +
+             "nodes:\n" +
+-            "  - !!com.fluxtion.compiler.builder.factory.GraphOfInstancesTest$StringHandler\n" +
++            "  - !stringHandler\n" +
+             "    id: C\n" +
+-            "  - !!com.fluxtion.compiler.builder.factory.GraphOfInstancesTest$DoubleSum\n" +
++            "  - !doubleSum\n" +
+             "    doubleSuppliers:\n" +
+-            "    - !!com.fluxtion.compiler.builder.factory.GraphOfInstancesTest$StringHandler\n" +
++            "    - !stringHandler\n" +
+             "      id: A\n" +
+-            "    - !!com.fluxtion.compiler.builder.factory.GraphOfInstancesTest$StringHandler\n" +
++            "    - !stringHandler\n" +
+             "      id: B\n" +
+             "";
+ 
+     @Test
+     public void interpretFromStringTest() throws NoSuchFieldException {
+-        EventProcessor eventProcessor = Fluxtion.compileFromReader(new StringReader(compileString));
++        Constructor constructor = new Constructor(new LoaderOptions());
++        Tag doubleTag = new Tag("!doubleSum");
++        Tag stringTag = new Tag("!stringHandler");
++        constructor.addTypeDescription(new org.yaml.snakeyaml.TypeDescription(DoubleSum.class, doubleTag));
++        constructor.addTypeDescription(new org.yaml.snakeyaml.TypeDescription(StringHandler.class, stringTag));
++        DumperOptions options = new DumperOptions();
++        Representer representer = new Representer(options);
++        representer.addClassTag(DoubleSum.class, doubleTag);
++        representer.addClassTag(StringHandler.class, stringTag);
++        Resolver resolver = new Resolver();
++        resolver.addImplicitResolver(doubleTag, null, "!doubleSum");
++        resolver.addImplicitResolver(stringTag, null, "!stringHandler");
++        Yaml yaml = new Yaml(constructor, representer, options, resolver);
++
++        EventProcessor eventProcessor = Fluxtion.compileFromReader(new StringReader(yaml.dump(yaml.load(compileString))));
+         eventProcessor.init();
+ 
+         DoubleSum aggregator = eventProcessor.getNodeById("aggregator");
+diff --git a/compiler/src/test/java/com/fluxtion/compiler/validation/ValidateSinkTest.java b/compiler/src/test/java/com/fluxtion/compiler/validation/ValidateSinkTest.java
+index 06310762..22964a6b 100644
+--- a/compiler/src/test/java/com/fluxtion/compiler/validation/ValidateSinkTest.java
++++ b/compiler/src/test/java/com/fluxtion/compiler/validation/ValidateSinkTest.java
+@@ -6,6 +6,12 @@ import com.fluxtion.extension.csvcompiler.annotations.CsvMarshaller;
+ import com.fluxtion.runtime.EventProcessor;
+ import org.junit.Test;
+ import org.yaml.snakeyaml.Yaml;
++import org.yaml.snakeyaml.constructor.Constructor;
++import org.yaml.snakeyaml.representer.Representer;
++import org.yaml.snakeyaml.DumperOptions;
++import org.yaml.snakeyaml.LoaderOptions;
++import org.yaml.snakeyaml.resolver.Resolver;
++import org.yaml.snakeyaml.nodes.Tag;
+ 
+ import java.util.ArrayList;
+ import java.util.List;
+@@ -37,12 +43,29 @@ public class ValidateSinkTest extends BaseEventProcessorRowBasedTest {
+     @Test
+     public void parseAndSucceedYamlTest() {
+         List<ParseValidationRow> rows = new ArrayList<>();
+-        Yaml yaml = new Yaml();
+-        String yamlData = "!!com.fluxtion.compiler.validation.ValidateSinkTest$ParseValidationRow {answerString: 'doubled:4', intIn: '2'}\n" +
+-                "---\n" +
+-                "!!com.fluxtion.compiler.validation.ValidateSinkTest$ParseValidationRow {answerString: 'doubled:10', intIn: '5'}\n" +
+-                "---\n" +
+-                "!!com.fluxtion.compiler.validation.ValidateSinkTest$ParseValidationRow {answerString: 'doubled:4', intIn: '2'}";
++-        Yaml yaml = new Yaml();
++-        String yamlData = "!!com.fluxtion.compiler.validation.ValidateSinkTest$ParseValidationRow {answerString: 'doubled:4', intIn: '2'}\n" +
++-                "---\n" +
++-                "!!com.fluxtion.compiler.validation.ValidateSinkTest$ParseValidationRow {answerString: 'doubled:10', intIn: '5'}\n" +
++-                "---\n" +
++-                "!!com.fluxtion.compiler.validation.ValidateSinkTest$ParseValidationRow {answerString: 'doubled:4', intIn: '2'}";
+++        String yamlData = "!ParseValidationRow {answerString: 'doubled:4', intIn: '2'}\n" +
+++                "!ParseValidationRow {answerString: 'doubled:10', intIn: '5'}\n" +
+++                "!ParseValidationRow {answerString: 'doubled:4', intIn: '2'}";
+++
+++        LoaderOptions loaderOptions = new LoaderOptions();
+++        Constructor constructor = new Constructor(loaderOptions);
+++        Tag customTag = new Tag("!ParseValidationRow");
+++        constructor.addTypeDescription(new org.yaml.snakeyaml.TypeDescription(ParseValidationRow.class, customTag));
+++
+++        DumperOptions dumperOptions = new DumperOptions();
+++        Representer representer = new Representer(dumperOptions);
+++        representer.addClassTag(ParseValidationRow.class, customTag);
+++
+++        Resolver resolver = new Resolver();
+++        resolver.addImplicitResolver(customTag, null, "!ParseValidationRow");
+++
+++        Yaml yaml = new Yaml(constructor, representer, dumperOptions, resolver);
+         yaml.loadAll(yamlData).forEach(i -> rows.add((ParseValidationRow) i));
+         validateSinkOutput(generateSampleParser(), "doubledOutput", rows.stream());
+     }

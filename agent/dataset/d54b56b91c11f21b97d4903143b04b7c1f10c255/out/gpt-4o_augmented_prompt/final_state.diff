@@ -1,0 +1,62 @@
+diff --git a/src/main/java/com/google/pubsublite/kafka/sink/PubSubLiteSinkTask.java b/src/main/java/com/google/pubsublite/kafka/sink/PubSubLiteSinkTask.java
+index 98d3001..9f922f2 100644
+--- a/src/main/java/com/google/pubsublite/kafka/sink/PubSubLiteSinkTask.java
++++ b/src/main/java/com/google/pubsublite/kafka/sink/PubSubLiteSinkTask.java
+@@ -21,6 +21,8 @@ import com.google.api.core.ApiService.State;
+ import com.google.cloud.pubsublite.Message;
+ import com.google.cloud.pubsublite.PublishMetadata;
+ import com.google.cloud.pubsublite.internal.Publisher;
++import com.google.cloud.pubsublite.MessageMetadata;
++import com.google.cloud.pubsublite.proto.PubSubMessage;
+ import com.google.common.annotations.VisibleForTesting;
+ import com.google.common.collect.ImmutableListMultimap;
+ import com.google.protobuf.ByteString;
+@@ -40,7 +42,7 @@ import org.apache.kafka.connect.sink.SinkTask;
+ public class PubSubLiteSinkTask extends SinkTask {
+ 
+   private final PublisherFactory factory;
+-  private @Nullable Publisher<PublishMetadata> publisher;
++  private @Nullable Publisher<MessageMetadata> publisher;
+ 
+   @VisibleForTesting
+   PubSubLiteSinkTask(PublisherFactory factory) {
+diff --git a/src/main/java/com/google/pubsublite/kafka/sink/PublisherFactory.java b/src/main/java/com/google/pubsublite/kafka/sink/PublisherFactory.java
+index b5e2c73..4fa9ea6 100644
+--- a/src/main/java/com/google/pubsublite/kafka/sink/PublisherFactory.java
++++ b/src/main/java/com/google/pubsublite/kafka/sink/PublisherFactory.java
+@@ -19,7 +19,12 @@ import com.google.cloud.pubsublite.PublishMetadata;
+ import com.google.cloud.pubsublite.internal.Publisher;
+ import java.util.Map;
+ 
++import com.google.cloud.pubsublite.PublishMetadata;
++import com.google.cloud.pubsublite.proto.PubSubMessage;
++import com.google.cloud.pubsublite.internal.Publisher;
++import com.google.cloud.pubsublite.MessageMetadata;
+ interface PublisherFactory {
+ 
+-  Publisher<PublishMetadata> newPublisher(Map<String, String> params);
++  Publisher<MessageMetadata> newPublisher(Map<String, String> params);
++  Publisher<PubSubMessage> newPublisher(Map<String, String> params);
+ }
+diff --git a/src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java b/src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java
+index 8d19dc4..258e9ed 100644
+--- a/src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java
++++ b/src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java
+@@ -21,6 +21,8 @@ import com.google.cloud.pubsublite.PublishMetadata;
+ import com.google.cloud.pubsublite.TopicName;
+ import com.google.cloud.pubsublite.TopicPath;
+ import com.google.cloud.pubsublite.internal.Publisher;
++import com.google.cloud.pubsublite.MessageMetadata;
++import com.google.cloud.pubsublite.proto.PubSubMessage;
+ import com.google.cloud.pubsublite.internal.wire.PubsubContext;
+ import com.google.cloud.pubsublite.internal.wire.PubsubContext.Framework;
+ import com.google.cloud.pubsublite.internal.wire.RoutingPublisherBuilder;
+@@ -33,7 +35,7 @@ class PublisherFactoryImpl implements PublisherFactory {
+   private static final Framework FRAMEWORK = Framework.of("KAFKA_CONNECT");
+ 
+   @Override
+-  public Publisher<PublishMetadata> newPublisher(Map<String, String> params) {
++  public Publisher<MessageMetadata> newPublisher(Map<String, String> params) {
+     Map<String, ConfigValue> config = ConfigDefs.config().validateAll(params);
+     RoutingPublisherBuilder.Builder builder = RoutingPublisherBuilder.newBuilder();
+     TopicPath topic =

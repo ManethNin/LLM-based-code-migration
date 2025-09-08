@@ -1,0 +1,59 @@
+diff --git a/cdi-test-api/src/main/java/de/hilling/junit/cdi/annotations/GlobalTestImplementation.java b/cdi-test-api/src/main/java/de/hilling/junit/cdi/annotations/GlobalTestImplementation.java
+index 04df1a7..d8777c2 100644
+--- a/cdi-test-api/src/main/java/de/hilling/junit/cdi/annotations/GlobalTestImplementation.java
++++ b/cdi-test-api/src/main/java/de/hilling/junit/cdi/annotations/GlobalTestImplementation.java
+@@ -3,7 +3,7 @@ package de.hilling.junit.cdi.annotations;
+ import de.hilling.junit.cdi.scope.TestScoped;
+ import org.immutables.value.Value;
+ 
+-import javax.annotation.Priority;
++import jakarta.annotation.Priority;
+ import javax.enterprise.inject.Alternative;
+ import javax.enterprise.inject.Stereotype;
+ import java.lang.annotation.ElementType;
+@@ -27,4 +27,4 @@ import java.lang.annotation.Target;
+ @Priority(100)
+ @Value.Immutable
+ public @interface GlobalTestImplementation {
+-}
++}
+\ No newline at end of file
+diff --git a/cdi-test-core/src/main/java/de/hilling/junit/cdi/scope/CallRedirectionInterceptor.java b/cdi-test-core/src/main/java/de/hilling/junit/cdi/scope/CallRedirectionInterceptor.java
+index 6eb35d3..0de8c87 100644
+--- a/cdi-test-core/src/main/java/de/hilling/junit/cdi/scope/CallRedirectionInterceptor.java
++++ b/cdi-test-core/src/main/java/de/hilling/junit/cdi/scope/CallRedirectionInterceptor.java
+@@ -3,7 +3,7 @@ package de.hilling.junit.cdi.scope;
+ import de.hilling.junit.cdi.util.ReflectionsUtils;
+ import org.apache.deltaspike.core.api.provider.BeanProvider;
+ 
+-import javax.annotation.Priority;
++import jakarta.annotation.Priority;
+ import javax.enterprise.context.Dependent;
+ import javax.enterprise.inject.Instance;
+ import javax.inject.Inject;
+@@ -27,13 +27,15 @@ public class CallRedirectionInterceptor implements Serializable {
+     @AroundInvoke
+     public Object invokeMockableBean(InvocationContext ctx) throws Throwable {
+         Class<?> javaClass = ReflectionsUtils.getOriginalClass(ctx.getTarget().getClass());
+-        if (invocationTargetManager.get().isAlternativeEnabled(javaClass)) {
+-            return callAlternative(ctx, javaClass);
+-        } else if (invocationTargetManager.get().isMockEnabled(javaClass)) {
++        if (invocationTargetManager.get().isMockEnabled(javaClass))
+             return callMock(ctx, javaClass);
++        else if (invocationTargetManager.get().isAlternativeEnabled(javaClass))
++-            return callAlternative(ctx, javaClass);\n+            return callAlternative(ctx, javaClass);
++        else
+         } else {
+             return ctx.proceed();
+         }
++-        }\n
+     }
+ 
+     @SuppressWarnings("squid:S00112")
+@@ -59,4 +61,4 @@ public class CallRedirectionInterceptor implements Serializable {
+             throw ite.getCause();
+         }
+     }
+-}
++}
+\ No newline at end of file

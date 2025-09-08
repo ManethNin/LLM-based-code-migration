@@ -1,0 +1,210 @@
+================================ System Message ================================
+
+Act as an expert Java software developer.
+The program has issues after a version upgrade of a dependency.
+Try using minimal changes to the code to fix the issues. 
+Do not explain your actions or ask questions, just provide diffs that always adhere to the rules.
+When you think you are done, reply with the diff that fixes the issues, after that a final verification step will happen and the conversation will be ended if it was successful. If not you get the error back.
+
+# File editing rules:
+Return edits similar to unified diffs that `diff -U0` would produce.
+The diff has to be in a markdown code block, like this: ```diff ```.
+
+Make sure you include the first 2 lines with the file paths.
+Don't include timestamps with the file paths.
+
+Start each hunk of changes with a `@@ ... @@` line.
+Don't include line numbers like `diff -U0` does.
+The user's patch tool doesn't need them.
+
+The user's patch tool needs CORRECT patches that apply cleanly against the current contents of the file!
+Think carefully and make sure you include and mark all lines that need to be removed or changed as `-` lines.
+Make sure you mark all new or modified lines with `+`.
+Don't leave out any lines or the diff patch won't apply correctly.
+Dont add in new comments or change existing comments.
+Make sure the diff is minimal and only includes the changes needed to fix the issue plus at least one context line so the tool can apply the diff correctly.
+
+Indentation matters in the diffs!
+
+Start a new hunk for each section of the file that needs changes.
+Dont include unnescessary context, but include at least one line of it.
+If no context is included, the tool will try to apply the changes at the end of the line.
+
+Only output hunks that specify changes with `+` or `-` lines.
+Skip any hunks that are entirely unchanging ` ` lines.
+
+Output hunks in whatever order makes the most sense.
+Hunks don't need to be in any particular order.
+
+When editing a function, method, loop, etc use a hunk to replace the *entire* code block.
+Delete the entire existing version with `-` lines and then add a new, updated version with `+` lines.
+This will help you generate correct code and correct diffs.
+
+To make a new file, show a diff from `--- /dev/null` to `+++ path/to/new/file.ext`.
+
+
+================================ Human Message =================================
+
+
+Updated Dependency Details: org.reflections:reflections 0.9.9 -> 0.10.2
+
+Initial Error: [ERROR] Failed to execute goal org.apache.maven.plugins:maven-compiler-plugin:3.9.0:compile (default-compile) on project gauge-java: Compilation failure: Compilation failure:
+[ERROR] src/main/java/com/thoughtworks/gauge/scan/ClasspathScanner.java:[64,61] cannot find symbol
+[ERROR]   symbol:   method apply(java.lang.String)
+[ERROR]   location: class org.reflections.util.FilterBuilder
+[ERROR] src/main/java/com/thoughtworks/gauge/scan/ClasspathScanner.java:[69,51] cannot find symbol
+[ERROR]   symbol:   method apply(java.lang.String)
+[ERROR]   location: class org.reflections.util.FilterBuilder
+[ERROR] -> [Help 1]
+
+Revapi/japicmp API Changes, which describe changes in the APIs used by this project: {"japicmpResult": {"include": ["FIELD_REMOVED", "METHOD_DEFAULT_ADDED_IN_IMPLEMENTED_INTERFACE", "METHOD_REMOVED", "INTERFACE_ADDED", "METHOD_ADDED_TO_PUBLIC_CLASS", "METHOD_ABSTRACT_ADDED_TO_CLASS"], "org.reflections.util.FilterBuilder": ["FIELD_REMOVED", "METHOD_DEFAULT_ADDED_IN_IMPLEMENTED_INTERFACE", "METHOD_REMOVED", "INTERFACE_ADDED", "METHOD_ADDED_TO_PUBLIC_CLASS", "METHOD_ABSTRACT_ADDED_TO_CLASS"], "apply": ["FIELD_REMOVED", "METHOD_DEFAULT_ADDED_IN_IMPLEMENTED_INTERFACE", "METHOD_REMOVED", "INTERFACE_ADDED", "METHOD_ADDED_TO_PUBLIC_CLASS", "METHOD_ABSTRACT_ADDED_TO_CLASS"]}, "elementLines": {"include": "[ERROR] /gauge-java/src/main/java/com/thoughtworks/gauge/scan/ClasspathScanner.java:[69,51] cannot find symbol", "org.reflections.util.FilterBuilder": "[ERROR] /gauge-java/src/main/java/com/thoughtworks/gauge/scan/ClasspathScanner.java:[69,51] cannot find symbol", "apply": "[ERROR] /gauge-java/src/main/java/com/thoughtworks/gauge/scan/ClasspathScanner.java:[69,51] cannot find symbol"}, "revapiResult": {"include": ["java.class.noLongerImplementsInterface", "java.method.parameterTypeChanged", "java.method.visibilityReduced", "java.method.removed", "java.class.nowImplementsInterface", "java.field.removed", "java.class.visibilityReduced"], "org.reflections.util.FilterBuilder": ["java.class.noLongerImplementsInterface", "java.method.parameterTypeChanged", "java.method.visibilityReduced", "java.method.removed", "java.class.nowImplementsInterface", "java.field.removed", "java.class.visibilityReduced"], "apply": ["java.class.noLongerImplementsInterface", "java.method.parameterTypeChanged", "java.method.visibilityReduced", "java.method.removed", "java.class.nowImplementsInterface", "java.field.removed", "java.class.visibilityReduced"]}, "allPotentialBreakingElements": ["apply(java.lang.String)", "org.reflections.util.FilterBuilder()", "include(java.lang.String)"], "elementPatterns": {"include": "cannot find symbol", "org.reflections.util.FilterBuilder": "cannot find symbol", "apply": "cannot find symbol"}, "project": "gauge-java"}
+
+
+================================== Ai Message ==================================
+Tool Calls:
+  read_file (call_09C5q9PDuNBzlMcePKsBSw4l)
+ Call ID: call_09C5q9PDuNBzlMcePKsBSw4l
+  Args:
+    file_path: src/main/java/com/thoughtworks/gauge/scan/ClasspathScanner.java
+
+================================= Tool Message =================================
+Name: read_file
+
+/*----------------------------------------------------------------
+ *  Copyright (c) ThoughtWorks, Inc.
+ *  Licensed under the Apache License, Version 2.0
+ *  See LICENSE.txt in the project root for license information.
+ *----------------------------------------------------------------*/
+package com.thoughtworks.gauge.scan;
+
+import com.thoughtworks.gauge.ClasspathHelper;
+import org.reflections.Configuration;
+import org.reflections.Reflections;
+import org.reflections.scanners.MethodAnnotationsScanner;
+import org.reflections.scanners.SubTypesScanner;
+import org.reflections.util.ConfigurationBuilder;
+import org.reflections.util.FilterBuilder;
+import org.reflections.vfs.SystemDir;
+import org.reflections.vfs.Vfs;
+import org.reflections.vfs.ZipDir;
+
+import java.io.File;
+import java.net.URL;
+import java.util.jar.JarFile;
+
+import static com.thoughtworks.gauge.GaugeConstant.PACKAGE_TO_SCAN;
+
+/**
+ * Scans the current Classpath and passes to all the scanners passed.
+ */
+public class ClasspathScanner {
+
+    private Reflections reflections;
+
+    public void scan(IScanner... scanners) {
+        reflections = createReflections();
+        for (IScanner scanner : scanners) {
+            scanner.scan(reflections);
+        }
+    }
+
+    private Reflections createReflections() {
+        Vfs.addDefaultURLTypes(new Vfs.UrlType() {
+            @Override
+            public boolean matches(URL url) {
+                return "file".equals(url.getProtocol());
+            }
+
+            @Override
+            public Vfs.Dir createDir(URL url) throws Exception {
+                File file = Vfs.getFile(url);
+                return file.isDirectory() ? new SystemDir(file) : new ZipDir(new JarFile(Vfs.getFile(url)));
+            }
+        });
+
+        Configuration config = new ConfigurationBuilder()
+                .setScanners(new MethodAnnotationsScanner(), new SubTypesScanner())
+                .addUrls(ClasspathHelper.getUrls())
+                .filterInputsBy(this::shouldScan);
+
+        return new Reflections(config);
+    }
+
+    private boolean shouldScan(String s) {
+        final String packagesToScan = System.getenv(PACKAGE_TO_SCAN);
+        if (packagesToScan == null || packagesToScan.isEmpty()) {
+            return new FilterBuilder().include(".+\\.class").apply(s);
+        }
+        final String[] packages = packagesToScan.split(",");
+        for (String packageToScan : packages) {
+            String regex = String.format(".?\\.??%s\\..+\\.class", packageToScan);
+            if (new FilterBuilder().include(regex).apply(s)) {
+                return true;
+            }
+        }
+        return false;
+    }
+}
+
+
+================================== Ai Message ==================================
+Tool Calls:
+  validate_diffs (call_K6J9qju8N8LOmQUgBJl5b20L)
+ Call ID: call_K6J9qju8N8LOmQUgBJl5b20L
+  Args:
+    diff: ```diff
+src/main/java/com/thoughtworks/gauge/scan/ClasspathScanner.java
+@@
+    private boolean shouldScan(String s) {
+        final String packagesToScan = System.getenv(PACKAGE_TO_SCAN);
+        if (packagesToScan == null || packagesToScan.isEmpty()) {
+-            return new FilterBuilder().include(".+\\.class").apply(s);
++            return new FilterBuilder().include(".+\\.class").test(s);
+        }
+        final String[] packages = packagesToScan.split(",");
+        for (String packageToScan : packages) {
+            String regex = String.format(".?\\.??%s\\..+\\.class", packageToScan);
+-            if (new FilterBuilder().include(regex).apply(s)) {
++            if (new FilterBuilder().include(regex).test(s)) {
+                return true;
+            }
+        }
+        return false;
+    }
+```
+
+================================= Tool Message =================================
+Name: validate_diffs
+
+{'src/main/java/com/thoughtworks/gauge/scan/ClasspathScanner.java': '/*----------------------------------------------------------------\n *  Copyright (c) ThoughtWorks, Inc.\n *  Licensed under the Apache License, Version 2.0\n *  See LICENSE.txt in the project root for license information.\n *----------------------------------------------------------------*/\npackage com.thoughtworks.gauge.scan;\n\nimport com.thoughtworks.gauge.ClasspathHelper;\nimport org.reflections.Configuration;\nimport org.reflections.Reflections;\nimport org.reflections.scanners.MethodAnnotationsScanner;\nimport org.reflections.scanners.SubTypesScanner;\nimport org.reflections.util.ConfigurationBuilder;\nimport org.reflections.util.FilterBuilder;\nimport org.reflections.vfs.SystemDir;\nimport org.reflections.vfs.Vfs;\nimport org.reflections.vfs.ZipDir;\n\nimport java.io.File;\nimport java.net.URL;\nimport java.util.jar.JarFile;\n\nimport static com.thoughtworks.gauge.GaugeConstant.PACKAGE_TO_SCAN;\n\n/**\n * Scans the current Classpath and passes to all the scanners passed.\n */\npublic class ClasspathScanner {\n\n    private Reflections reflections;\n\n    public void scan(IScanner... scanners) {\n        reflections = createReflections();\n        for (IScanner scanner : scanners) {\n            scanner.scan(reflections);\n        }\n    }\n\n    private Reflections createReflections() {\n        Vfs.addDefaultURLTypes(new Vfs.UrlType() {\n            @Override\n            public boolean matches(URL url) {\n                return "file".equals(url.getProtocol());\n            }\n\n            @Override\n            public Vfs.Dir createDir(URL url) throws Exception {\n                File file = Vfs.getFile(url);\n                return file.isDirectory() ? new SystemDir(file) : new ZipDir(new JarFile(Vfs.getFile(url)));\n            }\n        });\n\n        Configuration config = new ConfigurationBuilder()\n                .setScanners(new MethodAnnotationsScanner(), new SubTypesScanner())\n                .addUrls(ClasspathHelper.getUrls())\n                .filterInputsBy(this::shouldScan);\n\n        return new Reflections(config);\n    }\n\n    private boolean shouldScan(String s) {\n        final String packagesToScan = System.getenv(PACKAGE_TO_SCAN);\n        if (packagesToScan == null || packagesToScan.isEmpty()) {\nreturn new FilterBuilder().include(".+\\\\.class").test(s);\n        }\n        final String[] packages = packagesToScan.split(",");\n        for (String packageToScan : packages) {\n            String regex = String.format(".?\\\\.??%s\\\\..+\\\\.class", packageToScan);\nif (new FilterBuilder().include(regex).test(s)) {\n                return true;\n            }\n        }\n        return false;\n    }\n}'}
+
+================================== Ai Message ==================================
+Tool Calls:
+  compile_maven_stateful (call_0Txu4rJ7zcfhVIwaM7Br8xm6)
+ Call ID: call_0Txu4rJ7zcfhVIwaM7Br8xm6
+  Args:
+    diff: ```diff
+src/main/java/com/thoughtworks/gauge/scan/ClasspathScanner.java
+@@
+    private boolean shouldScan(String s) {
+        final String packagesToScan = System.getenv(PACKAGE_TO_SCAN);
+        if (packagesToScan == null || packagesToScan.isEmpty()) {
+-            return new FilterBuilder().include(".+\\.class").apply(s);
++            return new FilterBuilder().include(".+\\.class").test(s);
+        }
+        final String[] packages = packagesToScan.split(",");
+        for (String packageToScan : packages) {
+            String regex = String.format(".?\\.??%s\\..+\\.class", packageToScan);
+-            if (new FilterBuilder().include(regex).apply(s)) {
++            if (new FilterBuilder().include(regex).test(s)) {
+                return true;
+            }
+        }
+        return false;
+    }
+```
+
+================================= Tool Message =================================
+Name: compile_maven_stateful
+
+{"compilation_has_succeeded": true, "test_has_succeeded": false, "error_text": "[INFO]\n[INFO] Results:\n[INFO]\n[ERROR] Errors:\n[ERROR] FileHelperTest.testGetAllImplementationFiles \u00bb InaccessibleObject Unable to make field private final java.util.Map java.util.Collections$UnmodifiableMap.m accessible: module java.base does not \"opens java.util\" to unnamed module @62a4b3ed\n[ERROR] FileHelperTest.testGetStepImplDirs \u00bb InaccessibleObject Unable to make field private final java.util.Map java.util.Collections$UnmodifiableMap.m accessible: module java.base does not \"opens java.util\" to unnamed module @62a4b3ed\n[ERROR] FileHelperTest.testGetStepImplDirsWhenCustomCompileDirEnvIsSet \u00bb InaccessibleObject Unable to make field private final java.util.Map java.util.Collections$UnmodifiableMap.m accessible: module java.base does not \"opens java.util\" to unnamed module @62a4b3ed\n[ERROR] FileHelperTest.testGetStepImplDirsWhenDefaultImplDirsDoesNotExists \u00bb InaccessibleObject Unable to make field private final java.util.Map java.util.Collections$UnmodifiableMap.m accessible: module java.base does not \"opens java.util\" to unnamed module @62a4b3ed\n[ERROR] ExecutionPipelineTest.testOrderOfPipelineStagesExecution:34 \u00bb NoClassDefFound Could not initialize class org.mockito.internal.creation.cglib.ClassImposterizer$3\n[ERROR] StepExecutionStageTest.testFailingStepMethodExecutionWithNoCOF:162 \u00bb NoClassDefFound Could not initialize class org.mockito.internal.creation.cglib.ClassImposterizer$3\n[ERROR] StepExecutionStageTest.testStepMethodExecutionCanBeCalledAsObjectForSpecialTable:59 \u00bb NoClassDefFound Could not initialize class org.mockito.internal.creation.cglib.ClassImposterizer$3\n[ERROR] StepExecutionStageTest.testStepMethodExecutionIsCalledWithParameters:47 \u00bb NoClassDefFound Could not initialize class org.mockito.internal.creation.cglib.ClassImposterizer$3\n[ERROR] StepExecutionStageTest.testStepMethodExecutionIsCalledWithoutParameters:34 \u00bb NoClassDefFound Could not initialize class org.mockito.internal.creation.cglib.ClassImposterizer$3\n[ERROR] StepExecutionStageTest.testStepMethodExecutionWithCOFOnAssertionFailure:95 \u00bb NoClassDefFound Could not initialize class org.mockito.internal.creation.cglib.ClassImposterizer$3\n[ERROR] StepExecutionStageTest.testStepMethodExecutionWithCOFOnErrorNotWhitelisted:107 \u00bb NoClassDefFound Could not initialize class org.mockito.internal.creation.cglib.ClassImposterizer$3\n[ERROR] StepExecutionStageTest.testStepMethodExecutionWithCOFOnErrorWhitelisted:150 \u00bb NoClassDefFound Could not initialize class org.mockito.internal.creation.cglib.ClassImposterizer$3\n[ERROR] StepExecutionStageTest.testStepMethodExecutionWithCOFOnRuntimeException:83 \u00bb NoClassDefFound Could not initialize class org.mockito.internal.creation.cglib.ClassImposterizer$3\n[ERROR] StepExecutionStageTest.testStepMethodExecutionWithEnumParamIsExecutingTheStep:140 \u00bb NoClassDefFound Could not initialize class org.mockito.internal.creation.cglib.ClassImposterizer$3\n[ERROR] StepExecutionStageTest.testStepMethodExecutionWithMethodHavingInvalidParamTypeConversion:72 \u00bb NoClassDefFound Could not initialize class org.mockito.internal.creation.cglib.ClassImposterizer$3\n[ERROR] StepExecutionStageTest.testStepMethodExecutionWithWrongInputToAnEnumParamIsFailingCorrectly:125 \u00bb NoClassDefFound Could not initialize class org.mockito.internal.creation.cglib.ClassImposterizer$3\n[ERROR] ParametersExtractorTest.whenExtractAParameterThenTheParameterIsParsed \u00bb NoClassDefFound Could not initialize class org.mockito.internal.creation.cglib.ClassImposterizer$3\n[ERROR] ParametersExtractorTest.whenExtractAParameterThenTheParsedParameterIsReturned \u00bb NoClassDefFound Could not initialize class org.mockito.internal.creation.cglib.ClassImposterizer$3\n[ERROR] ParametersExtractorTest.whenExtractMultipleParametersThenTheParsedParametersAreReturned \u00bb NoClassDefFound Could not initialize class org.mockito.internal.creation.cglib.ClassImposterizer$3\n[ERROR] ParametersExtractorTest.whenExtractNoParametersThenNoParametersReturned \u00bb NoClassDefFound Could not initialize class org.mockito.internal.creation.cglib.ClassImposterizer$3\n[ERROR] ParametersExtractorTest.whenExtractNullThenNoParametersReturned \u00bb NoClassDefFound Could not initialize class org.mockito.internal.creation.cglib.ClassImposterizer$3\n[ERROR] PrimitiveParameterParserTest.givenPrimitiveTypeWhenParseAPrimitiveParameterThenTheConvertedPrimitiveTypeIsReturned \u00bb NoClassDefFound Could not initialize class org.mockito.internal.creation.cglib.ClassImposterizer$3\n[ERROR] PrimitiveParameterParserTest.givenPrimitiveTypeWhenParseAPrimitiveParameterThenThePrimitiveTypeIsConverted \u00bb NoClassDefFound Could not initialize class org.mockito.internal.creation.cglib.ClassImposterizer$3\n[ERROR] TableParameterParserTest.whenASpecialTableParameterParsedThenTheTableConverterIsPassedThatParameter \u00bb NoClassDefFound Could not initialize class org.mockito.internal.creation.cglib.ClassImposterizer$3\n[ERROR] TableParameterParserTest.whenATableParameterParsedThenTheTableConverterIsPassedThatParameter \u00bb NoClassDefFound Could not initialize class org.mockito.internal.creation.cglib.ClassImposterizer$3\n[ERROR] TableParameterParserTest.whenATableParameterParsedThenTheTheConvertedTableIsReturned \u00bb NoClassDefFound Could not initialize class org.mockito.internal.creation.cglib.ClassImposterizer$3\n[ERROR] StepNameRequestProcessorTest.shouldHaveTheStep:45 \u00bb NoClassDefFound Could not initialize class org.mockito.internal.creation.cglib.ClassImposterizer$3\n[ERROR] StepNameRequestProcessorTest.shouldHaveTheStepAlias:65 \u00bb NoClassDefFound Could not initialize class org.mockito.internal.creation.cglib.ClassImposterizer$3\n[ERROR] ValidateStepProcessorTest.ShouldGiveSuggestionWithMethodNameimplementation1:68 \u00bb NoClassDefFound Could not initialize class org.mockito.internal.creation.cglib.ClassImposterizer$3\n[ERROR] ValidateStepProcessorTest.shouldFailIfStepIsDefinedTwice:95 \u00bb NoClassDefFound Could not initialize class org.mockito.internal.creation.cglib.ClassImposterizer$3\n[ERROR] ValidateStepProcessorTest.shouldFailIfStepIsNotFoundAndShouldGiveSuggestion:46 \u00bb NoClassDefFound Could not initialize class org.mockito.internal.creation.cglib.ClassImposterizer$3\n[ERROR] ValidateStepProcessorTest.shouldNotFailIfStepIsFoundAndShouldNotGiveSuggestion:82 \u00bb NoClassDefFound Could not initialize class org.mockito.internal.creation.cglib.ClassImposterizer$3\n[ERROR] JavaRefactoringTest.testJavaElementForRefactoringForStepWithUnicodeCharacters:205 \u00bb NoClassDefFound Could not initialize class org.mockito.internal.creation.cglib.ClassImposterizer$3\n[ERROR] JavaRefactoringTest.testJavaElementForRefactoringWithDualBackSlashes:226 \u00bb NoClassDefFound Could not initialize class org.mockito.internal.creation.cglib.ClassImposterizer$3\n[ERROR] JavaRefactoringTest.testJavaElementForRefactoringWithMethodHavingNewLineCharInString:413 \u00bb NoClassDefFound Could not initialize class org.mockito.internal.creation.cglib.ClassImposterizer$3\n[ERROR] JavaRefactoringTest.testJavaElementForRefactoringWithMethodWithComments:322 \u00bb NoClassDefFound Could not initialize class org.mockito.internal.creation.cglib.ClassImposterizer$3\n[ERROR] JavaRefactoringTest.testJavaElementForRefactoringWithNewParameter:81 \u00bb NoClassDefFound Could not initialize class org.mockito.internal.creation.cglib.ClassImposterizer$3\n[ERROR] JavaRefactoringTest.testJavaElementForRefactoringWithNewParameterWhenParametersPresent:149 \u00bb NoClassDefFound Could not initialize class org.mockito.internal.creation.cglib.ClassImposterizer$3\n[ERROR] JavaRefactoringTest.testJavaElementForRefactoringWithNewParameterWithSameNameAsExisting:124 \u00bb NoClassDefFound Could not initialize class org.mockito.internal.creation.cglib.ClassImposterizer$3\n[ERROR] JavaRefactoringTest.testJavaElementForRefactoringWithNewParametersWithSameName:102 \u00bb NoClassDefFound Could not initialize class org.mockito.internal.creation.cglib.ClassImposterizer$3\n[ERROR] JavaRefactoringTest.testJavaElementForRefactoringWithParametersAdded:179 \u00bb NoClassDefFound Could not initialize class org.mockito.internal.creation.cglib.ClassImposterizer$3\n[ERROR] JavaRefactoringTest.testJavaElementForRefactoringWithParametersRemovedAndAdded:260 \u00bb NoClassDefFound Could not initialize class org.mockito.internal.creation.cglib.ClassImposterizer$3\n[ERROR] JavaRefactoringTest.testJavaElementForRefactoringWithStepHavingOneAlias:430 \u00bb NoClassDefFound Could not initialize class org.mockito.internal.creation.cglib.ClassImposterizer$3\n[ERROR] JavaRefactoringTest.testJavaElementForRefactoringWithTab:243 \u00bb NoClassDefFound Could not initialize class org.mockito.internal.creation.cglib.ClassImposterizer$3\n[ERROR] JavaRefactoringTest.testJavaElementForRefactoringWithUnFormattedMethod:395 \u00bb NoClassDefFound Could not initialize class org.mockito.internal.creation.cglib.ClassImposterizer$3\n[ERROR] JavaRefactoringTest.testJavaElementForSimpleRefactoring:62 \u00bb NoClassDefFound Could not initialize class org.mockito.internal.creation.cglib.ClassImposterizer$3\n[ERROR] JavaRefactoringTest.testRefactoringWithAlias:31 \u00bb NoClassDefFound Could not initialize class org.mockito.internal.creation.cglib.ClassImposterizer$3\n[ERROR] JavaRefactoringTest.testRefactoringWithDuplicateImplementations:46 \u00bb NoClassDefFound Could not initialize class org.mockito.internal.creation.cglib.ClassImposterizer$3\n[ERROR] JavaRefactoringTest.testRefactoringWithOrphanComments:351 \u00bb NoClassDefFound Could not initialize class org.mockito.internal.creation.cglib.ClassImposterizer$3\n[ERROR] JavaRefactoringTest.testResultForRefactoringWhenFileDoesNotExist:307 \u00bb NoClassDefFound Could not initialize class org.mockito.internal.creation.cglib.ClassImposterizer$3\n[ERROR] JavaRefactoringTest.testResultForRefactoringWhenFileNotFound:287 \u00bb NoClassDefFound Could not initialize class org.mockito.internal.creation.cglib.ClassImposterizer$3\n[ERROR] StepsScannerTest.testBuildRegistry:66 \u00bb NoClassDefFound Could not initialize class org.mockito.internal.creation.cglib.ClassImposterizer$3\n[ERROR] StepsScannerTest.testBuildStepRegistryForExternalReference:129 \u00bb ExceptionInInitializer\n[ERROR] StepsScannerTest.testBuildStepRegistryUpdatesReflectedMethod:84 \u00bb NoClassDefFound Could not initialize class org.mockito.internal.creation.cglib.ClassImposterizer$3\n[ERROR] StepsScannerTest.testBuildStepRegistryWhenStepTextExistsInRegistry:103 \u00bb NoClassDefFound Could not initialize class org.mockito.internal.creation.cglib.ClassImposterizer$3\n[INFO]\n[ERROR] Tests run: 140, Failures: 0, Errors: 55, Skipped: 0\n[INFO]\n[INFO] ------------------------------------------------------------------------\n[INFO] BUILD FAILURE\n[INFO] ------------------------------------------------------------------------\n[INFO] Total time: 40.242 s\n[INFO] Finished at: 2024-08-09T01:58:16Z\n[INFO] ------------------------------------------------------------------------\n[ERROR] Failed to execute goal org.apache.maven.plugins:maven-surefire-plugin:3.2.5:test (default-test) on project gauge-java:\n[ERROR]\n[ERROR] Please refer to /mnt/repo/target/surefire-reports for the individual test results.\n[ERROR] Please refer to dump files (if any exist) [date].dump, [date]-jvmRun[N].dump and [date].dumpstream.\n[ERROR] -> [Help 1]\n[ERROR]\n[ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.\n[ERROR] Re-run Maven using the -X switch to enable full debug logging.\n[ERROR]\n[ERROR] For more information about the errors and possible solutions, please read the following articles:\n[ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoFailureException", "updated_files": {"src/main/java/com/thoughtworks/gauge/scan/ClasspathScanner.java": "/*----------------------------------------------------------------\n *  Copyright (c) ThoughtWorks, Inc.\n *  Licensed under the Apache License, Version 2.0\n *  See LICENSE.txt in the project root for license information.\n *----------------------------------------------------------------*/\npackage com.thoughtworks.gauge.scan;\n\nimport com.thoughtworks.gauge.ClasspathHelper;\nimport org.reflections.Configuration;\nimport org.reflections.Reflections;\nimport org.reflections.scanners.MethodAnnotationsScanner;\nimport org.reflections.scanners.SubTypesScanner;\nimport org.reflections.util.ConfigurationBuilder;\nimport org.reflections.util.FilterBuilder;\nimport org.reflections.vfs.SystemDir;\nimport org.reflections.vfs.Vfs;\nimport org.reflections.vfs.ZipDir;\n\nimport java.io.File;\nimport java.net.URL;\nimport java.util.jar.JarFile;\n\nimport static com.thoughtworks.gauge.GaugeConstant.PACKAGE_TO_SCAN;\n\n/**\n * Scans the current Classpath and passes to all the scanners passed.\n */\npublic class ClasspathScanner {\n\n    private Reflections reflections;\n\n    public void scan(IScanner... scanners) {\n        reflections = createReflections();\n        for (IScanner scanner : scanners) {\n            scanner.scan(reflections);\n        }\n    }\n\n    private Reflections createReflections() {\n        Vfs.addDefaultURLTypes(new Vfs.UrlType() {\n            @Override\n            public boolean matches(URL url) {\n                return \"file\".equals(url.getProtocol());\n            }\n\n            @Override\n            public Vfs.Dir createDir(URL url) throws Exception {\n                File file = Vfs.getFile(url);\n                return file.isDirectory() ? new SystemDir(file) : new ZipDir(new JarFile(Vfs.getFile(url)));\n            }\n        });\n\n        Configuration config = new ConfigurationBuilder()\n                .setScanners(new MethodAnnotationsScanner(), new SubTypesScanner())\n                .addUrls(ClasspathHelper.getUrls())\n                .filterInputsBy(this::shouldScan);\n\n        return new Reflections(config);\n    }\n\n    private boolean shouldScan(String s) {\n        final String packagesToScan = System.getenv(PACKAGE_TO_SCAN);\n        if (packagesToScan == null || packagesToScan.isEmpty()) {\nreturn new FilterBuilder().include(\".+\\\\.class\").test(s);\n        }\n        final String[] packages = packagesToScan.split(\",\");\n        for (String packageToScan : packages) {\n            String regex = String.format(\".?\\\\.??%s\\\\..+\\\\.class\", packageToScan);\nif (new FilterBuilder().include(regex).test(s)) {\n                return true;\n            }\n        }\n        return false;\n    }\n}"}, "compile_error_details": {}}

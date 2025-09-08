@@ -1,0 +1,625 @@
+================================ System Message ================================
+
+Act as an expert Java software developer.
+The program has issues after a version upgrade of a dependency.
+Try using minimal changes to the code to fix the issues. 
+Do not explain your actions or ask questions, just provide diffs that always adhere to the rules.
+When you think you are done, reply with the diff that fixes the issues, after that a final verification step will happen and the conversation will be ended if it was successful. If not you get the error back.
+
+# File editing rules:
+Return edits similar to unified diffs that `diff -U0` would produce.
+The diff has to be in a markdown code block, like this: ```diff ```.
+
+Make sure you include the first 2 lines with the file paths.
+Don't include timestamps with the file paths.
+
+Start each hunk of changes with a `@@ ... @@` line.
+Don't include line numbers like `diff -U0` does.
+The user's patch tool doesn't need them.
+
+The user's patch tool needs CORRECT patches that apply cleanly against the current contents of the file!
+Think carefully and make sure you include and mark all lines that need to be removed or changed as `-` lines.
+Make sure you mark all new or modified lines with `+`.
+Don't leave out any lines or the diff patch won't apply correctly.
+Dont add in new comments or change existing comments.
+Make sure the diff is minimal and only includes the changes needed to fix the issue plus at least one context line so the tool can apply the diff correctly.
+
+Indentation matters in the diffs!
+
+Start a new hunk for each section of the file that needs changes.
+Dont include unnescessary context, but include at least one line of it.
+If no context is included, the tool will try to apply the changes at the end of the line.
+
+Only output hunks that specify changes with `+` or `-` lines.
+Skip any hunks that are entirely unchanging ` ` lines.
+
+Output hunks in whatever order makes the most sense.
+Hunks don't need to be in any particular order.
+
+When editing a function, method, loop, etc use a hunk to replace the *entire* code block.
+Delete the entire existing version with `-` lines and then add a new, updated version with `+` lines.
+This will help you generate correct code and correct diffs.
+
+To make a new file, show a diff from `--- /dev/null` to `+++ path/to/new/file.ext`.
+
+
+================================ Human Message =================================
+
+
+Updated Dependency Details: org.codehaus.plexus:plexus-container-default 1.0-alpha-30 -> 2.1.1
+
+Initial Error: [ERROR] Failed to execute goal org.apache.maven.plugins:maven-compiler-plugin:3.8.1:testCompile (default-testCompile) on project plexus-archiver: Compilation failure
+[ERROR] src/test/java/org/codehaus/plexus/archiver/DuplicateFilesTest.java:[37,23] cannot find symbol
+[ERROR]   symbol:   method getLoggerManager()
+[ERROR]   location: interface org.codehaus.plexus.PlexusContainer
+[ERROR] -> [Help 1]
+
+Revapi/japicmp API Changes, which describe changes in the APIs used by this project: {"japicmpResult": {"getLoggerManager": ["METHOD_RETURN_TYPE_CHANGED", "METHOD_ADDED_TO_INTERFACE", "METHOD_REMOVED", "METHOD_ADDED_TO_PUBLIC_CLASS"], "setThreshold": ["METHOD_RETURN_TYPE_CHANGED", "METHOD_ADDED_TO_INTERFACE", "METHOD_REMOVED", "METHOD_ADDED_TO_PUBLIC_CLASS"], "getContainer": ["METHOD_RETURN_TYPE_CHANGED", "METHOD_ADDED_TO_INTERFACE", "METHOD_REMOVED", "METHOD_ADDED_TO_PUBLIC_CLASS"]}, "elementLines": {"getLoggerManager": "[ERROR] /plexus-archiver/src/test/java/org/codehaus/plexus/archiver/DuplicateFilesTest.java:[37,23] cannot find symbol", "setThreshold": "[ERROR] /plexus-archiver/src/test/java/org/codehaus/plexus/archiver/DuplicateFilesTest.java:[37,23] cannot find symbol", "getContainer": "[ERROR] /plexus-archiver/src/test/java/org/codehaus/plexus/archiver/DuplicateFilesTest.java:[37,23] cannot find symbol"}, "revapiResult": {"getLoggerManager": ["java.method.returnTypeChanged", "java.method.removed", "java.method.addedToInterface"], "setThreshold": ["java.method.returnTypeChanged", "java.method.removed", "java.method.addedToInterface"], "getContainer": ["java.method.returnTypeChanged", "java.method.removed", "java.method.addedToInterface"]}, "allPotentialBreakingElements": ["getContainer()", "getLoggerManager()", "setThreshold()"], "elementPatterns": {"getLoggerManager": "cannot find symbol", "setThreshold": "cannot find symbol", "getContainer": "cannot find symbol"}, "project": "plexus-archiver"}
+
+
+================================== Ai Message ==================================
+Tool Calls:
+  read_file (call_jDNomLE0CeVdZwoHLB3ZIXvH)
+ Call ID: call_jDNomLE0CeVdZwoHLB3ZIXvH
+  Args:
+    file_path: src/test/java/org/codehaus/plexus/archiver/DuplicateFilesTest.java
+
+================================= Tool Message =================================
+Name: read_file
+
+package org.codehaus.plexus.archiver;
+
+import java.io.BufferedInputStream;
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileReader;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.util.Enumeration;
+
+import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
+import org.apache.commons.compress.archivers.zip.ZipArchiveEntry;
+import org.codehaus.plexus.PlexusTestCase;
+import org.codehaus.plexus.archiver.tar.TarArchiver;
+import org.codehaus.plexus.archiver.tar.TarLongFileMode;
+import org.codehaus.plexus.logging.Logger;
+import org.codehaus.plexus.util.FileUtils;
+
+/**
+ * @author Erik Engstrom
+ */
+public class DuplicateFilesTest
+    extends PlexusTestCase
+{
+
+    private static final File file1 = getTestFile( "src/test/resources/group-writable/foo.txt" );
+
+    private static final File file2 = getTestFile( "src/test/resources/world-writable/foo.txt" );
+
+    private static final File destination = getTestFile( "target/output/duplicateFiles" );
+
+    public void setUp()
+        throws Exception
+    {
+        super.setUp();
+        getContainer().getLoggerManager().setThreshold( Logger.LEVEL_DEBUG );
+    }
+
+    public void testZipArchiver()
+        throws Exception
+    {
+        Archiver archiver = (Archiver) lookup( Archiver.ROLE, "zip" );
+        archiver.setDuplicateBehavior( Archiver.DUPLICATES_SKIP );
+
+        File archive = createArchive( archiver, "zip" );
+
+        org.apache.commons.compress.archivers.zip.ZipFile zf =
+            new org.apache.commons.compress.archivers.zip.ZipFile( archive );
+
+        Enumeration<ZipArchiveEntry> e = zf.getEntries();
+        int entryCount = 0;
+        while ( e.hasMoreElements() )
+        {
+            ZipArchiveEntry entry = e.nextElement();
+            System.out.println( entry.getName() );
+            entryCount++;
+        }
+        zf.close();
+
+        // Zip file should have 2 entries, 1 for the directory and one for foo.txt
+        assertEquals( 2, entryCount );
+        testArchive( archive, "zip" );
+    }
+
+    public void testDirArchiver()
+        throws Exception
+    {
+        Archiver archiver = (Archiver) lookup( Archiver.ROLE, "dir" );
+        createArchive( archiver, "dir" );
+        testFinalFile( "target/output/duplicateFiles.dir/duplicateFiles/foo.txt" );
+
+    }
+
+    public void testTarArchiver()
+        throws Exception
+    {
+        TarArchiver archiver = (TarArchiver) lookup( Archiver.ROLE, "tar" );
+        archiver.setLongfile( TarLongFileMode.posix );
+        archiver.setDuplicateBehavior( Archiver.DUPLICATES_SKIP );
+
+        File archive = createArchive( archiver, "tar" );
+        TarArchiveInputStream tis;
+
+        tis = new TarArchiveInputStream( new BufferedInputStream( Files.newInputStream( archive.toPath() ) ) );
+        int entryCount = 0;
+        while ( ( tis.getNextEntry() ) != null )
+        {
+            entryCount++;
+        }
+        assertEquals( 1, entryCount );
+        testArchive( archive, "tar" );
+        tis.close();
+    }
+
+    private File createArchive( Archiver archiver, String outputFileExt )
+        throws Exception
+    {
+        archiver.addFile( file1, "duplicateFiles/foo.txt" );
+        archiver.addFile( file2, "duplicateFiles/foo.txt" );
+
+        // delete it if it exists to ensure it is actually empty
+        if ( destination.exists() )
+        {
+            destination.delete();
+        }
+
+        File archive = getTestFile( "target/output/duplicateFiles." + outputFileExt );
+        if ( archive.exists() )
+        {
+            if ( archive.isDirectory() )
+            {
+                FileUtils.deleteDirectory( archive );
+            }
+            else
+            {
+                archive.delete();
+            }
+        }
+
+        archiver.setDestFile( archive );
+        archiver.createArchive();
+        return archive;
+    }
+
+    private void testArchive( File archive, String role )
+        throws Exception
+    {
+        // Check the content of the archive by extracting it
+
+        UnArchiver unArchiver = (UnArchiver) lookup( UnArchiver.ROLE, role );
+        unArchiver.setSourceFile( archive );
+
+        unArchiver.setDestDirectory( getTestFile( "target/output/" ) );
+        unArchiver.extract();
+
+        assertTrue( destination.exists() );
+        assertTrue( destination.isDirectory() );
+        testFinalFile( "target/output/duplicateFiles/foo.txt" );
+    }
+
+    private void testFinalFile( String path )
+        throws Exception
+    {
+        File outputFile = getTestFile( path );
+        assertTrue( outputFile.exists() );
+        BufferedReader reader = Files.newBufferedReader( outputFile.toPath(), StandardCharsets.UTF_8 );
+        String firstLine = reader.readLine();
+        reader.close();
+        reader = Files.newBufferedReader( file2.toPath(), StandardCharsets.UTF_8 );
+        String expectedFirstLine = reader.readLine();
+        reader.close();
+        assertEquals( expectedFirstLine, firstLine );
+    }
+
+}
+
+
+================================== Ai Message ==================================
+Tool Calls:
+  get_directory_tree_for_path (call_oOzewPk7eDQAAy6RJhZOgdJr)
+ Call ID: call_oOzewPk7eDQAAy6RJhZOgdJr
+  Args:
+    relative_directory_path: src/test/java/org/codehaus/plexus/archiver
+
+================================= Tool Message =================================
+Name: get_directory_tree_for_path
+
+[
+    {
+        "name": "CapturingLog.java",
+        "type": "file"
+    },
+    {
+        "name": "SymlinkTest.java",
+        "type": "file"
+    },
+    {
+        "name": "xz",
+        "type": "directory",
+        "contents": [
+            {
+                "name": "XzArchiverTest.java",
+                "type": "file"
+            }
+        ]
+    },
+    {
+        "name": "sar",
+        "type": "directory",
+        "contents": [
+            {
+                "name": "SarArchiverTest.java",
+                "type": "file"
+            }
+        ]
+    },
+    {
+        "name": "war",
+        "type": "directory",
+        "contents": [
+            {
+                "name": "WarArchiverTest.java",
+                "type": "file"
+            }
+        ]
+    },
+    {
+        "name": "DotDirectiveArchiveFinalizerTest.java",
+        "type": "file"
+    },
+    {
+        "name": "AbstractUnArchiverTest.java",
+        "type": "file"
+    },
+    {
+        "name": "manager",
+        "type": "directory",
+        "contents": [
+            {
+                "name": "ArchiverManagerTest.java",
+                "type": "file"
+            }
+        ]
+    },
+    {
+        "name": "snappy",
+        "type": "directory",
+        "contents": [
+            {
+                "name": "SnappyArchiverTest.java",
+                "type": "file"
+            }
+        ]
+    },
+    {
+        "name": "rar",
+        "type": "directory",
+        "contents": [
+            {
+                "name": "RarArchiverTest.java",
+                "type": "file"
+            }
+        ]
+    },
+    {
+        "name": "DuplicateFilesTest.java",
+        "type": "file"
+    },
+    {
+        "name": "gzip",
+        "type": "directory",
+        "contents": [
+            {
+                "name": "GZipArchiverTest.java",
+                "type": "file"
+            }
+        ]
+    },
+    {
+        "name": "EmptyDirectoryTest.java",
+        "type": "file"
+    },
+    {
+        "name": "BasePlexusArchiverTest.java",
+        "type": "file"
+    },
+    {
+        "name": "AbstractArchiverTest.java",
+        "type": "file"
+    },
+    {
+        "name": "jar",
+        "type": "directory",
+        "contents": [
+            {
+                "name": "JarToolModularJarArchiverTest.java",
+                "type": "file"
+            },
+            {
+                "name": "JdkManifestFactoryTest.java",
+                "type": "file"
+            },
+            {
+                "name": "BaseJarArchiverTest.java",
+                "type": "file"
+            },
+            {
+                "name": "IndexTest.java",
+                "type": "file"
+            },
+            {
+                "name": "DirectoryArchiverUnpackJarTest.java",
+                "type": "file"
+            },
+            {
+                "name": "JarArchiverTest.java",
+                "type": "file"
+            },
+            {
+                "name": "ManifestTest.java",
+                "type": "file"
+            }
+        ]
+    },
+    {
+        "name": "util",
+        "type": "directory",
+        "contents": [
+            {
+                "name": "DefaultFileSetTest.java",
+                "type": "file"
+            },
+            {
+                "name": "FilePermissionUtilsTest.java",
+                "type": "file"
+            },
+            {
+                "name": "ArchiveEntryUtilsTest.java",
+                "type": "file"
+            }
+        ]
+    },
+    {
+        "name": "tar",
+        "type": "directory",
+        "contents": [
+            {
+                "name": "TarGZipUnArchiverTest.java",
+                "type": "file"
+            },
+            {
+                "name": "TarBZip2UnArchiverTest.java",
+                "type": "file"
+            },
+            {
+                "name": "TarFileAttributesTest.java",
+                "type": "file"
+            },
+            {
+                "name": "TarSnappyUnArchiverTest.java",
+                "type": "file"
+            },
+            {
+                "name": "TarFileTest.java",
+                "type": "file"
+            },
+            {
+                "name": "TarArchiverTest.java",
+                "type": "file"
+            },
+            {
+                "name": "TarRoundTripTest.java",
+                "type": "file"
+            },
+            {
+                "name": "TarXzUnArchiverTest.java",
+                "type": "file"
+            },
+            {
+                "name": "TarUnArchiverTest.java",
+                "type": "file"
+            }
+        ]
+    },
+    {
+        "name": "zip",
+        "type": "directory",
+        "contents": [
+            {
+                "name": "ZipArchiverTest.java",
+                "type": "file"
+            },
+            {
+                "name": "PlexusArchiverZipFileResourceCollectionTest.java",
+                "type": "file"
+            },
+            {
+                "name": "ZipUnArchiverTest.java",
+                "type": "file"
+            },
+            {
+                "name": "ArchiveFileComparator.java",
+                "type": "file"
+            },
+            {
+                "name": "ConcurrentJarCreatorTest.java",
+                "type": "file"
+            },
+            {
+                "name": "PlexusIoZipFileResourceCollectionTest.java",
+                "type": "file"
+            }
+        ]
+    },
+    {
+        "name": "bzip2",
+        "type": "directory",
+        "contents": [
+            {
+                "name": "BZip2ArchiverTest.java",
+                "type": "file"
+            }
+        ]
+    }
+]
+
+================================== Ai Message ==================================
+Tool Calls:
+  read_file (call_CTVcursaijT35FAwJtBH3Ced)
+ Call ID: call_CTVcursaijT35FAwJtBH3Ced
+  Args:
+    file_path: src/test/java/org/codehaus/plexus/archiver/BasePlexusArchiverTest.java
+
+================================= Tool Message =================================
+Name: read_file
+
+/*
+ * The MIT License
+ *
+ * Copyright (c) 2004, The Codehaus
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy of
+ * this software and associated documentation files (the "Software"), to deal in
+ * the Software without restriction, including without limitation the rights to
+ * use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies
+ * of the Software, and to permit persons to whom the Software is furnished to do
+ * so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+package org.codehaus.plexus.archiver;
+
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.attribute.FileTime;
+
+import org.codehaus.plexus.PlexusTestCase;
+import org.codehaus.plexus.util.FileUtils;
+
+/**
+ * Base abstract class that all the test-cases for different archivers
+ * extend so that they can use its helpful methods.
+ */
+public abstract class BasePlexusArchiverTest extends PlexusTestCase
+{
+
+    /**
+     * Ensure that the last modified timestamp of a file will be greater
+     * than the one specified as a reference.
+     *
+     * @param outputFile the file
+     * @param timestampReference the file will have a newer timestamp
+     *        than this reference timestamp.
+     *
+     * @throws IOException if the timestamp could not be modified
+     */
+    protected void waitUntilNewTimestamp( File outputFile, long timestampReference )
+        throws IOException
+    {
+        long startTime = System.currentTimeMillis();
+        File tmpFile = File.createTempFile(
+            "BasePlexusArchiverTest.waitUntilNewTimestamp", null );
+        long newTimestamp;
+
+        // We could easily just set the last modified time using
+        // Files.setLastModifiedTime and System.currentTimeMillis(),
+        // but the problem is that tests are using this method to verify that
+        // the force flag is working. To ensure that modified or
+        // newly created files will have timestamp newer than
+        // `timestampReference`, we need to modify a file ourself.
+        // Otherwise the build may fail because when the test overrides
+        // `outputFile` it will have timestamp that is equal
+        // to `timestampReference`.
+        do
+        {
+            FileUtils.fileWrite( tmpFile, "waitUntilNewTimestamp" );
+            newTimestamp = tmpFile.lastModified();
+            Thread.yield();
+        }
+        while ( timestampReference >= newTimestamp
+                // A simple guard to ensure that we'll not do this forever.
+                // If the last modified timestamp is not changed to
+                // a newer value after 10 seconds, probably it never will.
+                && System.currentTimeMillis() - startTime < 10_000 );
+
+        tmpFile.delete();
+
+        if ( timestampReference >= newTimestamp )
+        {
+            throw new IOException("Could not modify the last modified timestamp "
+                + "to newer than the refence value." );
+        }
+
+        FileTime newTimestampTime = FileTime.fromMillis( newTimestamp );
+        Files.setLastModifiedTime( outputFile.toPath(), newTimestampTime );
+    }
+
+    /**
+     * Base method for all the Archivers to create an archiver.
+     *
+     * @param format
+     *
+     * @return
+     *
+     * @throws Exception
+     */
+    protected Archiver createArchiver( String format ) throws Exception
+    {
+
+        final File pomFile = new File( "pom.xml" );
+        final File rarFile = new File( "target/output/pom.xml." + format );
+
+        Archiver archiver = (Archiver) lookup( Archiver.ROLE, format );
+        archiver.setDestFile( rarFile );
+        archiver.addFile( pomFile, "pom.xml" );
+
+        return archiver;
+    }
+
+}
+
+
+================================== Ai Message ==================================
+
+```diff
+src/test/java/org/codehaus/plexus/archiver/DuplicateFilesTest.java
+@@
+-        getContainer().getLoggerManager().setThreshold( Logger.LEVEL_DEBUG );
++        getContainer().lookup(org.codehaus.plexus.logging.LoggerManager.class).setThreshold( Logger.LEVEL_DEBUG );
+```
+Tool Calls:
+  compile_maven_stateful (WBBM0F0P4)
+ Call ID: WBBM0F0P4
+  Args:
+    diff: ```diff
+src/test/java/org/codehaus/plexus/archiver/DuplicateFilesTest.java
+@@
+-        getContainer().getLoggerManager().setThreshold( Logger.LEVEL_DEBUG );
++        getContainer().lookup(org.codehaus.plexus.logging.LoggerManager.class).setThreshold( Logger.LEVEL_DEBUG );
+```
+
+================================= Tool Message =================================
+Name: compile_maven_stateful
+
+{"compilation_has_succeeded": true, "test_has_succeeded": true, "error_text": "", "updated_files": {"src/test/java/org/codehaus/plexus/archiver/DuplicateFilesTest.java": "package org.codehaus.plexus.archiver;\n\nimport java.io.BufferedInputStream;\nimport java.io.BufferedReader;\nimport java.io.File;\nimport java.io.FileInputStream;\nimport java.io.FileReader;\nimport java.nio.charset.StandardCharsets;\nimport java.nio.file.Files;\nimport java.util.Enumeration;\n\nimport org.apache.commons.compress.archivers.tar.TarArchiveInputStream;\nimport org.apache.commons.compress.archivers.zip.ZipArchiveEntry;\nimport org.codehaus.plexus.PlexusTestCase;\nimport org.codehaus.plexus.archiver.tar.TarArchiver;\nimport org.codehaus.plexus.archiver.tar.TarLongFileMode;\nimport org.codehaus.plexus.logging.Logger;\nimport org.codehaus.plexus.util.FileUtils;\n\n/**\n * @author Erik Engstrom\n */\npublic class DuplicateFilesTest\n    extends PlexusTestCase\n{\n\n    private static final File file1 = getTestFile( \"src/test/resources/group-writable/foo.txt\" );\n\n    private static final File file2 = getTestFile( \"src/test/resources/world-writable/foo.txt\" );\n\n    private static final File destination = getTestFile( \"target/output/duplicateFiles\" );\n\n    public void setUp()\n        throws Exception\n    {\n        super.setUp();\n        getContainer().lookup(org.codehaus.plexus.logging.LoggerManager.class).setThreshold( Logger.LEVEL_DEBUG );\n    }\n\n    public void testZipArchiver()\n        throws Exception\n    {\n        Archiver archiver = (Archiver) lookup( Archiver.ROLE, \"zip\" );\n        archiver.setDuplicateBehavior( Archiver.DUPLICATES_SKIP );\n\n        File archive = createArchive( archiver, \"zip\" );\n\n        org.apache.commons.compress.archivers.zip.ZipFile zf =\n            new org.apache.commons.compress.archivers.zip.ZipFile( archive );\n\n        Enumeration<ZipArchiveEntry> e = zf.getEntries();\n        int entryCount = 0;\n        while ( e.hasMoreElements() )\n        {\n            ZipArchiveEntry entry = e.nextElement();\n            System.out.println( entry.getName() );\n            entryCount++;\n        }\n        zf.close();\n\n        // Zip file should have 2 entries, 1 for the directory and one for foo.txt\n        assertEquals( 2, entryCount );\n        testArchive( archive, \"zip\" );\n    }\n\n    public void testDirArchiver()\n        throws Exception\n    {\n        Archiver archiver = (Archiver) lookup( Archiver.ROLE, \"dir\" );\n        createArchive( archiver, \"dir\" );\n        testFinalFile( \"target/output/duplicateFiles.dir/duplicateFiles/foo.txt\" );\n\n    }\n\n    public void testTarArchiver()\n        throws Exception\n    {\n        TarArchiver archiver = (TarArchiver) lookup( Archiver.ROLE, \"tar\" );\n        archiver.setLongfile( TarLongFileMode.posix );\n        archiver.setDuplicateBehavior( Archiver.DUPLICATES_SKIP );\n\n        File archive = createArchive( archiver, \"tar\" );\n        TarArchiveInputStream tis;\n\n        tis = new TarArchiveInputStream( new BufferedInputStream( Files.newInputStream( archive.toPath() ) ) );\n        int entryCount = 0;\n        while ( ( tis.getNextEntry() ) != null )\n        {\n            entryCount++;\n        }\n        assertEquals( 1, entryCount );\n        testArchive( archive, \"tar\" );\n        tis.close();\n    }\n\n    private File createArchive( Archiver archiver, String outputFileExt )\n        throws Exception\n    {\n        archiver.addFile( file1, \"duplicateFiles/foo.txt\" );\n        archiver.addFile( file2, \"duplicateFiles/foo.txt\" );\n\n        // delete it if it exists to ensure it is actually empty\n        if ( destination.exists() )\n        {\n            destination.delete();\n        }\n\n        File archive = getTestFile( \"target/output/duplicateFiles.\" + outputFileExt );\n        if ( archive.exists() )\n        {\n            if ( archive.isDirectory() )\n            {\n                FileUtils.deleteDirectory( archive );\n            }\n            else\n            {\n                archive.delete();\n            }\n        }\n\n        archiver.setDestFile( archive );\n        archiver.createArchive();\n        return archive;\n    }\n\n    private void testArchive( File archive, String role )\n        throws Exception\n    {\n        // Check the content of the archive by extracting it\n\n        UnArchiver unArchiver = (UnArchiver) lookup( UnArchiver.ROLE, role );\n        unArchiver.setSourceFile( archive );\n\n        unArchiver.setDestDirectory( getTestFile( \"target/output/\" ) );\n        unArchiver.extract();\n\n        assertTrue( destination.exists() );\n        assertTrue( destination.isDirectory() );\n        testFinalFile( \"target/output/duplicateFiles/foo.txt\" );\n    }\n\n    private void testFinalFile( String path )\n        throws Exception\n    {\n        File outputFile = getTestFile( path );\n        assertTrue( outputFile.exists() );\n        BufferedReader reader = Files.newBufferedReader( outputFile.toPath(), StandardCharsets.UTF_8 );\n        String firstLine = reader.readLine();\n        reader.close();\n        reader = Files.newBufferedReader( file2.toPath(), StandardCharsets.UTF_8 );\n        String expectedFirstLine = reader.readLine();\n        reader.close();\n        assertEquals( expectedFirstLine, firstLine );\n    }\n\n}\n"}, "compile_error_details": {}}

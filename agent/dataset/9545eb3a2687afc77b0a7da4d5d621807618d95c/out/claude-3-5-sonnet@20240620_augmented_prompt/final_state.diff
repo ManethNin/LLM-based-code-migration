@@ -1,0 +1,323 @@
+diff --git a/src/java/org/jivesoftware/openfire/plugin/util/cache/ClusterListener.java b/src/java/org/jivesoftware/openfire/plugin/util/cache/ClusterListener.java
+index d037623..e3a7e94 100644
+--- a/src/java/org/jivesoftware/openfire/plugin/util/cache/ClusterListener.java
++++ b/src/java/org/jivesoftware/openfire/plugin/util/cache/ClusterListener.java
+@@ -15,15 +15,15 @@
+  */
+ package org.jivesoftware.openfire.plugin.util.cache;
+ 
+-import com.hazelcast.core.Cluster;
++import com.hazelcast.cluster.Cluster;
+ import com.hazelcast.core.EntryListener;
+ import com.hazelcast.core.LifecycleEvent;
+ import com.hazelcast.core.LifecycleEvent.LifecycleState;
+ import com.hazelcast.core.LifecycleListener;
+-import com.hazelcast.core.Member;
++import com.hazelcast.cluster.Member;
++import com.hazelcast.cluster.MembershipEvent;
++import com.hazelcast.cluster.MembershipListener;
+ import com.hazelcast.core.MemberAttributeEvent;
+-import com.hazelcast.core.MembershipEvent;
+-import com.hazelcast.core.MembershipListener;
+ import org.jivesoftware.openfire.XMPPServer;
+ import org.jivesoftware.openfire.cluster.ClusterManager;
+ import org.jivesoftware.openfire.cluster.ClusterNodeInfo;
+@@ -49,7 +49,7 @@ import java.util.concurrent.ConcurrentHashMap;
+  * ClusterListener reacts to membership changes in the cluster. It takes care of cleaning up the state
+  * of the routing table and the sessions within it when a node which manages those sessions goes down.
+  */
+-public class ClusterListener implements MembershipListener, LifecycleListener {
++public class ClusterListener implements com.hazelcast.cluster.MembershipListener, LifecycleListener {
+ 
+     private static final Logger logger = LoggerFactory.getLogger(ClusterListener.class);
+ 
+@@ -57,7 +57,7 @@ public class ClusterListener implements MembershipListener, LifecycleListener {
+ 
+     private final Map<Cache<?,?>, EntryListener> entryListeners = new HashMap<>();
+     
+-    private final Cluster cluster;
++private final com.hazelcast.cluster.Cluster cluster;
+     private final Map<NodeID, ClusterNodeInfo> clusterNodesInfo = new ConcurrentHashMap<>();
+     
+     /**
+@@ -72,7 +72,7 @@ public class ClusterListener implements MembershipListener, LifecycleListener {
+     private boolean clusterMember = false;
+     private boolean isSenior;
+ 
+-    ClusterListener(final Cluster cluster) {
++    ClusterListener(final com.hazelcast.cluster.Cluster cluster) {
+ 
+         this.cluster = cluster;
+         for (final Member member : cluster.getMembers()) {
+@@ -152,7 +152,7 @@ public class ClusterListener implements MembershipListener, LifecycleListener {
+     }
+ 
+     @Override
+-    public void memberAdded(final MembershipEvent event) {
++    public void memberAdded(final com.hazelcast.cluster.MembershipEvent event) {
+         logger.info("Received a Hazelcast memberAdded event {}", event);
+ 
+         final boolean wasSenior = isSenior;
+@@ -167,7 +167,7 @@ public class ClusterListener implements MembershipListener, LifecycleListener {
+                 logger.warn("Recovering from split-brain; firing leftCluster()/joinedCluster() events");
+                 ClusteredCacheFactory.fireLeftClusterAndWaitToComplete(Duration.ofSeconds(30));
+                 logger.debug("Firing joinedCluster() event");
+-                ClusterManager.fireJoinedCluster(false);
++        ClusterManager.fireJoinedCluster(false);
+ 
+                 try {
+                     logger.debug("Postponing notification of other nodes for 30 seconds. This allows all local leave/join processing to be finished and local cache backups to be stabilized before receiving events from other nodes.");
+@@ -179,11 +179,11 @@ public class ClusterListener implements MembershipListener, LifecycleListener {
+                 // The following line was intended to wait until all local handling finishes before informing other
+                 // nodes. However that proved to be insufficient. Hence the 30 second default wait in the lines above.
+                 // TODO Instead of the 30 second wait, we should look (and then wait) for some trigger or event that signifies that local handling has completed and caches have stabilized.
+-                waitForClusterCacheToBeInstalled();
++        waitForClusterCacheToBeInstalled();
+ 
+-                // Let the other nodes know that we joined the cluster
++        // Let the other nodes know that we joined the cluster
+                 logger.debug("Done joining the cluster in split brain recovery. Now proceed informing other nodes that we joined the cluster.");
+-                CacheFactory.doClusterTask(new NewClusterMemberJoinedTask());
++        CacheFactory.doClusterTask(new NewClusterMemberJoinedTask());
+             }
+         }
+         clusterNodesInfo.put(nodeID,
+@@ -215,7 +215,7 @@ public class ClusterListener implements MembershipListener, LifecycleListener {
+                 }
+             }
+             if (!deadLine.isAfter(LocalTime.now())) {
+-                failed = true;
++                    failed = true;
+                 logger.warn("Cache factory was not swapped to '{}', but still remains '{}' after a 10 minute wait. Cluster join is not guaranteed to have completed.", ClusteredCacheFactory.PLUGIN_NAME, CacheFactory.getPluginName());
+             }
+             logger.debug("Cache factory has been swapped to '{}'. Cluster join is considered complete.", ClusteredCacheFactory.PLUGIN_NAME);
+@@ -225,7 +225,7 @@ public class ClusterListener implements MembershipListener, LifecycleListener {
+     }
+ 
+     @Override
+-    public void memberRemoved(final MembershipEvent event) {
++    public void memberRemoved(final com.hazelcast.cluster.MembershipEvent event) {
+         logger.info("Received a Hazelcast memberRemoved event {}", event);
+ 
+         isSenior = isSeniorClusterMember();
+@@ -241,7 +241,7 @@ public class ClusterListener implements MembershipListener, LifecycleListener {
+ 
+             if (!seniorClusterMember && isSeniorClusterMember()) {
+                 seniorClusterMember = true;
+-                ClusterManager.fireMarkedAsSeniorClusterMember();
++            ClusterManager.fireMarkedAsSeniorClusterMember();
+             }
+ 
+             // Remove traces of directed presences sent from local entities to handlers that no longer exist.
+@@ -268,7 +268,7 @@ public class ClusterListener implements MembershipListener, LifecycleListener {
+     }
+ 
+     @Override
+-    public void memberAttributeChanged(final MemberAttributeEvent event) {
++    public void memberAttributeChanged(final com.hazelcast.core.MemberAttributeEvent event) {
+         logger.info("Received a Hazelcast memberAttributeChanged event {}", event);
+         isSenior = isSeniorClusterMember();
+         final ClusterNodeInfo priorNodeInfo = clusterNodesInfo.get(ClusteredCacheFactory.getNodeID(event.getMember()));
+@@ -279,4 +279,4 @@ public class ClusterListener implements MembershipListener, LifecycleListener {
+     boolean isClusterMember() {
+         return clusterMember;
+     }
+-}
++}
+\ No newline at end of file
+diff --git a/src/java/org/jivesoftware/openfire/plugin/util/cache/ClusteredCache.java b/src/java/org/jivesoftware/openfire/plugin/util/cache/ClusteredCache.java
+index d72e01a..75b17a6 100644
+--- a/src/java/org/jivesoftware/openfire/plugin/util/cache/ClusteredCache.java
++++ b/src/java/org/jivesoftware/openfire/plugin/util/cache/ClusteredCache.java
+@@ -17,10 +17,10 @@ package org.jivesoftware.openfire.plugin.util.cache;
+ 
+ import com.hazelcast.core.EntryEvent;
+ import com.hazelcast.core.EntryListener;
+-import com.hazelcast.core.IMap;
+-import com.hazelcast.core.MapEvent;
++import com.hazelcast.map.IMap;
++import com.hazelcast.map.MapEvent;
+ import com.hazelcast.map.listener.MapListener;
+-import com.hazelcast.monitor.LocalMapStats;
++import com.hazelcast.map.LocalMapStats;
+ import org.jivesoftware.openfire.XMPPServer;
+ import org.jivesoftware.openfire.cluster.ClusteredCacheEntryListener;
+ import org.jivesoftware.openfire.cluster.NodeID;
+@@ -55,7 +55,7 @@ public class ClusteredCache<K extends Serializable, V extends Serializable> impl
+     /**
+      * The map is used for distributed operations such as get, put, etc.
+      */
+-    final IMap<K, V> map;
++final com.hazelcast.map.IMap<K, V> map;
+     private String name;
+     private long numberOfGets = 0;
+ 
+@@ -71,7 +71,7 @@ public class ClusteredCache<K extends Serializable, V extends Serializable> impl
+      * @param name a name for the cache, which should be unique per vm.
+      * @param cache the cache implementation
+      */
+-    protected ClusteredCache(final String name, final IMap<K, V> cache) {
++    protected ClusteredCache(final String name, final com.hazelcast.map.IMap<K, V> cache) {
+         this.map = cache;
+         this.name = name;
+         logger = LoggerFactory.getLogger(ClusteredCache.class.getName() + "[cache: "+name+"]");
+@@ -346,4 +346,4 @@ public class ClusteredCache<K extends Serializable, V extends Serializable> impl
+             lastPluginClassLoaderWarning = Instant.now();
+         }
+     }
+-}
++}
+\ No newline at end of file
+diff --git a/src/java/org/jivesoftware/openfire/plugin/util/cache/ClusteredCacheFactory.java b/src/java/org/jivesoftware/openfire/plugin/util/cache/ClusteredCacheFactory.java
+index 2bc522a..82daf16 100644
+--- a/src/java/org/jivesoftware/openfire/plugin/util/cache/ClusteredCacheFactory.java
++++ b/src/java/org/jivesoftware/openfire/plugin/util/cache/ClusteredCacheFactory.java
+@@ -19,15 +19,16 @@ package org.jivesoftware.openfire.plugin.util.cache;
+ import com.hazelcast.config.ClasspathXmlConfig;
+ import com.hazelcast.config.Config;
+ import com.hazelcast.config.MapConfig;
+-import com.hazelcast.config.MaxSizeConfig;
++import com.hazelcast.config.MaxSizePolicy;
+ import com.hazelcast.config.MemberAttributeConfig;
+ import com.hazelcast.config.MemcacheProtocolConfig;
+ import com.hazelcast.config.NetworkConfig;
+ import com.hazelcast.config.RestApiConfig;
+-import com.hazelcast.core.Cluster;
++import com.hazelcast.config.MaxSizePolicy;
++import com.hazelcast.cluster.Cluster;
+ import com.hazelcast.core.Hazelcast;
+ import com.hazelcast.core.HazelcastInstance;
+-import com.hazelcast.core.Member;
++import com.hazelcast.cluster.Member;
+ import org.jivesoftware.openfire.JMXManager;
+ import org.jivesoftware.openfire.XMPPServer;
+ import org.jivesoftware.openfire.cluster.ClusterEventListener;
+@@ -77,7 +78,8 @@ import java.util.concurrent.locks.Lock;
+  *
+  * @author Tom Evans
+  * @author Gaston Dombiak
+- */
++ */import java.util.UUID;
++
+ public class ClusteredCacheFactory implements CacheFactoryStrategy {
+ 
+     private static final SystemProperty<String> HAZELCAST_EXECUTOR_SERVICE_NAME = SystemProperty.Builder.ofType(String.class)
+@@ -191,8 +193,8 @@ public class ClusteredCacheFactory implements CacheFactoryStrategy {
+                     networkConfig.setRestApiConfig(new RestApiConfig().setEnabled(false));
+                 }
+                 final MemberAttributeConfig memberAttributeConfig = config.getMemberAttributeConfig();
+-                memberAttributeConfig.setStringAttribute(HazelcastClusterNodeInfo.HOST_NAME_ATTRIBUTE, XMPPServer.getInstance().getServerInfo().getHostname());
+-                memberAttributeConfig.setStringAttribute(HazelcastClusterNodeInfo.NODE_ID_ATTRIBUTE, XMPPServer.getInstance().getNodeID().toString());
++                memberAttributeConfig.setAttribute(HazelcastClusterNodeInfo.HOST_NAME_ATTRIBUTE, XMPPServer.getInstance().getServerInfo().getHostname());
++                memberAttributeConfig.setAttribute(HazelcastClusterNodeInfo.NODE_ID_ATTRIBUTE, XMPPServer.getInstance().getNodeID().toString());
+                 config.setInstanceName("openfire");
+                 config.setClassLoader(loader);
+                 if (JMXManager.isEnabled() && HAZELCAST_JMX_ENABLED.getValue()) {
+@@ -205,8 +207,8 @@ public class ClusteredCacheFactory implements CacheFactoryStrategy {
+                 // CacheFactory is now using clustered caches. We can add our listeners.
+                 clusterListener = new ClusterListener(cluster);
+                 clusterListener.joinCluster();
+-                lifecycleListener = hazelcast.getLifecycleService().addLifecycleListener(clusterListener);
+-                membershipListener = cluster.addMembershipListener(clusterListener);
++                lifecycleListener = hazelcast.getLifecycleService().addLifecycleListener(clusterListener).toString();
++                membershipListener = cluster.addMembershipListener(clusterListener).toString();
+                 logger.info("Hazelcast clustering started");
+                 break;
+             } catch (final Exception e) {
+@@ -238,16 +240,16 @@ public class ClusteredCacheFactory implements CacheFactoryStrategy {
+         // Stop the cache services.
+         cacheStats = null;
+         // Update the running state of the cluster
+-        state = State.stopped;
++                    state = State.stopped;
+ 
+         // Fire the leftClusterEvent before we leave the cluster - we need to access the clustered data before the
+         // cluster is shutdown so it can be copied in to the non-clustered, DefaultCache
+         fireLeftClusterAndWaitToComplete(Duration.ofSeconds(30));
+         // Stop the cluster
+-        hazelcast.getLifecycleService().removeLifecycleListener(lifecycleListener);
+-        cluster.removeMembershipListener(membershipListener);
++hazelcast.getLifecycleService().removeLifecycleListener(UUID.fromString(lifecycleListener));
++cluster.removeMembershipListener(UUID.fromString(membershipListener));
+         Hazelcast.shutdownAll();
+-        cluster = null;
++                cluster = null;
+         lifecycleListener = null;
+         membershipListener = null;
+         clusterListener = null;
+@@ -285,7 +287,7 @@ public class ClusteredCacheFactory implements CacheFactoryStrategy {
+         if (staticConfig == null) {
+             final MapConfig dynamicConfig = new MapConfig(name);
+             dynamicConfig.setTimeToLiveSeconds(hazelcastLifetimeInSeconds);
+-            dynamicConfig.setMaxSizeConfig(new MaxSizeConfig(hazelcastMaxCacheSizeInMegaBytes, MaxSizeConfig.MaxSizePolicy.USED_HEAP_SIZE));
++            dynamicConfig.setMaxSizeConfig(new com.hazelcast.config.MaxSizeConfig(hazelcastMaxCacheSizeInMegaBytes, MaxSizePolicy.USED_HEAP_SIZE));
+             logger.debug("Creating dynamic map config for cache={}, dynamicConfig={}", name, dynamicConfig);
+             hazelcast.getConfig().addMapConfig(dynamicConfig);
+         } else {
+@@ -432,7 +434,7 @@ public class ClusteredCacheFactory implements CacheFactoryStrategy {
+             // Asynchronously execute the task on the other cluster members
+             try {
+                 logger.debug("Executing MultiTask: " + task.getClass().getName());
+-                checkForPluginClassLoader(task);
++            checkForPluginClassLoader(task);
+                 final Map<Member, ? extends Future<T>> futures = hazelcast.getExecutorService(HAZELCAST_EXECUTOR_SERVICE_NAME.getValue()).submitToMembers(new CallableTask<>(task), members);
+                 long nanosLeft = TimeUnit.SECONDS.toNanos(MAX_CLUSTER_EXECUTION_TIME.getValue().getSeconds() * members.size());
+                 for (final Future<T> future : futures.values()) {
+@@ -505,7 +507,7 @@ public class ClusteredCacheFactory implements CacheFactoryStrategy {
+                 return member;
+             }
+         }
+-        return null;
++            return null;
+     }
+ 
+     @Override
+@@ -653,7 +655,7 @@ public class ClusteredCacheFactory implements CacheFactoryStrategy {
+     }
+ 
+     public static NodeID getNodeID(final Member member) {
+-        return NodeID.getInstance(member.getStringAttribute(HazelcastClusterNodeInfo.NODE_ID_ATTRIBUTE).getBytes(StandardCharsets.UTF_8));
++        return NodeID.getInstance(member.getAttribute(HazelcastClusterNodeInfo.NODE_ID_ATTRIBUTE).toString().getBytes(StandardCharsets.UTF_8));
+     }
+ 
+     static void fireLeftClusterAndWaitToComplete(final Duration timeout) {
+@@ -690,14 +692,11 @@ public class ClusteredCacheFactory implements CacheFactoryStrategy {
+             if (!leftClusterSemaphore.tryAcquire(timeout.toMillis(), TimeUnit.MILLISECONDS)) {
+                 logger.warn("Timeout waiting for leftCluster() event to be called [timeout={}]", StringUtils.getFullElapsedTime(timeout));
+             }
+-        } catch (final Exception e) {
++            } catch (final Exception e) {
+             logger.error("Unexpected exception waiting for clustering to shut down", e);
+         } finally {
+             ClusterManager.removeListener(clusterEventListener);
+         }
+     }
+ 
+-}
+-
+-
+-
++}
+\ No newline at end of file
+diff --git a/src/java/org/jivesoftware/openfire/plugin/util/cluster/HazelcastClusterNodeInfo.java b/src/java/org/jivesoftware/openfire/plugin/util/cluster/HazelcastClusterNodeInfo.java
+index 1436f11..055ff9f 100644
+--- a/src/java/org/jivesoftware/openfire/plugin/util/cluster/HazelcastClusterNodeInfo.java
++++ b/src/java/org/jivesoftware/openfire/plugin/util/cluster/HazelcastClusterNodeInfo.java
+@@ -21,7 +21,7 @@ import org.jivesoftware.openfire.cluster.ClusterNodeInfo;
+ import org.jivesoftware.openfire.cluster.NodeID;
+ import org.jivesoftware.openfire.plugin.util.cache.ClusteredCacheFactory;
+ 
+-import com.hazelcast.core.Member;
++import com.hazelcast.cluster.Member;
+ 
+ /**
+  * Cluster Node information as provided by Hazelcast.
+@@ -38,7 +38,7 @@ public class HazelcastClusterNodeInfo implements ClusterNodeInfo {
+     private final long joinedTime;
+     private final boolean seniorMember;
+ 
+-    public HazelcastClusterNodeInfo(final Member member, final long joinedTime) {
++    public HazelcastClusterNodeInfo(final com.hazelcast.cluster.Member member, final long joinedTime) {
+         this.hostname = member.getStringAttribute(HOST_NAME_ATTRIBUTE) + " (" + member.getSocketAddress().getHostString() + ")";
+         this.nodeID = ClusteredCacheFactory.getNodeID(member);
+         this.joinedTime = joinedTime;

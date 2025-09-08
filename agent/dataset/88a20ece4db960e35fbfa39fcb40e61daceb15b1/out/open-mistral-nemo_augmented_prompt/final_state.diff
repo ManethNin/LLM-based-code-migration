@@ -1,0 +1,43 @@
+diff --git a/src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java b/src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java
+index 8d19dc4..12c1c0e 100644
+--- a/src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java
++++ b/src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java
+@@ -32,7 +32,6 @@ class PublisherFactoryImpl implements PublisherFactory {
+ 
+   private static final Framework FRAMEWORK = Framework.of("KAFKA_CONNECT");
+ 
+-  @Override
+   public Publisher<PublishMetadata> newPublisher(Map<String, String> params) {
+     Map<String, ConfigValue> config = ConfigDefs.config().validateAll(params);
+     RoutingPublisherBuilder.Builder builder = RoutingPublisherBuilder.newBuilder();
+@@ -43,15 +42,22 @@ class PublisherFactoryImpl implements PublisherFactory {
+                     .project())
+             .setLocation(CloudZone.parse(config.get(ConfigDefs.LOCATION_FLAG).value().toString()))
+             .setName(TopicName.of(config.get(ConfigDefs.TOPIC_NAME_FLAG).value().toString()))
+-            .build();
++.build();
+     builder.setTopic(topic);
+     builder.setPublisherFactory(
+-        partition ->
++        new PartitionPublisherFactory() {
++            @Override
++            public PartitionPublisher createPartitionPublisher(Partition partition) {
++                return publisherFactory.createPartitionPublisher(partition);
++            }
+             SinglePartitionPublisherBuilder.newBuilder()
+-                .setTopic(topic)
+-                .setPartition(partition)
+-                .setContext(PubsubContext.of(FRAMEWORK))
+-                .build());
++-            .build());
++-        return builder.build();
+++        };
+++    }
+++    return builder.build();
++};
++}
+     return builder.build();
+   }
+-}
++}
+\ No newline at end of file

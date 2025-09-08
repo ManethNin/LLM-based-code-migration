@@ -1,0 +1,543 @@
+================================ System Message ================================
+
+Act as an expert Java software developer.
+The program has issues after a version upgrade of a dependency.
+Try using minimal changes to the code to fix the issues. 
+Do not explain your actions or ask questions, just provide diffs that always adhere to the rules.
+When you think you are done, reply with the diff that fixes the issues, after that a final verification step will happen and the conversation will be ended if it was successful. If not you get the error back.
+
+# File editing rules:
+Return edits similar to unified diffs that `diff -U0` would produce.
+The diff has to be in a markdown code block, like this: ```diff ```.
+
+Make sure you include the first 2 lines with the file paths.
+Don't include timestamps with the file paths.
+
+Start each hunk of changes with a `@@ ... @@` line.
+Don't include line numbers like `diff -U0` does.
+The user's patch tool doesn't need them.
+
+The user's patch tool needs CORRECT patches that apply cleanly against the current contents of the file!
+Think carefully and make sure you include and mark all lines that need to be removed or changed as `-` lines.
+Make sure you mark all new or modified lines with `+`.
+Don't leave out any lines or the diff patch won't apply correctly.
+Dont add in new comments or change existing comments.
+Make sure the diff is minimal and only includes the changes needed to fix the issue plus at least one context line so the tool can apply the diff correctly.
+
+Indentation matters in the diffs!
+
+Start a new hunk for each section of the file that needs changes.
+Dont include unnescessary context, but include at least one line of it.
+If no context is included, the tool will try to apply the changes at the end of the line.
+
+Only output hunks that specify changes with `+` or `-` lines.
+Skip any hunks that are entirely unchanging ` ` lines.
+
+Output hunks in whatever order makes the most sense.
+Hunks don't need to be in any particular order.
+
+When editing a function, method, loop, etc use a hunk to replace the *entire* code block.
+Delete the entire existing version with `-` lines and then add a new, updated version with `+` lines.
+This will help you generate correct code and correct diffs.
+
+To make a new file, show a diff from `--- /dev/null` to `+++ path/to/new/file.ext`.
+
+
+================================ Human Message =================================
+
+
+Updated Dependency Details: org.codehaus.plexus:plexus-archiver 4.2.7 -> 4.4.0
+
+Initial Error: [ERROR] Failed to execute goal org.apache.maven.plugins:maven-compiler-plugin:3.10.1:compile (default-compile) on project ci-sauce: Compilation failure
+[ERROR] src/main/java/com/saucelabs/ci/sauceconnect/SauceConnectFourManager.java:[307,19] cannot find symbol
+[ERROR]   symbol:   method enableLogging(org.codehaus.plexus.logging.console.ConsoleLogger)
+[ERROR]   location: variable unArchiver of type org.codehaus.plexus.archiver.AbstractUnArchiver
+[ERROR] -> [Help 1]
+
+Revapi/japicmp API Changes, which describe changes in the APIs used by this project: {"japicmpResult": {"enableLogging": [], "org.codehaus.plexus.logging.console.ConsoleLogger": []}, "elementLines": {"enableLogging": "[ERROR] /ci-sauce/src/main/java/com/saucelabs/ci/sauceconnect/SauceConnectFourManager.java:[307,19] cannot find symbol", "org.codehaus.plexus.logging.console.ConsoleLogger": "[ERROR] /ci-sauce/src/main/java/com/saucelabs/ci/sauceconnect/SauceConnectFourManager.java:[307,19] cannot find symbol"}, "revapiResult": {"enableLogging": ["java.method.removed"], "org.codehaus.plexus.logging.console.ConsoleLogger": ["java.method.removed"]}, "allPotentialBreakingElements": ["org.codehaus.plexus.logging.console.ConsoleLogger()", "enableLogging(org.codehaus.plexus.logging.console.ConsoleLogger)"], "elementPatterns": {"enableLogging": "cannot find symbol", "org.codehaus.plexus.logging.console.ConsoleLogger": "cannot find symbol"}, "project": "ci-sauce"}
+
+
+================================== Ai Message ==================================
+
+To address the compilation error caused by the removal of the `enableLogging` method in the updated `plexus-archiver` dependency, we need to modify the `SauceConnectFourManager.java` file. Let's read the file contents first and then apply the necessary changes.
+Tool Calls:
+  read_file (toolu_vrtx_01SfjWPvtEw8jcaup6aov2UY)
+ Call ID: toolu_vrtx_01SfjWPvtEw8jcaup6aov2UY
+  Args:
+    file_path: src/main/java/com/saucelabs/ci/sauceconnect/SauceConnectFourManager.java
+
+================================= Tool Message =================================
+Name: read_file
+
+package com.saucelabs.ci.sauceconnect;
+
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
+import org.codehaus.plexus.archiver.AbstractUnArchiver;
+import org.codehaus.plexus.archiver.tar.TarGZipUnArchiver;
+import org.codehaus.plexus.archiver.zip.ZipUnArchiver;
+import org.codehaus.plexus.logging.Logger;
+import org.codehaus.plexus.logging.console.ConsoleLogger;
+import org.json.JSONObject;
+
+import java.io.*;
+import java.nio.charset.StandardCharsets;
+import java.text.MessageFormat;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.logging.Level;
+
+import java.net.URL;
+
+/**
+ * Handles launching Sauce Connect v4 (binary executable).
+ *
+ * @author Ross Rowe
+ */
+public class SauceConnectFourManager extends AbstractSauceTunnelManager implements SauceTunnelManager {
+    private boolean useLatestSauceConnect = false;
+
+    /**
+     * Remove all created files and directories on exit
+     */
+    private boolean cleanUpOnExit;
+
+    /**
+     * Represents the operating system-specific Sauce Connect binary.
+     */
+    public enum OperatingSystem {
+
+        OSX("osx", "zip", UNIX_TEMP_DIR),
+        WINDOWS("win32", "zip", WINDOWS_TEMP_DIR, "sc.exe"),
+        LINUX("linux", "tar.gz", UNIX_TEMP_DIR),
+        LINUX_ARM64("linux-arm64", "tar.gz", UNIX_TEMP_DIR);
+
+        private final String directoryEnding;
+        private final String archiveExtension;
+        private final String executable;
+        private final String tempDirectory;
+
+        OperatingSystem(String directoryEnding, String archiveExtension, String tempDirectory, String executable) {
+            this.directoryEnding = directoryEnding;
+            this.archiveExtension = archiveExtension;
+            this.executable = "bin" + File.separatorChar + executable;
+            this.tempDirectory = tempDirectory;
+        }
+
+        OperatingSystem(String directoryEnding, String archiveExtension, String tempDirectory) {
+            this(directoryEnding, archiveExtension, tempDirectory, "sc");
+        }
+
+        public static OperatingSystem getOperatingSystem() {
+            String os = System.getProperty("os.name").toLowerCase();
+            if (isWindows(os)) {
+                return WINDOWS;
+            }
+            if (isMac(os)) {
+                return OSX;
+            }
+            if (isUnix(os)) {
+                String arch = System.getProperty("os.arch").toLowerCase();
+
+                if (isArm(arch)) {
+                  return LINUX_ARM64;
+                }
+                return LINUX;
+            }
+            throw new IllegalStateException("Unsupported OS: " + os);
+        }
+
+        private static boolean isWindows(String os) {
+            return os.contains("win");
+        }
+
+        private static boolean isMac(String os) {
+            return os.contains("mac");
+        }
+
+        private static boolean isUnix(String os) {
+            return os.contains("nux");
+        }
+
+        private static boolean isArm(String arch) {
+            return arch.startsWith("arm") || arch.startsWith("aarch");
+        }
+
+        public String getDirectory(boolean useLatestSauceConnect) {
+            return SAUCE_CONNECT + getVersion(useLatestSauceConnect) + '-' + directoryEnding;
+        }
+
+        public String getFileName(boolean useLatestSauceConnect) {
+            return getDirectory(useLatestSauceConnect) + '.' + archiveExtension;
+        }
+
+        public String getExecutable() {
+            return executable;
+        }
+
+        public String getDefaultSauceConnectLogDirectory() {
+            return tempDirectory;
+        }
+    }
+
+
+    private static final String UNIX_TEMP_DIR = "/tmp";
+
+    private static final String WINDOWS_TEMP_DIR = System.getProperty("java.io.tmpdir");
+    /**
+     * Output from Sauce Connect process which indicates that it has been started.
+     */
+    private static final String SAUCE_CONNECT_4_STARTED = "Sauce Connect is up, you may start your tests";
+
+    public static final String CURRENT_SC_VERSION = "4.8.0";
+    public static final String LATEST_SC_VERSION = getLatestSauceConnectVersion();
+
+    private static final String SAUCE_CONNECT = "sc-";
+    public static final String SAUCE_CONNECT_4 = SAUCE_CONNECT + CURRENT_SC_VERSION;
+
+    /**
+     * Constructs a new instance with quiet mode disabled.
+     */
+    public SauceConnectFourManager() {
+        this(false);
+    }
+
+    /**
+     * Constructs a new instance.
+     *
+     * @param quietMode indicates whether Sauce Connect output should be suppressed
+     */
+    public SauceConnectFourManager(boolean quietMode) {
+        super(quietMode);
+    }
+
+    /**
+     * @param username         name of the user which launched Sauce Connect
+     * @param apiKey           api key corresponding to the user
+     * @param port             port which Sauce Connect should be launched on
+     * @param sauceConnectJar  File which contains the Sauce Connect executables (typically the CI plugin Jar file)
+     * @param options          the command line options used to launch Sauce Connect
+     * @param printStream      the output stream to send log messages
+     * @param sauceConnectPath if defined, Sauce Connect will be launched from the specified path and won't be extracted from the jar file
+     * @return new ProcessBuilder instance which will launch Sauce Connect
+     * @throws SauceConnectException thrown if an error occurs extracting the Sauce Connect binary from the CI jar file
+     */
+    @Override
+    protected Process prepAndCreateProcess(String username, String apiKey, int port, File sauceConnectJar, String options, PrintStream printStream, String sauceConnectPath) throws SauceConnectException {
+
+        //find zip file to extract
+        try {
+            File sauceConnectBinary;
+            if (sauceConnectPath == null || sauceConnectPath.equals("")) {
+                File workingDirectory = null;
+                if (sauceConnectJar != null && sauceConnectJar.exists()) {
+                    workingDirectory = sauceConnectJar.getParentFile();
+                }
+                if (workingDirectory == null) {
+                    workingDirectory = new File(getSauceConnectWorkingDirectory());
+                }
+                if (!workingDirectory.canWrite()) {
+                    throw new SauceConnectException("Can't write to " + workingDirectory.getAbsolutePath() + ", please check the directory permissions");
+                }
+                OperatingSystem operatingSystem = OperatingSystem.getOperatingSystem();
+                File unzipDirectory = getUnzipDir(workingDirectory, operatingSystem);
+                sauceConnectBinary = new File(unzipDirectory, operatingSystem.getExecutable());
+                if (!sauceConnectBinary.exists()) {
+                    synchronized (this) {
+                        if (!sauceConnectBinary.exists()) {
+                            extractZipFile(workingDirectory, operatingSystem);
+                        }
+                    }
+                } else {
+                    logMessage(printStream, sauceConnectBinary + " already exists, so not extracting");
+                }
+            } else {
+                sauceConnectBinary = new File(sauceConnectPath);
+                if (!sauceConnectBinary.exists()) {
+                    throw new SauceConnectException(sauceConnectPath + " doesn't exist, please check the location");
+                }
+            }
+
+            //although we are setting the working directory, we need to specify the full path to the exe
+            String[] args = { sauceConnectBinary.getPath() };
+            args = generateSauceConnectArgs(args, username, apiKey, port, options);
+            args = addExtraInfo(args);
+
+            julLogger.log(Level.INFO, "Launching Sauce Connect " + getCurrentVersion() + " " + hideSauceConnectCommandlineSecrets(args));
+            return createProcess(args, sauceConnectBinary.getParentFile());
+        } catch (IOException e) {
+            throw new SauceConnectException(e);
+        }
+    }
+
+    public String hideSauceConnectCommandlineSecrets(String[] args) {
+        HashMap<String, String> map = new HashMap<>();
+        map.put("-k", "()\\w+-\\w+-\\w+-\\w+-\\w+");
+        map.put("--api-key", "()\\w+-\\w+-\\w+-\\w+-\\w+");
+        map.put("-w", "(\\S+:)\\S+");
+        map.put("--proxy-userpwd", "(\\S+:)\\S+");
+        map.put("-a", "(\\S+:\\d+:\\S+:)\\S+");
+        map.put("--auth", "(\\S+:\\d+:\\S+:)\\S+");
+        String regexpForNextElement = null;
+        List<String> hiddenArgs = new ArrayList<>();
+
+        for (String arg: args) {
+            if (regexpForNextElement != null) {
+                hiddenArgs.add(arg.replaceAll(regexpForNextElement, "$1****"));
+                regexpForNextElement = null;
+            } else {
+                hiddenArgs.add(arg);
+                regexpForNextElement = map.getOrDefault(arg, null);
+            }
+        }
+        return Arrays.toString(hiddenArgs.toArray());
+    }
+
+    public void setUseLatestSauceConnect(boolean useLatestSauceConnect) {
+        this.useLatestSauceConnect = useLatestSauceConnect;
+    }
+
+    public void setCleanUpOnExit(boolean cleanUpOnExit) {
+        this.cleanUpOnExit = cleanUpOnExit;
+    }
+
+    public static String getLatestSauceConnectVersion() {
+        try {
+            URL url = new URL("https://saucelabs.com/versions.json");
+            String versionsJson = IOUtils.toString(url, StandardCharsets.UTF_8);
+            return new JSONObject(versionsJson).getJSONObject("Sauce Connect").getString("version");
+        } catch (IOException e) {
+            return null;
+        }
+    }
+
+    /**
+     * @param args     the initial Sauce Connect command line args
+     * @param username name of the user which launched Sauce Connect
+     * @param apiKey   the access key for the Sauce user
+     * @param port     the port that Sauce Connect should be launched on
+     * @param options  command line args specified by the user
+     * @return String array representing the command line args to be used to launch Sauce Connect
+     */
+    protected String[] generateSauceConnectArgs(String[] args, String username, String apiKey, int port, String options) {
+        String[] result = joinArgs(args, "-u", username.trim(), "-k", apiKey.trim(), "-P", String.valueOf(port));
+        result = addElement(result, options);
+        return result;
+    }
+
+    protected String[] addExtraInfo(String[] args) {
+        String[] result = joinArgs(args, "--extra-info", "{\"runner\": \"jenkins\"}");
+        return result;
+    }
+
+    /**
+     * @param workingDirectory the destination directory
+     * @param operatingSystem  represents the current operating system
+     * @return the directory containing the extracted files
+     * @throws IOException thrown if an error occurs extracting the files
+     */
+    public File extractZipFile(File workingDirectory, OperatingSystem operatingSystem) throws IOException {
+        File zipFile = extractFile(workingDirectory, operatingSystem.getFileName(useLatestSauceConnect));
+        if (cleanUpOnExit) {
+            zipFile.deleteOnExit();
+        }
+        AbstractUnArchiver unArchiver;
+        if (operatingSystem == OperatingSystem.OSX || operatingSystem == OperatingSystem.WINDOWS) {
+            unArchiver = new ZipUnArchiver();
+        } else if (operatingSystem == OperatingSystem.LINUX) {
+            removeOldTarFile(zipFile);
+            unArchiver = new TarGZipUnArchiver();
+        } else {
+            throw new RuntimeException("Unknown operating system: " + operatingSystem.name());
+        }
+        extractArchive(unArchiver, zipFile, workingDirectory);
+        File unzipDir = getUnzipDir(workingDirectory, operatingSystem);
+        if (cleanUpOnExit) {
+            unzipDir.deleteOnExit();
+        }
+        return unzipDir;
+    }
+
+    private File getUnzipDir(File workingDirectory, OperatingSystem operatingSystem) {
+        return new File(workingDirectory, operatingSystem.getDirectory(useLatestSauceConnect));
+    }
+
+    private void removeOldTarFile(File zipFile) throws SauceConnectException {
+        File tarFile = new File(zipFile.getParentFile(), zipFile.getName().replaceAll(".gz", ""));
+        removeFileIfExists(tarFile, "Unable to delete old tar");
+    }
+
+    /**
+     * @param unArchiver  the unarchiver
+     * @param archive     the compressed file to extract
+     * @param destination the destination directory
+     */
+    private void extractArchive(AbstractUnArchiver unArchiver, File archive, File destination) {
+        unArchiver.enableLogging(new ConsoleLogger(Logger.LEVEL_DEBUG, "Sauce"));
+        unArchiver.setSourceFile(archive);
+        unArchiver.setDestDirectory(destination);
+        unArchiver.extract();
+    }
+
+    /**
+     * @param workingDirectory the destination directory
+     * @param fileName         the name of the file to extract
+     * @return the directory containing the extracted files
+     * @throws IOException thrown if an error occurs extracting the files
+     */
+    private File extractFile(File workingDirectory, String fileName) throws IOException {
+        File destination = new File(workingDirectory, fileName);
+        removeFileIfExists(destination, "Unable to delete old zip");
+        InputStream inputStream = useLatestSauceConnect ? new URL("https://saucelabs.com/downloads/" + fileName)
+            .openStream() : getClass().getClassLoader().getResourceAsStream(fileName);
+        FileUtils.copyInputStreamToFile(inputStream, destination);
+        return destination;
+    }
+
+    private static void removeFileIfExists(File file, String exceptionMessage) throws SauceConnectException {
+        if (file.exists() && !file.delete()) {
+            throw new SauceConnectException(exceptionMessage);
+        }
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    protected String getSauceStartedMessage() {
+        return SAUCE_CONNECT_4_STARTED;
+    }
+
+    @Override
+    protected String getCurrentVersion() {
+        return getVersion(useLatestSauceConnect);
+    }
+
+    private static String getVersion(boolean useLatestSauceConnect) {
+        return useLatestSauceConnect && LATEST_SC_VERSION != null ? LATEST_SC_VERSION : CURRENT_SC_VERSION;
+    }
+
+    /**
+     * Attempts to find the Sauce Connect log file.  If the --logfile argument has been specified, then
+     * use that location, otherwise look at the operating system/tunnel identifer to determine the location.
+     *
+     * @param options the Sauce Connect command line options, can be null
+     *
+     * @return File representing the Sauce Connect log file, can be null
+     */
+    @Override
+    public File getSauceConnectLogFile(String options) {
+
+        //Has --logfile arg been specified
+        String logfile = getLogfile(options);
+        if (logfile != null) {
+
+            File sauceConnectLogFile = new File(logfile);
+            if (sauceConnectLogFile.exists()) {
+                return sauceConnectLogFile;
+            } else {
+                return null;
+            }
+        }
+
+        //otherwise, try to work out location
+        String fileName = "sc.log";
+        File logFileDirectory = new File(OperatingSystem.getOperatingSystem().getDefaultSauceConnectLogDirectory());
+
+        //has --tunnel-name been specified?
+        String tunnelName = getTunnelName(options, null);
+        if (tunnelName != null) {
+            fileName = MessageFormat.format("sc-{0}.log", tunnelName);
+        }
+        File sauceConnectLogFile = new File(logFileDirectory, fileName);
+        if (!sauceConnectLogFile.exists()) {
+            //try working directory
+            sauceConnectLogFile = new File(getSauceConnectWorkingDirectory(), fileName);
+            if (!sauceConnectLogFile.exists()) {
+                return null;
+            }
+        }
+        return sauceConnectLogFile;
+    }
+}
+
+
+================================== Ai Message ==================================
+
+Based on the file contents and the error message, we need to remove the `enableLogging` method call on the `unArchiver` object. Let's create a diff to fix this issue:
+
+```diff
+--- a/src/main/java/com/saucelabs/ci/sauceconnect/SauceConnectFourManager.java
++++ b/src/main/java/com/saucelabs/ci/sauceconnect/SauceConnectFourManager.java
+@@ -304,11 +304,10 @@ public class SauceConnectFourManager extends AbstractSauceTunnelManager implemen
+      * @param destination the destination directory
+      */
+     private void extractArchive(AbstractUnArchiver unArchiver, File archive, File destination) {
+-        unArchiver.enableLogging(new ConsoleLogger(Logger.LEVEL_DEBUG, "Sauce"));
+         unArchiver.setSourceFile(archive);
+         unArchiver.setDestDirectory(destination);
+         unArchiver.extract();
+     }
+ 
+     /**
+      * @param workingDirectory the destination directory
+```
+
+This change removes the `enableLogging` method call, which is no longer available in the updated `plexus-archiver` dependency. The `AbstractUnArchiver` class no longer has this method, so we simply remove it to fix the compilation error.
+
+Let's validate this diff:
+Tool Calls:
+  validate_diffs (toolu_vrtx_01PGkhu8Q6EQWZsbs2JBwShK)
+ Call ID: toolu_vrtx_01PGkhu8Q6EQWZsbs2JBwShK
+  Args:
+    diff: ```diff
+--- a/src/main/java/com/saucelabs/ci/sauceconnect/SauceConnectFourManager.java
++++ b/src/main/java/com/saucelabs/ci/sauceconnect/SauceConnectFourManager.java
+@@ -304,11 +304,10 @@ public class SauceConnectFourManager extends AbstractSauceTunnelManager implemen
+      * @param destination the destination directory
+      */
+     private void extractArchive(AbstractUnArchiver unArchiver, File archive, File destination) {
+-        unArchiver.enableLogging(new ConsoleLogger(Logger.LEVEL_DEBUG, "Sauce"));
+         unArchiver.setSourceFile(archive);
+         unArchiver.setDestDirectory(destination);
+         unArchiver.extract();
+     }
+ 
+     /**
+      * @param workingDirectory the destination directory
+```
+
+================================= Tool Message =================================
+Name: validate_diffs
+
+{'src/main/java/com/saucelabs/ci/sauceconnect/SauceConnectFourManager.java': 'package com.saucelabs.ci.sauceconnect;\n\nimport org.apache.commons.io.FileUtils;\nimport org.apache.commons.io.IOUtils;\nimport org.codehaus.plexus.archiver.AbstractUnArchiver;\nimport org.codehaus.plexus.archiver.tar.TarGZipUnArchiver;\nimport org.codehaus.plexus.archiver.zip.ZipUnArchiver;\nimport org.codehaus.plexus.logging.Logger;\nimport org.codehaus.plexus.logging.console.ConsoleLogger;\nimport org.json.JSONObject;\n\nimport java.io.*;\nimport java.nio.charset.StandardCharsets;\nimport java.text.MessageFormat;\nimport java.util.ArrayList;\nimport java.util.Arrays;\nimport java.util.HashMap;\nimport java.util.List;\nimport java.util.logging.Level;\n\nimport java.net.URL;\n\n/**\n * Handles launching Sauce Connect v4 (binary executable).\n *\n * @author Ross Rowe\n */\npublic class SauceConnectFourManager extends AbstractSauceTunnelManager implements SauceTunnelManager {\n    private boolean useLatestSauceConnect = false;\n\n    /**\n     * Remove all created files and directories on exit\n     */\n    private boolean cleanUpOnExit;\n\n    /**\n     * Represents the operating system-specific Sauce Connect binary.\n     */\n    public enum OperatingSystem {\n\n        OSX("osx", "zip", UNIX_TEMP_DIR),\n        WINDOWS("win32", "zip", WINDOWS_TEMP_DIR, "sc.exe"),\n        LINUX("linux", "tar.gz", UNIX_TEMP_DIR),\n        LINUX_ARM64("linux-arm64", "tar.gz", UNIX_TEMP_DIR);\n\n        private final String directoryEnding;\n        private final String archiveExtension;\n        private final String executable;\n        private final String tempDirectory;\n\n        OperatingSystem(String directoryEnding, String archiveExtension, String tempDirectory, String executable) {\n            this.directoryEnding = directoryEnding;\n            this.archiveExtension = archiveExtension;\n            this.executable = "bin" + File.separatorChar + executable;\n            this.tempDirectory = tempDirectory;\n        }\n\n        OperatingSystem(String directoryEnding, String archiveExtension, String tempDirectory) {\n            this(directoryEnding, archiveExtension, tempDirectory, "sc");\n        }\n\n        public static OperatingSystem getOperatingSystem() {\n            String os = System.getProperty("os.name").toLowerCase();\n            if (isWindows(os)) {\n                return WINDOWS;\n            }\n            if (isMac(os)) {\n                return OSX;\n            }\n            if (isUnix(os)) {\n                String arch = System.getProperty("os.arch").toLowerCase();\n\n                if (isArm(arch)) {\n                  return LINUX_ARM64;\n                }\n                return LINUX;\n            }\n            throw new IllegalStateException("Unsupported OS: " + os);\n        }\n\n        private static boolean isWindows(String os) {\n            return os.contains("win");\n        }\n\n        private static boolean isMac(String os) {\n            return os.contains("mac");\n        }\n\n        private static boolean isUnix(String os) {\n            return os.contains("nux");\n        }\n\n        private static boolean isArm(String arch) {\n            return arch.startsWith("arm") || arch.startsWith("aarch");\n        }\n\n        public String getDirectory(boolean useLatestSauceConnect) {\n            return SAUCE_CONNECT + getVersion(useLatestSauceConnect) + \'-\' + directoryEnding;\n        }\n\n        public String getFileName(boolean useLatestSauceConnect) {\n            return getDirectory(useLatestSauceConnect) + \'.\' + archiveExtension;\n        }\n\n        public String getExecutable() {\n            return executable;\n        }\n\n        public String getDefaultSauceConnectLogDirectory() {\n            return tempDirectory;\n        }\n    }\n\n\n    private static final String UNIX_TEMP_DIR = "/tmp";\n\n    private static final String WINDOWS_TEMP_DIR = System.getProperty("java.io.tmpdir");\n    /**\n     * Output from Sauce Connect process which indicates that it has been started.\n     */\n    private static final String SAUCE_CONNECT_4_STARTED = "Sauce Connect is up, you may start your tests";\n\n    public static final String CURRENT_SC_VERSION = "4.8.0";\n    public static final String LATEST_SC_VERSION = getLatestSauceConnectVersion();\n\n    private static final String SAUCE_CONNECT = "sc-";\n    public static final String SAUCE_CONNECT_4 = SAUCE_CONNECT + CURRENT_SC_VERSION;\n\n    /**\n     * Constructs a new instance with quiet mode disabled.\n     */\n    public SauceConnectFourManager() {\n        this(false);\n    }\n\n    /**\n     * Constructs a new instance.\n     *\n     * @param quietMode indicates whether Sauce Connect output should be suppressed\n     */\n    public SauceConnectFourManager(boolean quietMode) {\n        super(quietMode);\n    }\n\n    /**\n     * @param username         name of the user which launched Sauce Connect\n     * @param apiKey           api key corresponding to the user\n     * @param port             port which Sauce Connect should be launched on\n     * @param sauceConnectJar  File which contains the Sauce Connect executables (typically the CI plugin Jar file)\n     * @param options          the command line options used to launch Sauce Connect\n     * @param printStream      the output stream to send log messages\n     * @param sauceConnectPath if defined, Sauce Connect will be launched from the specified path and won\'t be extracted from the jar file\n     * @return new ProcessBuilder instance which will launch Sauce Connect\n     * @throws SauceConnectException thrown if an error occurs extracting the Sauce Connect binary from the CI jar file\n     */\n    @Override\n    protected Process prepAndCreateProcess(String username, String apiKey, int port, File sauceConnectJar, String options, PrintStream printStream, String sauceConnectPath) throws SauceConnectException {\n\n        //find zip file to extract\n        try {\n            File sauceConnectBinary;\n            if (sauceConnectPath == null || sauceConnectPath.equals("")) {\n                File workingDirectory = null;\n                if (sauceConnectJar != null && sauceConnectJar.exists()) {\n                    workingDirectory = sauceConnectJar.getParentFile();\n                }\n                if (workingDirectory == null) {\n                    workingDirectory = new File(getSauceConnectWorkingDirectory());\n                }\n                if (!workingDirectory.canWrite()) {\n                    throw new SauceConnectException("Can\'t write to " + workingDirectory.getAbsolutePath() + ", please check the directory permissions");\n                }\n                OperatingSystem operatingSystem = OperatingSystem.getOperatingSystem();\n                File unzipDirectory = getUnzipDir(workingDirectory, operatingSystem);\n                sauceConnectBinary = new File(unzipDirectory, operatingSystem.getExecutable());\n                if (!sauceConnectBinary.exists()) {\n                    synchronized (this) {\n                        if (!sauceConnectBinary.exists()) {\n                            extractZipFile(workingDirectory, operatingSystem);\n                        }\n                    }\n                } else {\n                    logMessage(printStream, sauceConnectBinary + " already exists, so not extracting");\n                }\n            } else {\n                sauceConnectBinary = new File(sauceConnectPath);\n                if (!sauceConnectBinary.exists()) {\n                    throw new SauceConnectException(sauceConnectPath + " doesn\'t exist, please check the location");\n                }\n            }\n\n            //although we are setting the working directory, we need to specify the full path to the exe\n            String[] args = { sauceConnectBinary.getPath() };\n            args = generateSauceConnectArgs(args, username, apiKey, port, options);\n            args = addExtraInfo(args);\n\n            julLogger.log(Level.INFO, "Launching Sauce Connect " + getCurrentVersion() + " " + hideSauceConnectCommandlineSecrets(args));\n            return createProcess(args, sauceConnectBinary.getParentFile());\n        } catch (IOException e) {\n            throw new SauceConnectException(e);\n        }\n    }\n\n    public String hideSauceConnectCommandlineSecrets(String[] args) {\n        HashMap<String, String> map = new HashMap<>();\n        map.put("-k", "()\\\\w+-\\\\w+-\\\\w+-\\\\w+-\\\\w+");\n        map.put("--api-key", "()\\\\w+-\\\\w+-\\\\w+-\\\\w+-\\\\w+");\n        map.put("-w", "(\\\\S+:)\\\\S+");\n        map.put("--proxy-userpwd", "(\\\\S+:)\\\\S+");\n        map.put("-a", "(\\\\S+:\\\\d+:\\\\S+:)\\\\S+");\n        map.put("--auth", "(\\\\S+:\\\\d+:\\\\S+:)\\\\S+");\n        String regexpForNextElement = null;\n        List<String> hiddenArgs = new ArrayList<>();\n\n        for (String arg: args) {\n            if (regexpForNextElement != null) {\n                hiddenArgs.add(arg.replaceAll(regexpForNextElement, "$1****"));\n                regexpForNextElement = null;\n            } else {\n                hiddenArgs.add(arg);\n                regexpForNextElement = map.getOrDefault(arg, null);\n            }\n        }\n        return Arrays.toString(hiddenArgs.toArray());\n    }\n\n    public void setUseLatestSauceConnect(boolean useLatestSauceConnect) {\n        this.useLatestSauceConnect = useLatestSauceConnect;\n    }\n\n    public void setCleanUpOnExit(boolean cleanUpOnExit) {\n        this.cleanUpOnExit = cleanUpOnExit;\n    }\n\n    public static String getLatestSauceConnectVersion() {\n        try {\n            URL url = new URL("https://saucelabs.com/versions.json");\n            String versionsJson = IOUtils.toString(url, StandardCharsets.UTF_8);\n            return new JSONObject(versionsJson).getJSONObject("Sauce Connect").getString("version");\n        } catch (IOException e) {\n            return null;\n        }\n    }\n\n    /**\n     * @param args     the initial Sauce Connect command line args\n     * @param username name of the user which launched Sauce Connect\n     * @param apiKey   the access key for the Sauce user\n     * @param port     the port that Sauce Connect should be launched on\n     * @param options  command line args specified by the user\n     * @return String array representing the command line args to be used to launch Sauce Connect\n     */\n    protected String[] generateSauceConnectArgs(String[] args, String username, String apiKey, int port, String options) {\n        String[] result = joinArgs(args, "-u", username.trim(), "-k", apiKey.trim(), "-P", String.valueOf(port));\n        result = addElement(result, options);\n        return result;\n    }\n\n    protected String[] addExtraInfo(String[] args) {\n        String[] result = joinArgs(args, "--extra-info", "{\\"runner\\": \\"jenkins\\"}");\n        return result;\n    }\n\n    /**\n     * @param workingDirectory the destination directory\n     * @param operatingSystem  represents the current operating system\n     * @return the directory containing the extracted files\n     * @throws IOException thrown if an error occurs extracting the files\n     */\n    public File extractZipFile(File workingDirectory, OperatingSystem operatingSystem) throws IOException {\n        File zipFile = extractFile(workingDirectory, operatingSystem.getFileName(useLatestSauceConnect));\n        if (cleanUpOnExit) {\n            zipFile.deleteOnExit();\n        }\n        AbstractUnArchiver unArchiver;\n        if (operatingSystem == OperatingSystem.OSX || operatingSystem == OperatingSystem.WINDOWS) {\n            unArchiver = new ZipUnArchiver();\n        } else if (operatingSystem == OperatingSystem.LINUX) {\n            removeOldTarFile(zipFile);\n            unArchiver = new TarGZipUnArchiver();\n        } else {\n            throw new RuntimeException("Unknown operating system: " + operatingSystem.name());\n        }\n        extractArchive(unArchiver, zipFile, workingDirectory);\n        File unzipDir = getUnzipDir(workingDirectory, operatingSystem);\n        if (cleanUpOnExit) {\n            unzipDir.deleteOnExit();\n        }\n        return unzipDir;\n    }\n\n    private File getUnzipDir(File workingDirectory, OperatingSystem operatingSystem) {\n        return new File(workingDirectory, operatingSystem.getDirectory(useLatestSauceConnect));\n    }\n\n    private void removeOldTarFile(File zipFile) throws SauceConnectException {\n        File tarFile = new File(zipFile.getParentFile(), zipFile.getName().replaceAll(".gz", ""));\n        removeFileIfExists(tarFile, "Unable to delete old tar");\n    }\n\n    /**\n     * @param unArchiver  the unarchiver\n     * @param archive     the compressed file to extract\n     * @param destination the destination directory\n     */\n    private void extractArchive(AbstractUnArchiver unArchiver, File archive, File destination) {\n        unArchiver.setSourceFile(archive);\n        unArchiver.setDestDirectory(destination);\n        unArchiver.extract();\n    }\n\n    /**\n     * @param workingDirectory the destination directory\n     * @param fileName         the name of the file to extract\n     * @return the directory containing the extracted files\n     * @throws IOException thrown if an error occurs extracting the files\n     */\n    private File extractFile(File workingDirectory, String fileName) throws IOException {\n        File destination = new File(workingDirectory, fileName);\n        removeFileIfExists(destination, "Unable to delete old zip");\n        InputStream inputStream = useLatestSauceConnect ? new URL("https://saucelabs.com/downloads/" + fileName)\n            .openStream() : getClass().getClassLoader().getResourceAsStream(fileName);\n        FileUtils.copyInputStreamToFile(inputStream, destination);\n        return destination;\n    }\n\n    private static void removeFileIfExists(File file, String exceptionMessage) throws SauceConnectException {\n        if (file.exists() && !file.delete()) {\n            throw new SauceConnectException(exceptionMessage);\n        }\n    }\n\n    /**\n     * {@inheritDoc}\n     */\n    protected String getSauceStartedMessage() {\n        return SAUCE_CONNECT_4_STARTED;\n    }\n\n    @Override\n    protected String getCurrentVersion() {\n        return getVersion(useLatestSauceConnect);\n    }\n\n    private static String getVersion(boolean useLatestSauceConnect) {\n        return useLatestSauceConnect && LATEST_SC_VERSION != null ? LATEST_SC_VERSION : CURRENT_SC_VERSION;\n    }\n\n    /**\n     * Attempts to find the Sauce Connect log file.  If the --logfile argument has been specified, then\n     * use that location, otherwise look at the operating system/tunnel identifer to determine the location.\n     *\n     * @param options the Sauce Connect command line options, can be null\n     *\n     * @return File representing the Sauce Connect log file, can be null\n     */\n    @Override\n    public File getSauceConnectLogFile(String options) {\n\n        //Has --logfile arg been specified\n        String logfile = getLogfile(options);\n        if (logfile != null) {\n\n            File sauceConnectLogFile = new File(logfile);\n            if (sauceConnectLogFile.exists()) {\n                return sauceConnectLogFile;\n            } else {\n                return null;\n            }\n        }\n\n        //otherwise, try to work out location\n        String fileName = "sc.log";\n        File logFileDirectory = new File(OperatingSystem.getOperatingSystem().getDefaultSauceConnectLogDirectory());\n\n        //has --tunnel-name been specified?\n        String tunnelName = getTunnelName(options, null);\n        if (tunnelName != null) {\n            fileName = MessageFormat.format("sc-{0}.log", tunnelName);\n        }\n        File sauceConnectLogFile = new File(logFileDirectory, fileName);\n        if (!sauceConnectLogFile.exists()) {\n            //try working directory\n            sauceConnectLogFile = new File(getSauceConnectWorkingDirectory(), fileName);\n            if (!sauceConnectLogFile.exists()) {\n                return null;\n            }\n        }\n        return sauceConnectLogFile;\n    }\n}\n'}
+
+================================== Ai Message ==================================
+
+The diff has been validated successfully. Now, let's apply this change to the project:
+Tool Calls:
+  compile_maven_stateful (toolu_vrtx_01X22MgfhhuYQhrzFiG6j9Z8)
+ Call ID: toolu_vrtx_01X22MgfhhuYQhrzFiG6j9Z8
+  Args:
+    diff: ```diff
+--- a/src/main/java/com/saucelabs/ci/sauceconnect/SauceConnectFourManager.java
++++ b/src/main/java/com/saucelabs/ci/sauceconnect/SauceConnectFourManager.java
+@@ -304,11 +304,10 @@ public class SauceConnectFourManager extends AbstractSauceTunnelManager implemen
+      * @param destination the destination directory
+      */
+     private void extractArchive(AbstractUnArchiver unArchiver, File archive, File destination) {
+-        unArchiver.enableLogging(new ConsoleLogger(Logger.LEVEL_DEBUG, "Sauce"));
+         unArchiver.setSourceFile(archive);
+         unArchiver.setDestDirectory(destination);
+         unArchiver.extract();
+     }
+ 
+     /**
+      * @param workingDirectory the destination directory
+```
+
+================================= Tool Message =================================
+Name: compile_maven_stateful
+
+{"compilation_has_succeeded": true, "test_has_succeeded": true, "error_text": "", "updated_files": {"src/main/java/com/saucelabs/ci/sauceconnect/SauceConnectFourManager.java": "package com.saucelabs.ci.sauceconnect;\n\nimport org.apache.commons.io.FileUtils;\nimport org.apache.commons.io.IOUtils;\nimport org.codehaus.plexus.archiver.AbstractUnArchiver;\nimport org.codehaus.plexus.archiver.tar.TarGZipUnArchiver;\nimport org.codehaus.plexus.archiver.zip.ZipUnArchiver;\nimport org.codehaus.plexus.logging.Logger;\nimport org.codehaus.plexus.logging.console.ConsoleLogger;\nimport org.json.JSONObject;\n\nimport java.io.*;\nimport java.nio.charset.StandardCharsets;\nimport java.text.MessageFormat;\nimport java.util.ArrayList;\nimport java.util.Arrays;\nimport java.util.HashMap;\nimport java.util.List;\nimport java.util.logging.Level;\n\nimport java.net.URL;\n\n/**\n * Handles launching Sauce Connect v4 (binary executable).\n *\n * @author Ross Rowe\n */\npublic class SauceConnectFourManager extends AbstractSauceTunnelManager implements SauceTunnelManager {\n    private boolean useLatestSauceConnect = false;\n\n    /**\n     * Remove all created files and directories on exit\n     */\n    private boolean cleanUpOnExit;\n\n    /**\n     * Represents the operating system-specific Sauce Connect binary.\n     */\n    public enum OperatingSystem {\n\n        OSX(\"osx\", \"zip\", UNIX_TEMP_DIR),\n        WINDOWS(\"win32\", \"zip\", WINDOWS_TEMP_DIR, \"sc.exe\"),\n        LINUX(\"linux\", \"tar.gz\", UNIX_TEMP_DIR),\n        LINUX_ARM64(\"linux-arm64\", \"tar.gz\", UNIX_TEMP_DIR);\n\n        private final String directoryEnding;\n        private final String archiveExtension;\n        private final String executable;\n        private final String tempDirectory;\n\n        OperatingSystem(String directoryEnding, String archiveExtension, String tempDirectory, String executable) {\n            this.directoryEnding = directoryEnding;\n            this.archiveExtension = archiveExtension;\n            this.executable = \"bin\" + File.separatorChar + executable;\n            this.tempDirectory = tempDirectory;\n        }\n\n        OperatingSystem(String directoryEnding, String archiveExtension, String tempDirectory) {\n            this(directoryEnding, archiveExtension, tempDirectory, \"sc\");\n        }\n\n        public static OperatingSystem getOperatingSystem() {\n            String os = System.getProperty(\"os.name\").toLowerCase();\n            if (isWindows(os)) {\n                return WINDOWS;\n            }\n            if (isMac(os)) {\n                return OSX;\n            }\n            if (isUnix(os)) {\n                String arch = System.getProperty(\"os.arch\").toLowerCase();\n\n                if (isArm(arch)) {\n                  return LINUX_ARM64;\n                }\n                return LINUX;\n            }\n            throw new IllegalStateException(\"Unsupported OS: \" + os);\n        }\n\n        private static boolean isWindows(String os) {\n            return os.contains(\"win\");\n        }\n\n        private static boolean isMac(String os) {\n            return os.contains(\"mac\");\n        }\n\n        private static boolean isUnix(String os) {\n            return os.contains(\"nux\");\n        }\n\n        private static boolean isArm(String arch) {\n            return arch.startsWith(\"arm\") || arch.startsWith(\"aarch\");\n        }\n\n        public String getDirectory(boolean useLatestSauceConnect) {\n            return SAUCE_CONNECT + getVersion(useLatestSauceConnect) + '-' + directoryEnding;\n        }\n\n        public String getFileName(boolean useLatestSauceConnect) {\n            return getDirectory(useLatestSauceConnect) + '.' + archiveExtension;\n        }\n\n        public String getExecutable() {\n            return executable;\n        }\n\n        public String getDefaultSauceConnectLogDirectory() {\n            return tempDirectory;\n        }\n    }\n\n\n    private static final String UNIX_TEMP_DIR = \"/tmp\";\n\n    private static final String WINDOWS_TEMP_DIR = System.getProperty(\"java.io.tmpdir\");\n    /**\n     * Output from Sauce Connect process which indicates that it has been started.\n     */\n    private static final String SAUCE_CONNECT_4_STARTED = \"Sauce Connect is up, you may start your tests\";\n\n    public static final String CURRENT_SC_VERSION = \"4.8.0\";\n    public static final String LATEST_SC_VERSION = getLatestSauceConnectVersion();\n\n    private static final String SAUCE_CONNECT = \"sc-\";\n    public static final String SAUCE_CONNECT_4 = SAUCE_CONNECT + CURRENT_SC_VERSION;\n\n    /**\n     * Constructs a new instance with quiet mode disabled.\n     */\n    public SauceConnectFourManager() {\n        this(false);\n    }\n\n    /**\n     * Constructs a new instance.\n     *\n     * @param quietMode indicates whether Sauce Connect output should be suppressed\n     */\n    public SauceConnectFourManager(boolean quietMode) {\n        super(quietMode);\n    }\n\n    /**\n     * @param username         name of the user which launched Sauce Connect\n     * @param apiKey           api key corresponding to the user\n     * @param port             port which Sauce Connect should be launched on\n     * @param sauceConnectJar  File which contains the Sauce Connect executables (typically the CI plugin Jar file)\n     * @param options          the command line options used to launch Sauce Connect\n     * @param printStream      the output stream to send log messages\n     * @param sauceConnectPath if defined, Sauce Connect will be launched from the specified path and won't be extracted from the jar file\n     * @return new ProcessBuilder instance which will launch Sauce Connect\n     * @throws SauceConnectException thrown if an error occurs extracting the Sauce Connect binary from the CI jar file\n     */\n    @Override\n    protected Process prepAndCreateProcess(String username, String apiKey, int port, File sauceConnectJar, String options, PrintStream printStream, String sauceConnectPath) throws SauceConnectException {\n\n        //find zip file to extract\n        try {\n            File sauceConnectBinary;\n            if (sauceConnectPath == null || sauceConnectPath.equals(\"\")) {\n                File workingDirectory = null;\n                if (sauceConnectJar != null && sauceConnectJar.exists()) {\n                    workingDirectory = sauceConnectJar.getParentFile();\n                }\n                if (workingDirectory == null) {\n                    workingDirectory = new File(getSauceConnectWorkingDirectory());\n                }\n                if (!workingDirectory.canWrite()) {\n                    throw new SauceConnectException(\"Can't write to \" + workingDirectory.getAbsolutePath() + \", please check the directory permissions\");\n                }\n                OperatingSystem operatingSystem = OperatingSystem.getOperatingSystem();\n                File unzipDirectory = getUnzipDir(workingDirectory, operatingSystem);\n                sauceConnectBinary = new File(unzipDirectory, operatingSystem.getExecutable());\n                if (!sauceConnectBinary.exists()) {\n                    synchronized (this) {\n                        if (!sauceConnectBinary.exists()) {\n                            extractZipFile(workingDirectory, operatingSystem);\n                        }\n                    }\n                } else {\n                    logMessage(printStream, sauceConnectBinary + \" already exists, so not extracting\");\n                }\n            } else {\n                sauceConnectBinary = new File(sauceConnectPath);\n                if (!sauceConnectBinary.exists()) {\n                    throw new SauceConnectException(sauceConnectPath + \" doesn't exist, please check the location\");\n                }\n            }\n\n            //although we are setting the working directory, we need to specify the full path to the exe\n            String[] args = { sauceConnectBinary.getPath() };\n            args = generateSauceConnectArgs(args, username, apiKey, port, options);\n            args = addExtraInfo(args);\n\n            julLogger.log(Level.INFO, \"Launching Sauce Connect \" + getCurrentVersion() + \" \" + hideSauceConnectCommandlineSecrets(args));\n            return createProcess(args, sauceConnectBinary.getParentFile());\n        } catch (IOException e) {\n            throw new SauceConnectException(e);\n        }\n    }\n\n    public String hideSauceConnectCommandlineSecrets(String[] args) {\n        HashMap<String, String> map = new HashMap<>();\n        map.put(\"-k\", \"()\\\\w+-\\\\w+-\\\\w+-\\\\w+-\\\\w+\");\n        map.put(\"--api-key\", \"()\\\\w+-\\\\w+-\\\\w+-\\\\w+-\\\\w+\");\n        map.put(\"-w\", \"(\\\\S+:)\\\\S+\");\n        map.put(\"--proxy-userpwd\", \"(\\\\S+:)\\\\S+\");\n        map.put(\"-a\", \"(\\\\S+:\\\\d+:\\\\S+:)\\\\S+\");\n        map.put(\"--auth\", \"(\\\\S+:\\\\d+:\\\\S+:)\\\\S+\");\n        String regexpForNextElement = null;\n        List<String> hiddenArgs = new ArrayList<>();\n\n        for (String arg: args) {\n            if (regexpForNextElement != null) {\n                hiddenArgs.add(arg.replaceAll(regexpForNextElement, \"$1****\"));\n                regexpForNextElement = null;\n            } else {\n                hiddenArgs.add(arg);\n                regexpForNextElement = map.getOrDefault(arg, null);\n            }\n        }\n        return Arrays.toString(hiddenArgs.toArray());\n    }\n\n    public void setUseLatestSauceConnect(boolean useLatestSauceConnect) {\n        this.useLatestSauceConnect = useLatestSauceConnect;\n    }\n\n    public void setCleanUpOnExit(boolean cleanUpOnExit) {\n        this.cleanUpOnExit = cleanUpOnExit;\n    }\n\n    public static String getLatestSauceConnectVersion() {\n        try {\n            URL url = new URL(\"https://saucelabs.com/versions.json\");\n            String versionsJson = IOUtils.toString(url, StandardCharsets.UTF_8);\n            return new JSONObject(versionsJson).getJSONObject(\"Sauce Connect\").getString(\"version\");\n        } catch (IOException e) {\n            return null;\n        }\n    }\n\n    /**\n     * @param args     the initial Sauce Connect command line args\n     * @param username name of the user which launched Sauce Connect\n     * @param apiKey   the access key for the Sauce user\n     * @param port     the port that Sauce Connect should be launched on\n     * @param options  command line args specified by the user\n     * @return String array representing the command line args to be used to launch Sauce Connect\n     */\n    protected String[] generateSauceConnectArgs(String[] args, String username, String apiKey, int port, String options) {\n        String[] result = joinArgs(args, \"-u\", username.trim(), \"-k\", apiKey.trim(), \"-P\", String.valueOf(port));\n        result = addElement(result, options);\n        return result;\n    }\n\n    protected String[] addExtraInfo(String[] args) {\n        String[] result = joinArgs(args, \"--extra-info\", \"{\\\"runner\\\": \\\"jenkins\\\"}\");\n        return result;\n    }\n\n    /**\n     * @param workingDirectory the destination directory\n     * @param operatingSystem  represents the current operating system\n     * @return the directory containing the extracted files\n     * @throws IOException thrown if an error occurs extracting the files\n     */\n    public File extractZipFile(File workingDirectory, OperatingSystem operatingSystem) throws IOException {\n        File zipFile = extractFile(workingDirectory, operatingSystem.getFileName(useLatestSauceConnect));\n        if (cleanUpOnExit) {\n            zipFile.deleteOnExit();\n        }\n        AbstractUnArchiver unArchiver;\n        if (operatingSystem == OperatingSystem.OSX || operatingSystem == OperatingSystem.WINDOWS) {\n            unArchiver = new ZipUnArchiver();\n        } else if (operatingSystem == OperatingSystem.LINUX) {\n            removeOldTarFile(zipFile);\n            unArchiver = new TarGZipUnArchiver();\n        } else {\n            throw new RuntimeException(\"Unknown operating system: \" + operatingSystem.name());\n        }\n        extractArchive(unArchiver, zipFile, workingDirectory);\n        File unzipDir = getUnzipDir(workingDirectory, operatingSystem);\n        if (cleanUpOnExit) {\n            unzipDir.deleteOnExit();\n        }\n        return unzipDir;\n    }\n\n    private File getUnzipDir(File workingDirectory, OperatingSystem operatingSystem) {\n        return new File(workingDirectory, operatingSystem.getDirectory(useLatestSauceConnect));\n    }\n\n    private void removeOldTarFile(File zipFile) throws SauceConnectException {\n        File tarFile = new File(zipFile.getParentFile(), zipFile.getName().replaceAll(\".gz\", \"\"));\n        removeFileIfExists(tarFile, \"Unable to delete old tar\");\n    }\n\n    /**\n     * @param unArchiver  the unarchiver\n     * @param archive     the compressed file to extract\n     * @param destination the destination directory\n     */\n    private void extractArchive(AbstractUnArchiver unArchiver, File archive, File destination) {\n        unArchiver.setSourceFile(archive);\n        unArchiver.setDestDirectory(destination);\n        unArchiver.extract();\n    }\n\n    /**\n     * @param workingDirectory the destination directory\n     * @param fileName         the name of the file to extract\n     * @return the directory containing the extracted files\n     * @throws IOException thrown if an error occurs extracting the files\n     */\n    private File extractFile(File workingDirectory, String fileName) throws IOException {\n        File destination = new File(workingDirectory, fileName);\n        removeFileIfExists(destination, \"Unable to delete old zip\");\n        InputStream inputStream = useLatestSauceConnect ? new URL(\"https://saucelabs.com/downloads/\" + fileName)\n            .openStream() : getClass().getClassLoader().getResourceAsStream(fileName);\n        FileUtils.copyInputStreamToFile(inputStream, destination);\n        return destination;\n    }\n\n    private static void removeFileIfExists(File file, String exceptionMessage) throws SauceConnectException {\n        if (file.exists() && !file.delete()) {\n            throw new SauceConnectException(exceptionMessage);\n        }\n    }\n\n    /**\n     * {@inheritDoc}\n     */\n    protected String getSauceStartedMessage() {\n        return SAUCE_CONNECT_4_STARTED;\n    }\n\n    @Override\n    protected String getCurrentVersion() {\n        return getVersion(useLatestSauceConnect);\n    }\n\n    private static String getVersion(boolean useLatestSauceConnect) {\n        return useLatestSauceConnect && LATEST_SC_VERSION != null ? LATEST_SC_VERSION : CURRENT_SC_VERSION;\n    }\n\n    /**\n     * Attempts to find the Sauce Connect log file.  If the --logfile argument has been specified, then\n     * use that location, otherwise look at the operating system/tunnel identifer to determine the location.\n     *\n     * @param options the Sauce Connect command line options, can be null\n     *\n     * @return File representing the Sauce Connect log file, can be null\n     */\n    @Override\n    public File getSauceConnectLogFile(String options) {\n\n        //Has --logfile arg been specified\n        String logfile = getLogfile(options);\n        if (logfile != null) {\n\n            File sauceConnectLogFile = new File(logfile);\n            if (sauceConnectLogFile.exists()) {\n                return sauceConnectLogFile;\n            } else {\n                return null;\n            }\n        }\n\n        //otherwise, try to work out location\n        String fileName = \"sc.log\";\n        File logFileDirectory = new File(OperatingSystem.getOperatingSystem().getDefaultSauceConnectLogDirectory());\n\n        //has --tunnel-name been specified?\n        String tunnelName = getTunnelName(options, null);\n        if (tunnelName != null) {\n            fileName = MessageFormat.format(\"sc-{0}.log\", tunnelName);\n        }\n        File sauceConnectLogFile = new File(logFileDirectory, fileName);\n        if (!sauceConnectLogFile.exists()) {\n            //try working directory\n            sauceConnectLogFile = new File(getSauceConnectWorkingDirectory(), fileName);\n            if (!sauceConnectLogFile.exists()) {\n                return null;\n            }\n        }\n        return sauceConnectLogFile;\n    }\n}\n"}, "compile_error_details": {}}

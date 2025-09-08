@@ -1,0 +1,52 @@
+diff --git a/jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JadlerHandler.java b/jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JadlerHandler.java
+index 6df6ebf..e494c20 100644
+--- a/jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JadlerHandler.java
++++ b/jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JadlerHandler.java
+@@ -37,7 +37,7 @@ class JadlerHandler extends AbstractHandler {
+ 
+ 
+     @Override
+-    public void handle(final String target, final Request baseRequest, final HttpServletRequest request,
++    public void handle(final String target, final Request baseRequest, final HttpServletRequest request, final HttpServletResponse response) throws IOException, ServletException {
+                        final HttpServletResponse response) throws IOException, ServletException {
+ 
+         final net.jadler.Request req = RequestUtils.convert(request);
+diff --git a/jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JettyStubHttpServer.java b/jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JettyStubHttpServer.java
+index b6fde22..c8b81ea 100644
+--- a/jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JettyStubHttpServer.java
++++ b/jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JettyStubHttpServer.java
+@@ -9,7 +9,7 @@ import net.jadler.stubbing.server.StubHttpServer;
+ import org.apache.commons.lang.Validate;
+ import org.eclipse.jetty.server.Connector;
+ import org.eclipse.jetty.server.Server;
+-import org.eclipse.jetty.server.nio.SelectChannelConnector;
++import org.eclipse.jetty.server.ServerConnector;
+ import org.slf4j.Logger;
+ import org.slf4j.LoggerFactory;
+ 
+@@ -30,11 +30,12 @@ public class JettyStubHttpServer implements StubHttpServer {
+ 
+     public JettyStubHttpServer(final int port) {
+         this.server = new Server();
+-        this.server.setSendServerVersion(false);
+-        this.server.setSendDateHeader(true);
++        this.server.setAttribute("org.eclipse.jetty.server.sendServerVersion", false);
++        this.server.setAttribute("org.eclipse.jetty.server.sendDateHeader", true);
+ 
+-        this.httpConnector = new SelectChannelConnector();
+-        this.httpConnector.setPort(port);
++        ServerConnector httpConnector = new ServerConnector(this.server);
++        httpConnector.setPort(port);
++        server.addConnector(httpConnector);
+         server.addConnector(this.httpConnector);
+     }
+ 
+@@ -77,6 +78,6 @@ public class JettyStubHttpServer implements StubHttpServer {
+      */
+     @Override
+     public int getPort() {
+-        return httpConnector.getLocalPort();
++        return ((ServerConnector) httpConnector).getLocalPort();
+     }
+ }
+\ No newline at end of file

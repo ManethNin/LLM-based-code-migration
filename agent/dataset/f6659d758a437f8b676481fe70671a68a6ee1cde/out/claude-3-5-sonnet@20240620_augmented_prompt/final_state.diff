@@ -1,0 +1,76 @@
+diff --git a/billy-core/src/test/java/com/premiumminds/billy/core/test/AbstractTest.java b/billy-core/src/test/java/com/premiumminds/billy/core/test/AbstractTest.java
+index ed40e5fb..9225c54f 100644
+--- a/billy-core/src/test/java/com/premiumminds/billy/core/test/AbstractTest.java
++++ b/billy-core/src/test/java/com/premiumminds/billy/core/test/AbstractTest.java
+@@ -33,9 +33,15 @@ import org.yaml.snakeyaml.LoaderOptions;
+ import org.yaml.snakeyaml.TypeDescription;
+ import org.yaml.snakeyaml.Yaml;
+ import org.yaml.snakeyaml.constructor.Constructor;
+-import org.yaml.snakeyaml.inspector.TrustedTagInspector;
+ import org.yaml.snakeyaml.nodes.Tag;
+ import org.yaml.snakeyaml.representer.Representer;
++import org.yaml.snakeyaml.resolver.Resolver;
++import org.yaml.snakeyaml.constructor.SafeConstructor;
++import org.yaml.snakeyaml.nodes.Node;
++import org.yaml.snakeyaml.error.YAMLException;
++
++import java.lang.reflect.InvocationTargetException;
++import java.util.Map;
+ 
+ import java.io.BufferedReader;
+ import java.io.FileNotFoundException;
+@@ -63,7 +69,8 @@ public class AbstractTest {
+ 
+     public <T extends MockBaseEntity> T createMockEntity(Class<T> clazz, String path) {
+         final LoaderOptions loadingConfig = new LoaderOptions();
+-        loadingConfig.setTagInspector(new TrustedTagInspector());
++        loadingConfig.setAllowDuplicateKeys(false);
++        loadingConfig.setCodePointLimit(50 * 1024 * 1024); // 50MB
+ 
+         final Representer representer = new Representer(new DumperOptions());
+         final Tag zoneIdTag = new Tag("!ZoneId");
+@@ -71,15 +78,37 @@ public class AbstractTest {
+         final Tag localDateTag = new Tag("!LocalDate");
+         representer.addClassTag(LocalDate.class, localDateTag);
+ 
+-        final Constructor constructor = new Constructor(clazz, loadingConfig) {{
+-            this.addTypeDescription(new TypeDescription(ZoneId.class, "ZoneId"));
+-            this.addTypeDescription(new TypeDescription(LocalDate.class, "LocalDate"));
++        final SafeConstructor constructor = new SafeConstructor(loadingConfig) {
++            {
++                this.yamlConstructors.put(new Tag("!ZoneId"), new JavaZoneIdConstruct());
++                this.yamlConstructors.put(new Tag("!LocalDate"), new JavaLocalDateConstruct());
++                this.yamlConstructors.put(new Tag("!java.math.BigDecimal"), new SafeConstructor.ConstructYamlFloat());
++            }
+ 
+-            this.yamlConstructors.put(zoneIdTag, new JavaZoneIdConstruct());
+-            this.yamlConstructors.put(localDateTag, new JavaLocalDateConstruct());
+-        }};
++            @Override
++            protected Object constructObject(Node node) {
++                if (node.getTag().startsWith("!com.premiumminds.billy.core.test.fixtures.Mock")) {
++                    try {
++                        Class<?> clazz = Class.forName(node.getTag().getValue().substring(1));
++                        return clazz.getDeclaredConstructor().newInstance();
++                    } catch (ClassNotFoundException | NoSuchMethodException | InstantiationException | IllegalAccessException | InvocationTargetException e) {
++                        throw new YAMLException("Class not found: " + node.getTag().getValue().substring(1));
++                    }
++                } else if (node.getTag().startsWith("!java.math.BigDecimal")) {
++                    Map<String, Object> data = (Map<String, Object>) super.constructObject(node);
++                    String value = (String) data.get("value");
++                    return new java.math.BigDecimal(value);
++                }
++                return super.constructObject(node);
++            }
++        };
+ 
+-        Yaml yaml = new Yaml(constructor, representer);
++        Resolver resolver = new Resolver() {
++            @Override
++            protected void addImplicitResolvers() {
++            }
++        };
++        Yaml yaml = new Yaml(constructor, representer, new DumperOptions(), resolver);
+ 
+         try {
+             return yaml.load(new BufferedReader(new FileReader(path)));

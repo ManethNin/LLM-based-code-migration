@@ -1,0 +1,163 @@
+diff --git a/src/main/java/com/redislabs/redisgraph/impl/api/RedisGraphPipeline.java b/src/main/java/com/redislabs/redisgraph/impl/api/RedisGraphPipeline.java
+index 8078afd..0b1437b 100644
+--- a/src/main/java/com/redislabs/redisgraph/impl/api/RedisGraphPipeline.java
++++ b/src/main/java/com/redislabs/redisgraph/impl/api/RedisGraphPipeline.java
+@@ -7,7 +7,7 @@ import com.redislabs.redisgraph.impl.graph_cache.RedisGraphCaches;
+ import com.redislabs.redisgraph.impl.resultset.ResultSetImpl;
+ import redis.clients.jedis.Builder;
+ import redis.clients.jedis.BuilderFactory;
+-import redis.clients.jedis.Client;
++import redis.clients.jedis.Connection;
+ import redis.clients.jedis.Pipeline;
+ import redis.clients.jedis.Response;
+ 
+@@ -24,7 +24,8 @@ public class RedisGraphPipeline extends Pipeline implements com.redislabs.redisg
+ 
+ 
+     public RedisGraphPipeline(Client client, RedisGraph redisGraph){
+-        super.setClient(client);
++    public RedisGraphPipeline(Connection connection, RedisGraph redisGraph) {
++        super(connection);
+         this.redisGraph = redisGraph;
+     }
+ 
+@@ -36,7 +37,7 @@ public class RedisGraphPipeline extends Pipeline implements com.redislabs.redisg
+      */
+     @Override
+     public Response<ResultSet> query(String graphId, String query) {
+-        client.sendCommand(RedisGraphCommand.QUERY, graphId, query, Utils.COMPACT_STRING);
++        sendCommand(RedisGraphCommand.QUERY, graphId, query, Utils.COMPACT_STRING);
+         return getResponse(new Builder<ResultSet>() {
+             @SuppressWarnings("unchecked")
+             @Override
+@@ -54,7 +55,7 @@ public class RedisGraphPipeline extends Pipeline implements com.redislabs.redisg
+      */
+     @Override
+     public Response<ResultSet> readOnlyQuery(String graphId, String query) {
+-        client.sendCommand(RedisGraphCommand.RO_QUERY, graphId, query, Utils.COMPACT_STRING);
++        sendCommand(RedisGraphCommand.RO_QUERY, graphId, query, Utils.COMPACT_STRING);
+         return getResponse(new Builder<ResultSet>() {
+             @SuppressWarnings("unchecked")
+             @Override
+diff --git a/src/main/java/com/redislabs/redisgraph/impl/api/RedisGraphTransaction.java b/src/main/java/com/redislabs/redisgraph/impl/api/RedisGraphTransaction.java
+index 5294993..a24e1f5 100644
+--- a/src/main/java/com/redislabs/redisgraph/impl/api/RedisGraphTransaction.java
++++ b/src/main/java/com/redislabs/redisgraph/impl/api/RedisGraphTransaction.java
+@@ -7,7 +7,8 @@ import com.redislabs.redisgraph.impl.graph_cache.RedisGraphCaches;
+ import com.redislabs.redisgraph.impl.resultset.ResultSetImpl;
+ import redis.clients.jedis.Builder;
+ import redis.clients.jedis.BuilderFactory;
+-import redis.clients.jedis.Client;
++import redis.clients.jedis.Connection;
++import redis.clients.jedis.commands.PipelineCommands;
+ import redis.clients.jedis.Response;
+ import redis.clients.jedis.Transaction;
+ 
+@@ -18,14 +19,14 @@ import java.util.Map;
+  * This class is extending Jedis Transaction
+  */
+ public class RedisGraphTransaction extends Transaction
+-        implements com.redislabs.redisgraph.RedisGraphTransaction, RedisGraphCacheHolder {
++        implements com.redislabs.redisgraph.RedisGraphTransaction, RedisGraphCacheHolder, PipelineCommands {
+ 
+     private final RedisGraph redisGraph;
+     private RedisGraphCaches caches;
+ 
+-    public RedisGraphTransaction(Client client, RedisGraph redisGraph) {
++    public RedisGraphTransaction(Connection connection, RedisGraph redisGraph) {
+         // init as in Jedis
+-        super(client);
++        super(connection);
+ 
+         this.redisGraph = redisGraph;
+     }
+@@ -38,7 +39,7 @@ public class RedisGraphTransaction extends Transaction
+      */
+     @Override
+     public Response<ResultSet> query(String graphId, String query) {
+-        client.sendCommand(RedisGraphCommand.QUERY, graphId, query, Utils.COMPACT_STRING);
++        sendCommand(RedisGraphCommand.QUERY, graphId, query, Utils.COMPACT_STRING);
+         return getResponse(new Builder<ResultSet>() {
+             @SuppressWarnings("unchecked")
+             @Override
+@@ -56,7 +57,7 @@ public class RedisGraphTransaction extends Transaction
+      */
+     @Override
+     public Response<ResultSet> readOnlyQuery(String graphId, String query) {
+-        client.sendCommand(RedisGraphCommand.RO_QUERY, graphId, query, Utils.COMPACT_STRING);
++        sendCommand(RedisGraphCommand.RO_QUERY, graphId, query, Utils.COMPACT_STRING);
+         return getResponse(new Builder<ResultSet>() {
+             @SuppressWarnings("unchecked")
+             @Override
+@@ -77,7 +78,7 @@ public class RedisGraphTransaction extends Transaction
+      */
+     @Override
+     public Response<ResultSet> query(String graphId, String query, long timeout) {
+-        client.sendCommand(RedisGraphCommand.QUERY, graphId, query, Utils.COMPACT_STRING, Utils.TIMEOUT_STRING,
++        sendCommand(RedisGraphCommand.QUERY, graphId, query, Utils.COMPACT_STRING, Utils.TIMEOUT_STRING,
+                 Long.toString(timeout));
+         return getResponse(new Builder<ResultSet>() {
+             @SuppressWarnings("unchecked")
+@@ -99,7 +100,7 @@ public class RedisGraphTransaction extends Transaction
+      */
+     @Override
+     public Response<ResultSet> readOnlyQuery(String graphId, String query, long timeout) {
+-        client.sendCommand(RedisGraphCommand.RO_QUERY, graphId, query, Utils.COMPACT_STRING, Utils.TIMEOUT_STRING,
++        sendCommand(RedisGraphCommand.RO_QUERY, graphId, query, Utils.COMPACT_STRING, Utils.TIMEOUT_STRING,
+                 Long.toString(timeout));
+         return getResponse(new Builder<ResultSet>() {
+             @SuppressWarnings("unchecked")
+@@ -123,7 +124,7 @@ public class RedisGraphTransaction extends Transaction
+     @Override
+     public Response<ResultSet> query(String graphId, String query, Object... args) {
+         String preparedQuery = Utils.prepareQuery(query, args);
+-        client.sendCommand(RedisGraphCommand.QUERY, graphId, preparedQuery, Utils.COMPACT_STRING);
++        sendCommand(RedisGraphCommand.QUERY, graphId, preparedQuery, Utils.COMPACT_STRING);
+         return getResponse(new Builder<ResultSet>() {
+             @SuppressWarnings("unchecked")
+             @Override
+@@ -143,7 +144,7 @@ public class RedisGraphTransaction extends Transaction
+     @Override
+     public Response<ResultSet> query(String graphId, String query, Map<String, Object> params) {
+         String preparedQuery = Utils.prepareQuery(query, params);
+-        client.sendCommand(RedisGraphCommand.QUERY, graphId, preparedQuery, Utils.COMPACT_STRING);
++        sendCommand(RedisGraphCommand.QUERY, graphId, preparedQuery, Utils.COMPACT_STRING);
+         return getResponse(new Builder<ResultSet>() {
+             @SuppressWarnings("unchecked")
+             @Override
+@@ -163,7 +164,7 @@ public class RedisGraphTransaction extends Transaction
+     @Override
+     public Response<ResultSet> readOnlyQuery(String graphId, String query, Map<String, Object> params) {
+         String preparedQuery = Utils.prepareQuery(query, params);
+-        client.sendCommand(RedisGraphCommand.RO_QUERY, graphId, preparedQuery, Utils.COMPACT_STRING);
++        sendCommand(RedisGraphCommand.RO_QUERY, graphId, preparedQuery, Utils.COMPACT_STRING);
+         return getResponse(new Builder<ResultSet>() {
+             @SuppressWarnings("unchecked")
+             @Override
+@@ -186,7 +187,7 @@ public class RedisGraphTransaction extends Transaction
+     @Override
+     public Response<ResultSet> query(String graphId, String query, Map<String, Object> params, long timeout) {
+         String preparedQuery = Utils.prepareQuery(query, params);
+-        client.sendCommand(RedisGraphCommand.QUERY, graphId, preparedQuery, Utils.COMPACT_STRING, Utils.TIMEOUT_STRING,
++        sendCommand(RedisGraphCommand.QUERY, graphId, preparedQuery, Utils.COMPACT_STRING, Utils.TIMEOUT_STRING,
+                 Long.toString(timeout));
+         return getResponse(new Builder<ResultSet>() {
+             @SuppressWarnings("unchecked")
+@@ -210,7 +211,7 @@ public class RedisGraphTransaction extends Transaction
+     @Override
+     public Response<ResultSet> readOnlyQuery(String graphId, String query, Map<String, Object> params, long timeout) {
+         String preparedQuery = Utils.prepareQuery(query, params);
+-        client.sendCommand(RedisGraphCommand.RO_QUERY, graphId, preparedQuery, Utils.COMPACT_STRING,
++        sendCommand(RedisGraphCommand.RO_QUERY, graphId, preparedQuery, Utils.COMPACT_STRING,
+                 Utils.TIMEOUT_STRING, Long.toString(timeout));
+         return getResponse(new Builder<ResultSet>() {
+             @SuppressWarnings("unchecked")
+@@ -262,7 +263,7 @@ public class RedisGraphTransaction extends Transaction
+      * @return response with the deletion running time statistics
+      */
+     public Response<String> deleteGraph(String graphId) {
+-        client.sendCommand(RedisGraphCommand.DELETE, graphId);
++        sendCommand(RedisGraphCommand.DELETE, graphId);
+         Response<String> response = getResponse(BuilderFactory.STRING);
+         caches.removeGraphCache(graphId);
+         return response;

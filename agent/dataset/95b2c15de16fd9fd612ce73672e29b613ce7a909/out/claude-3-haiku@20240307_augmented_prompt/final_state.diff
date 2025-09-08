@@ -1,0 +1,79 @@
+diff --git a/jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JadlerHandler.java b/jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JadlerHandler.java
+index 6df6ebf..4bec46e 100644
+--- a/jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JadlerHandler.java
++++ b/jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JadlerHandler.java
+@@ -14,6 +14,8 @@ import org.eclipse.jetty.server.handler.AbstractHandler;
+ import javax.servlet.ServletException;
+ import javax.servlet.http.HttpServletRequest;
+ import javax.servlet.http.HttpServletResponse;
++import javax.servlet.http.HttpServletRequest;
++import javax.servlet.http.HttpServletResponse;
+ import java.io.IOException;
+ import java.io.OutputStream;
+ 
+diff --git a/jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JettyStubHttpServer.java b/jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JettyStubHttpServer.java
+index b6fde22..506410a 100644
+--- a/jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JettyStubHttpServer.java
++++ b/jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JettyStubHttpServer.java
+@@ -9,7 +9,9 @@ import net.jadler.stubbing.server.StubHttpServer;
+ import org.apache.commons.lang.Validate;
+ import org.eclipse.jetty.server.Connector;
+ import org.eclipse.jetty.server.Server;
+-import org.eclipse.jetty.server.nio.SelectChannelConnector;
++import org.eclipse.jetty.server.Request;
++import org.eclipse.jetty.server.ServerConnector;
++import org.eclipse.jetty.server.handler.AbstractHandler;
+ import org.slf4j.Logger;
+ import org.slf4j.LoggerFactory;
+ 
+@@ -21,19 +23,19 @@ public class JettyStubHttpServer implements StubHttpServer {
+ 
+     private static final Logger logger = LoggerFactory.getLogger(JettyStubHttpServer.class);
+     private final Server server;
+-    private final Connector httpConnector;
++    private final ServerConnector httpConnector;
+ 
+     public JettyStubHttpServer() {
+         this(0);
+     }
+ 
+-
+     public JettyStubHttpServer(final int port) {
+         this.server = new Server();
+         this.server.setSendServerVersion(false);
+         this.server.setSendDateHeader(true);
+ 
+-        this.httpConnector = new SelectChannelConnector();
++        this.httpConnector = new ServerConnector(this.server);
++        this.httpConnector.setPort(port);
+         this.httpConnector.setPort(port);
+         server.addConnector(this.httpConnector);
+     }
+@@ -77,6 +79,23 @@ public class JettyStubHttpServer implements StubHttpServer {
+      */
+     @Override
+     public int getPort() {
+-        return httpConnector.getLocalPort();
++return this.httpConnector.getLocalPort();
+     }
+-}
+\ No newline at end of file
++
++private static class JadlerHandler extends AbstractHandler {
++
++private final RequestManager requestManager;
++
++JadlerHandler(final RequestManager requestManager) {
++Validate.notNull(requestManager, "requestManager cannot be null");
++this.requestManager = requestManager;
++}
++
++@Override
++public void handle(String target, Request baseRequest, HttpServletRequest request, HttpServletResponse response)
++throws IOException, ServletException {
++final net.jadler.Request req = RequestUtils.convert(request);
++final StubResponse stubResponse = this.requestManager.provideStubResponseFor(req);
++// handle the request and set the response
++}
++}}
+\ No newline at end of file

@@ -1,0 +1,280 @@
+diff --git a/src/core/model/pom.xml b/src/core/model/pom.xml
+index d35c1c2..6c7eefe 100644
+--- a/src/core/model/pom.xml
++++ b/src/core/model/pom.xml
+@@ -33,18 +33,25 @@
+ 
+     <dependencies>
+ 
+-  	<!-- JAXB -->
++   <!-- JAXB -->
+         <dependency>
+             <groupId>javax.xml.bind</groupId>
+             <artifactId>jaxb-api</artifactId>
++<version>2.3.1</version>
+         </dependency>
+         <dependency>
+             <groupId>com.sun.xml.bind</groupId>
+             <artifactId>jaxb-impl</artifactId>
++<version>2.3.3</version>
+         </dependency>
++        <dependency>
++<groupId>org.glassfish.jaxb</groupId>
++<artifactId>jaxb-runtime</artifactId>
++<version>2.3.3</version>
++        </dependency>
++
+ 
+-        
+-		<!-- HIBERNATE-SPATIAL -->
++  <!-- HIBERNATE-SPATIAL -->
+         <dependency>
+             <groupId>org.hibernatespatial</groupId>
+             <artifactId>hibernate-spatial-postgis</artifactId>
+@@ -57,7 +64,7 @@
+             </exclusions>
+         </dependency>
+ 
+-		  	<!-- CGLIB -->
++     <!-- CGLIB -->
+         <dependency>
+             <groupId>asm</groupId>
+             <artifactId>asm</artifactId>
+@@ -69,15 +76,16 @@
+             <scope>provided</scope> <!-- the dao module should import them for runtime -->
+         </dependency>
+ 
+-   	<!-- Apache Commons -->
++    <!-- Apache Commons -->
+         <dependency>
+             <groupId>commons-beanutils</groupId>
+             <artifactId>commons-beanutils</artifactId>
+         </dependency>
+ 
+         <dependency>
+-            <groupId>jdom</groupId>
++            <groupId>org.jdom</groupId>
+             <artifactId>jdom</artifactId>
++            <version>2.0.2</version>
+         </dependency>
+ 
+ 
+@@ -86,13 +94,19 @@
+             <artifactId>junit</artifactId>
+             <scope>test</scope>
+         </dependency>
++
++        <dependency>
++<groupId>javax.activation</groupId>
++<artifactId>javax.activation-api</artifactId>
++<version>1.2.0</version>
++        </dependency>
+     </dependencies>
+ 
+-    <build>
++<build>
+ 
+-        <plugins>
++<plugins>
+             <!-- Attach sources ============================================ -->
+-            <plugin>
++<plugin>
+                 <inherited>true</inherited>
+                 <groupId>org.apache.maven.plugins</groupId>
+                 <artifactId>maven-source-plugin</artifactId>
+@@ -102,14 +116,14 @@
+                 <executions>
+                     <execution>
+                         <id>attach-sources</id>
+-                        <goals>
++<goals>
+                             <goal>jar</goal>
+-                        </goals>
++</goals>
+                     </execution>
+                 </executions>
+-            </plugin>
++</plugin>
+ 
+         </plugins>
+-    </build>
++</build>
+ 
+-</project>
++</project>
+\ No newline at end of file
+diff --git a/src/core/security/src/main/java/it/geosolutions/geostore/core/security/password/GeoStoreDigestPasswordEncoder.java b/src/core/security/src/main/java/it/geosolutions/geostore/core/security/password/GeoStoreDigestPasswordEncoder.java
+index 1157916..76686e3 100644
+--- a/src/core/security/src/main/java/it/geosolutions/geostore/core/security/password/GeoStoreDigestPasswordEncoder.java
++++ b/src/core/security/src/main/java/it/geosolutions/geostore/core/security/password/GeoStoreDigestPasswordEncoder.java
+@@ -21,7 +21,7 @@ package it.geosolutions.geostore.core.security.password;
+ 
+ import org.apache.commons.codec.binary.Base64;
+ import org.jasypt.digest.StandardByteDigester;
+-import org.jasypt.spring.security.PasswordEncoder;
++import org.acegisecurity.providers.encoding.PasswordEncoder;
+ import org.jasypt.util.password.StrongPasswordEncryptor;
+ import static it.geosolutions.geostore.core.security.password.SecurityUtils.toBytes;
+ 
+@@ -31,47 +31,55 @@ import static it.geosolutions.geostore.core.security.password.SecurityUtils.toBy
+  *
+  */
+ public class GeoStoreDigestPasswordEncoder extends AbstractGeoStorePasswordEncoder{
+-	
++ 
+ 
+-		/**
+-		 * The digest is not reversible
+-		 */
+-	    public GeoStoreDigestPasswordEncoder() {
+-	        setReversible(false);
+-	    }
++  /**
++   * The digest is not reversible
++   */
++     public GeoStoreDigestPasswordEncoder() {
++         setReversible(false);
++     }
+ 
+-	    @Override
+-	    protected PasswordEncoder createStringEncoder() {
+-	        PasswordEncoder encoder = new PasswordEncoder();
+-	        encoder.setPasswordEncryptor(new StrongPasswordEncryptor());
+-	        return encoder;
+-	    }
++     @Override
++protected org.acegisecurity.providers.encoding.PasswordEncoder createStringEncoder() {
++final StrongPasswordEncryptor passwordEncryptor = new StrongPasswordEncryptor();
++return new org.acegisecurity.providers.encoding.PasswordEncoder() {
++@Override
++public String encodePassword(String rawPass, Object salt) {
++return passwordEncryptor.encryptPassword(rawPass);
++}
++@Override
++public boolean isPasswordValid(String encPass, String rawPass, Object salt) {
++return passwordEncryptor.checkPassword(rawPass, encPass);
++}
++};
++}
++
++@Override
++     protected CharArrayPasswordEncoder createCharEncoder() {
++         return new CharArrayPasswordEncoder() {
++             StandardByteDigester digester = new StandardByteDigester();
++{
++                 digester.setAlgorithm("SHA-256");
++                 digester.setIterations(100000);
++                 digester.setSaltSizeBytes(16);
++                 digester.initialize();
++}
+ 
+-	    @Override
+-	    protected CharArrayPasswordEncoder createCharEncoder() {
+-	        return new CharArrayPasswordEncoder() {
+-	            StandardByteDigester digester = new StandardByteDigester();
+-	            {
+-	                digester.setAlgorithm("SHA-256");
+-	                digester.setIterations(100000);
+-	                digester.setSaltSizeBytes(16);
+-	                digester.initialize();
+-	            }
+-	            
+-	            @Override
+-	            public String encodePassword(char[] rawPass, Object salt) {
+-	                return new String(Base64.encodeBase64(digester.digest(toBytes(rawPass))));
+-	            }
+-	            @Override
+-	            public boolean isPasswordValid(String encPass, char[] rawPass, Object salt) {
+-	                return digester.matches(toBytes(rawPass), Base64.decodeBase64(encPass.getBytes())); 
+-	            }
+-	        };
+-	    }
++public String encodePassword(char[] rawPass, Object salt) {
++return new String(Base64.encodeBase64(digester.digest(toBytes(rawPass))));
++}
+ 
+-	    @Override
+-	    public PasswordEncodingType getEncodingType() {
+-	        return PasswordEncodingType.DIGEST;
+-	    }
+-	
++public boolean isPasswordValid(String encPass, char[] rawPass,
++Object salt) {
++                 return digester.matches(toBytes(rawPass), Base64.decodeBase64(encPass.getBytes())); 
++}
++};
+ }
++
++@Override
++     public PasswordEncodingType getEncodingType() {
++         return PasswordEncodingType.DIGEST;
++}
++
++}
+\ No newline at end of file
+diff --git a/src/core/security/src/main/java/it/geosolutions/geostore/core/security/password/GeoStorePBEPasswordEncoder.java b/src/core/security/src/main/java/it/geosolutions/geostore/core/security/password/GeoStorePBEPasswordEncoder.java
+index cba1b70..5f8953d 100644
+--- a/src/core/security/src/main/java/it/geosolutions/geostore/core/security/password/GeoStorePBEPasswordEncoder.java
++++ b/src/core/security/src/main/java/it/geosolutions/geostore/core/security/password/GeoStorePBEPasswordEncoder.java
+@@ -27,10 +27,10 @@ import static it.geosolutions.geostore.core.security.password.SecurityUtils.toCh
+ import java.io.IOException;
+ import java.util.Arrays;
+ import java.util.Base64;
+-import org.acegisecurity.providers.encoding.PasswordEncoder;
+ import org.jasypt.encryption.pbe.StandardPBEByteEncryptor;
+ import org.jasypt.encryption.pbe.StandardPBEStringEncryptor;
+-import org.jasypt.spring.security.PBEPasswordEncoder;
++import org.jasypt.util.password.StrongPasswordEncryptor;
++import org.springframework.security.crypto.password.PasswordEncoder;
+ /**
+  * Password Encoder using symmetric encryption
+  * 
+@@ -86,7 +86,7 @@ public class GeoStorePBEPasswordEncoder extends AbstractGeoStorePasswordEncoder
+ 	}
+ 
+ 	@Override
+-	protected PasswordEncoder createStringEncoder() {
++	protected org.acegisecurity.providers.encoding.PasswordEncoder createStringEncoder() {
+ 		byte[] password = lookupPasswordFromKeyStore();
+ 
+ 		char[] chars = toChars(password);
+@@ -99,10 +99,17 @@ public class GeoStorePBEPasswordEncoder extends AbstractGeoStorePasswordEncoder
+ 			}
+ 			stringEncrypter.setAlgorithm(getAlgorithm());
+ 
+-			PBEPasswordEncoder encoder = new PBEPasswordEncoder();
+-			encoder.setPbeStringEncryptor(stringEncrypter);
++			return new org.acegisecurity.providers.encoding.PasswordEncoder() {
++				@Override
++				public String encodePassword(String rawPass, Object salt) {
++					return stringEncrypter.encrypt(rawPass);
++				}
+ 
+-			return encoder;
++				@Override
++				public boolean isPasswordValid(String encPass, String rawPass, Object salt) {
++					return stringEncrypter.decrypt(encPass).equals(rawPass);
++				}
++			};
+ 		} finally {
+ 			scramble(password);
+ 			scramble(chars);
+@@ -123,9 +130,7 @@ public class GeoStorePBEPasswordEncoder extends AbstractGeoStorePasswordEncoder
+ 		byteEncrypter.setAlgorithm(getAlgorithm());
+ 
+ 		return new CharArrayPasswordEncoder() {
+-			@Override
+-			public boolean isPasswordValid(String encPass, char[] rawPass,
+-					Object salt) {
++			public boolean isPasswordValid(String encPass, char[] rawPass, Object salt) {
+ 				byte[] decoded = Base64.getDecoder().decode(encPass.getBytes());
+ 				byte[] decrypted = byteEncrypter.decrypt(decoded);
+ 
+@@ -138,7 +143,6 @@ public class GeoStorePBEPasswordEncoder extends AbstractGeoStorePasswordEncoder
+ 				}
+ 			}
+ 
+-			@Override
+ 			public String encodePassword(char[] rawPass, Object salt) {
+ 				byte[] bytes = toBytes(rawPass);
+ 				try {

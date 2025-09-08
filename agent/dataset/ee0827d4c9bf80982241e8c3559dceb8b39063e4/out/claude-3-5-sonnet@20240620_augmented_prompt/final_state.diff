@@ -1,0 +1,228 @@
+diff --git a/pom.xml b/pom.xml
+index 61d36834..8a1db8d6 100644
+--- a/pom.xml
++++ b/pom.xml
+@@ -69,12 +69,6 @@
+       <artifactId>plexus-io</artifactId>
+       <version>3.4.1</version>
+     </dependency>
+-    <!-- Apache Commons dependencies -->
+-    <dependency>
+-      <groupId>commons-io</groupId>
+-      <artifactId>commons-io</artifactId>
+-      <version>20030203.000550</version>
+-    </dependency>
+     <dependency>
+       <groupId>org.apache.commons</groupId>
+       <artifactId>commons-compress</artifactId>
+diff --git a/src/main/java/org/codehaus/plexus/archiver/jar/JarToolModularJarArchiver.java b/src/main/java/org/codehaus/plexus/archiver/jar/JarToolModularJarArchiver.java
+index 54e6f9d8..ed39c270 100644
+--- a/src/main/java/org/codehaus/plexus/archiver/jar/JarToolModularJarArchiver.java
++++ b/src/main/java/org/codehaus/plexus/archiver/jar/JarToolModularJarArchiver.java
+@@ -21,6 +21,7 @@
+ import java.io.File;
+ import java.io.IOException;
+ import java.io.PrintStream;
++import java.io.OutputStream;
+ import java.lang.reflect.Method;
+ import java.nio.file.Files;
+ import java.nio.file.Path;
+@@ -38,7 +39,6 @@
+ import java.util.zip.ZipOutputStream;
+ 
+ import org.apache.commons.compress.parallel.InputStreamSupplier;
+-import org.apache.commons.io.output.NullPrintStream;
+ import org.codehaus.plexus.archiver.ArchiverException;
+ import org.codehaus.plexus.archiver.zip.ConcurrentJarCreator;
+ import org.codehaus.plexus.util.IOUtil;
+@@ -297,7 +297,7 @@ private boolean isJarDateOptionSupported( Method runMethod )
+             // Test the output code validating the --date option.
+             String[] args = { "--date", "2099-12-31T23:59:59Z", "--version" };
+ 
+-            PrintStream nullPrintStream = NullPrintStream.NULL_PRINT_STREAM;
++            PrintStream nullPrintStream = new PrintStream(new OutputStream() { public void write(int b) {} });
+             Integer result = (Integer) runMethod.invoke( jarTool, nullPrintStream, nullPrintStream, args );
+ 
+             return result != null && result.intValue() == 0;
+diff --git a/src/main/java/org/codehaus/plexus/archiver/zip/AbstractZipUnArchiver.java b/src/main/java/org/codehaus/plexus/archiver/zip/AbstractZipUnArchiver.java
+index c5b046ec..303e3a39 100644
+--- a/src/main/java/org/codehaus/plexus/archiver/zip/AbstractZipUnArchiver.java
++++ b/src/main/java/org/codehaus/plexus/archiver/zip/AbstractZipUnArchiver.java
+@@ -25,8 +25,6 @@
+ import javax.annotation.Nonnull;
+ import org.apache.commons.compress.archivers.zip.ZipArchiveEntry;
+ import org.apache.commons.compress.archivers.zip.ZipFile;
+-import org.apache.commons.io.input.BoundedInputStream;
+-import org.apache.commons.io.input.CountingInputStream;
+ import org.codehaus.plexus.archiver.AbstractUnArchiver;
+ import org.codehaus.plexus.archiver.ArchiverException;
+ import org.codehaus.plexus.components.io.resources.PlexusIoResource;
+@@ -201,14 +199,12 @@ protected void execute( final String path, final File outputDirectory )
+                 {
+                     try ( InputStream in = zipFile.getInputStream( ze ) )
+                     {
+-                        BoundedInputStream bis = new BoundedInputStream( in, remainingSpace + 1 );
+-                        CountingInputStream cis = new CountingInputStream( bis );
+-                        extractFile( getSourceFile(), outputDirectory, cis,
++                        extractFile( getSourceFile(), outputDirectory, in,
+                                      ze.getName(), new Date( ze.getTime() ), ze.isDirectory(),
+                                      ze.getUnixMode() != 0 ? ze.getUnixMode() : null,
+                                      resolveSymlink( zipFile, ze ), getFileMappers() );
+ 
+-                        remainingSpace -= cis.getByteCount();
++                        remainingSpace -= ze.getSize();
+                         if ( remainingSpace < 0 )
+                         {
+                             throw new ArchiverException( "Maximum output size limit reached" );
+diff --git a/src/main/java/org/codehaus/plexus/archiver/zip/ByteArrayOutputStream.java b/src/main/java/org/codehaus/plexus/archiver/zip/ByteArrayOutputStream.java
+index 5f62ab9f..ae81cd4e 100644
+--- a/src/main/java/org/codehaus/plexus/archiver/zip/ByteArrayOutputStream.java
++++ b/src/main/java/org/codehaus/plexus/archiver/zip/ByteArrayOutputStream.java
+@@ -26,7 +26,6 @@
+ import java.util.ArrayList;
+ import java.util.Collections;
+ import java.util.List;
+-import org.apache.commons.io.input.ClosedInputStream;
+ 
+ /**
+  * This class implements an output stream in which the data is
+@@ -398,7 +397,7 @@ public synchronized InputStream toInputStream()
+         int remaining = count;
+         if ( remaining == 0 )
+         {
+-            return new ClosedInputStream();
++            return new ByteArrayInputStream(new byte[0]);
+         }
+         final List<ByteArrayInputStream> list = new ArrayList<ByteArrayInputStream>( buffers.size() );
+         for ( final byte[] buf : buffers )
+diff --git a/src/main/java/org/codehaus/plexus/archiver/zip/OffloadingOutputStream.java b/src/main/java/org/codehaus/plexus/archiver/zip/OffloadingOutputStream.java
+index 1a9951fa..7ca54308 100644
+--- a/src/main/java/org/codehaus/plexus/archiver/zip/OffloadingOutputStream.java
++++ b/src/main/java/org/codehaus/plexus/archiver/zip/OffloadingOutputStream.java
+@@ -24,13 +24,13 @@
+ import java.io.SequenceInputStream;
+ import java.nio.file.Files;
+ 
+-import org.apache.commons.io.output.ThresholdingOutputStream;
+-
+ /**
+  * Offloads to disk when a given memory consumption has been reacehd
+  */
+-class OffloadingOutputStream extends ThresholdingOutputStream
++class OffloadingOutputStream extends OutputStream
+ {
++    private final int threshold;
++    private long written;
+ 
+     // ----------------------------------------------------------- Data members
+ 
+@@ -87,11 +87,19 @@ class OffloadingOutputStream extends ThresholdingOutputStream
+      */
+     public OffloadingOutputStream( int threshold, String prefix, String suffix, File directory )
+     {
+-        this( threshold, null, prefix, suffix, directory );
++        super();
++        this.threshold = threshold;
+         if ( prefix == null )
+         {
+             throw new IllegalArgumentException( "Temporary file prefix is missing" );
+         }
++        this.prefix = prefix;
++        this.suffix = suffix;
++        this.directory = directory;
++
++        memoryOutputStream = new ByteArrayOutputStream( threshold / 10 );
++        currentOutputStream = memoryOutputStream;
++        this.outputFile = null;
+     }
+ 
+     /**
+@@ -106,14 +114,16 @@ public OffloadingOutputStream( int threshold, String prefix, String suffix, File
+      */
+     private OffloadingOutputStream( int threshold, File outputFile, String prefix, String suffix, File directory )
+     {
+-        super( threshold );
++        this(threshold, prefix, suffix, directory);
+         this.outputFile = outputFile;
+ 
+-        memoryOutputStream = new ByteArrayOutputStream( threshold / 10 );
+-        currentOutputStream = memoryOutputStream;
+-        this.prefix = prefix;
+-        this.suffix = suffix;
+-        this.directory = directory;
++        if (outputFile != null) {
++            try {
++                currentOutputStream = Files.newOutputStream(outputFile.toPath());
++            } catch (IOException e) {
++                throw new RuntimeException("Failed to create output stream for file: " + outputFile, e);
++            }
++        }
+     }
+ 
+     // --------------------------------------- ThresholdingOutputStream methods
+@@ -126,7 +136,6 @@ private OffloadingOutputStream( int threshold, File outputFile, String prefix, S
+      *
+      * @exception java.io.IOException if an error occurs.
+      */
+-    @Override
+     protected OutputStream getStream() throws IOException
+     {
+         return currentOutputStream;
+@@ -140,7 +149,6 @@ protected OutputStream getStream() throws IOException
+      *
+      * @exception java.io.IOException if an error occurs.
+      */
+-    @Override
+     protected void thresholdReached() throws IOException
+     {
+         if ( prefix != null )
+@@ -150,6 +158,15 @@ protected void thresholdReached() throws IOException
+         currentOutputStream = Files.newOutputStream( outputFile.toPath() );
+     }
+ 
++    @Override
++    public void write(int b) throws IOException {
++        getStream().write(b);
++        written++;
++        if (written > threshold) {
++            thresholdReached();
++        }
++    }
++
+     public InputStream getInputStream() throws IOException
+     {
+ 
+@@ -204,10 +221,9 @@ public File getFile()
+      *
+      * @exception java.io.IOException if an error occurs.
+      */
+-    @Override
+     public void close() throws IOException
+     {
+-        super.close();
++        getStream().close();
+         closed = true;
+         currentOutputStream.close();
+     }
+diff --git a/src/test/java/org/codehaus/plexus/archiver/zip/PlexusIoZipFileResourceCollectionTest.java b/src/test/java/org/codehaus/plexus/archiver/zip/PlexusIoZipFileResourceCollectionTest.java
+index 0988a366..68b67294 100644
+--- a/src/test/java/org/codehaus/plexus/archiver/zip/PlexusIoZipFileResourceCollectionTest.java
++++ b/src/test/java/org/codehaus/plexus/archiver/zip/PlexusIoZipFileResourceCollectionTest.java
+@@ -11,7 +11,7 @@
+ import java.util.Iterator;
+ import java.util.Map;
+ import java.util.Set;
+-import org.apache.commons.io.IOUtils;
++import org.codehaus.plexus.util.IOUtil;
+ import org.codehaus.plexus.archiver.TestSupport;
+ import org.codehaus.plexus.components.io.functions.SymlinkDestinationSupplier;
+ import org.codehaus.plexus.components.io.resources.PlexusIoResource;
+@@ -67,7 +67,7 @@ public void testFilesWithIllegalHtmlChars()
+             if ( next.getName().endsWith( "MANIFEST.MF" ) )
+             {
+                 final InputStream contents1 = next.getContents();
+-                final String manifest = IOUtils.toString( contents1, "UTF-8" );
++                final String manifest = IOUtil.toString( contents1, "UTF-8" );
+                 assertTrue( manifest.contains( "bogs=fus" ) );
+                 contents1.close();
+             }

@@ -1,0 +1,103 @@
+diff --git a/docs/reports/4.2-SNAPSHOT/license-maven-plugin/license-plugin-report.xml b/docs/reports/4.2-SNAPSHOT/license-maven-plugin/license-plugin-report.xml
+index 8942ba2..3ba4f52 100644
+--- a/docs/reports/4.2-SNAPSHOT/license-maven-plugin/license-plugin-report.xml
++++ b/docs/reports/4.2-SNAPSHOT/license-maven-plugin/license-plugin-report.xml
+@@ -1,5 +1,5 @@
+ <?xml version="1.0" encoding="UTF-8" standalone="no"?>
+-<licensePluginReport goal="CHECK" timestamp="1651191761918">
++<licensePluginReport goal="CHECK" timestamp="1722836206117">
+     <module artifactId="license-maven-plugin" groupId="com.mycila" version="4.2-SNAPSHOT"/>
+     <files>
+         <file path="pom.xml" result="PRESENT"/>
+diff --git a/docs/reports/4.2-SNAPSHOT/license-plugin-report.xml b/docs/reports/4.2-SNAPSHOT/license-plugin-report.xml
+index ebec4e5..8986563 100644
+--- a/docs/reports/4.2-SNAPSHOT/license-plugin-report.xml
++++ b/docs/reports/4.2-SNAPSHOT/license-plugin-report.xml
+@@ -1,5 +1,5 @@
+ <?xml version="1.0" encoding="UTF-8" standalone="no"?>
+-<licensePluginReport goal="CHECK" timestamp="1651191726202">
++<licensePluginReport goal="CHECK" timestamp="1722836201050">
+     <module artifactId="license-maven-plugin-parent" groupId="com.mycila" version="4.2-SNAPSHOT"/>
+     <files>
+         <file path="pom.xml" result="PRESENT"/>
+diff --git a/license-maven-plugin/src/main/java/com/mycila/maven/plugin/license/dependencies/MavenProjectLicenses.java b/license-maven-plugin/src/main/java/com/mycila/maven/plugin/license/dependencies/MavenProjectLicenses.java
+index 8046747..1d16b3c 100755
+--- a/license-maven-plugin/src/main/java/com/mycila/maven/plugin/license/dependencies/MavenProjectLicenses.java
++++ b/license-maven-plugin/src/main/java/com/mycila/maven/plugin/license/dependencies/MavenProjectLicenses.java
+@@ -30,7 +30,8 @@ import org.apache.maven.project.ProjectBuildingRequest;
+ import org.apache.maven.shared.dependency.graph.DependencyGraphBuilder;
+ import org.apache.maven.shared.dependency.graph.DependencyGraphBuilderException;
+ import org.apache.maven.shared.dependency.graph.DependencyNode;
+-import org.apache.maven.shared.dependency.graph.internal.Maven31DependencyGraphBuilder;
++import org.apache.maven.shared.dependency.graph.internal.DefaultDependencyGraphBuilder;
++import org.apache.maven.project.ProjectDependenciesResolver;
+ 
+ import java.util.Collections;
+ import java.util.HashSet;
+@@ -55,6 +56,7 @@ public class MavenProjectLicenses implements LicenseMap, LicenseMessage {
+   private ProjectBuildingRequest buildingRequest;
+   private ArtifactFilter filter;
+   private Log log;
++  private ProjectDependenciesResolver projectDependenciesResolver;
+ 
+   /**
+    * @param projects       the Set of {@link MavenProject} to scan
+@@ -64,13 +66,15 @@ public class MavenProjectLicenses implements LicenseMap, LicenseMessage {
+    */
+   public MavenProjectLicenses(final Set<MavenProject> projects, final DependencyGraphBuilder graph,
+                               final ProjectBuilder projectBuilder, final ProjectBuildingRequest buildingRequest,
+-                              final ArtifactFilter filter, final Log log) {
++                              final ArtifactFilter filter, final Log log,
++                              final ProjectDependenciesResolver projectDependenciesResolver) {
+     this.setProjects(projects);
+     this.setBuildingRequest(buildingRequest);
+     this.setGraph(graph);
+     this.setFilter(filter);
+     this.setProjectBuilder(projectBuilder);
+     this.setLog(log);
++    this.setProjectDependenciesResolver(projectDependenciesResolver);
+ 
+     log.info(String.format("%s %s", INFO_LICENSE_IMPL, this.getClass()));
+   }
+@@ -82,10 +86,30 @@ public class MavenProjectLicenses implements LicenseMap, LicenseMessage {
+    */
+   public MavenProjectLicenses(final MavenSession session, MavenProject project, final DependencyGraphBuilder graph,
+                               final ProjectBuilder projectBuilder, final List<String> scopes, final Log log) {
+-    this(Collections.singleton(project), graph, projectBuilder, getBuildingRequestWithDefaults(session),
+-        new CumulativeScopeArtifactFilter(scopes), log);
++    ProjectDependenciesResolver projectDependenciesResolver;
++    projectDependenciesResolver = session.getComponentLookup()
++        .lookup(ProjectDependenciesResolver.class);
++    Set<MavenProject> projects = Collections.singleton(project);
++    ProjectBuildingRequest buildingRequest = getBuildingRequestWithDefaults(session);
++    ArtifactFilter artifactFilter = new CumulativeScopeArtifactFilter(scopes);
++    initializeMavenProjectLicenses(projects, graph, projectBuilder, buildingRequest,
++        artifactFilter, log, projectDependenciesResolver);
++  }
++
++  private void initializeMavenProjectLicenses(Set<MavenProject> projects, DependencyGraphBuilder graph,
++      ProjectBuilder projectBuilder, ProjectBuildingRequest buildingRequest,
++      ArtifactFilter filter, Log log, ProjectDependenciesResolver projectDependenciesResolver) {
++    this.setProjects(projects);
++    this.setBuildingRequest(buildingRequest);
++    this.setGraph(graph);
++    this.setFilter(filter);
++    this.setProjectBuilder(projectBuilder);
++    this.setLog(log);
++    this.setProjectDependenciesResolver(projectDependenciesResolver);
++    log.info(String.format("%s %s", INFO_LICENSE_IMPL, this.getClass()));
+   }
+ 
++
+   private static ProjectBuildingRequest getBuildingRequestWithDefaults(final MavenSession session) {
+     ProjectBuildingRequest request;
+     if (session == null) {
+@@ -183,7 +207,7 @@ public class MavenProjectLicenses implements LicenseMap, LicenseMessage {
+   }
+ 
+   private void setGraph(DependencyGraphBuilder graph) {
+-    this.graph = Optional.ofNullable(graph).orElse(new Maven31DependencyGraphBuilder());
++    this.graph = Optional.ofNullable(graph).orElse(new DefaultDependencyGraphBuilder(projectDependenciesResolver));
+   }
+ 
+   private ProjectBuilder getProjectBuilder() {

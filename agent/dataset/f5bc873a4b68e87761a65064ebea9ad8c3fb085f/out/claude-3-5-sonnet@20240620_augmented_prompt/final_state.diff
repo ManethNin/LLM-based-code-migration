@@ -1,0 +1,87 @@
+diff --git a/tobago-tool/tobago-theme-plugin/src/main/java/org/apache/myfaces/tobago/maven/plugin/AbstractThemeMojo.java b/tobago-tool/tobago-theme-plugin/src/main/java/org/apache/myfaces/tobago/maven/plugin/AbstractThemeMojo.java
+index 87b076e372..a745a14380 100644
+--- a/tobago-tool/tobago-theme-plugin/src/main/java/org/apache/myfaces/tobago/maven/plugin/AbstractThemeMojo.java
++++ b/tobago-tool/tobago-theme-plugin/src/main/java/org/apache/myfaces/tobago/maven/plugin/AbstractThemeMojo.java
+@@ -21,7 +21,7 @@ package org.apache.myfaces.tobago.maven.plugin;
+ 
+ import org.apache.maven.plugin.AbstractMojo;
+ import org.apache.maven.plugins.annotations.Parameter;
+-import org.apache.maven.project.MavenProject;
++import org.apache.maven.api.Project;
+ import org.codehaus.plexus.util.DirectoryScanner;
+ 
+ import java.io.File;
+@@ -32,7 +32,7 @@ public abstract class AbstractThemeMojo extends AbstractMojo {
+    * The Maven project.
+    */
+   @Parameter(defaultValue = "${project}", readonly = true, required = true)
+-  private MavenProject project;
++  private Project project;
+ 
+   private static final String[] INCLUDES = new String[]{
+     "**"
+@@ -44,7 +44,7 @@ public abstract class AbstractThemeMojo extends AbstractMojo {
+     "**/*.class"
+   };
+ 
+-  public MavenProject getProject() {
++  public Project getProject() {
+     return project;
+   }
+ 
+diff --git a/tobago-tool/tobago-theme-plugin/src/main/java/org/apache/myfaces/tobago/maven/plugin/UnPackThemeMojo.java b/tobago-tool/tobago-theme-plugin/src/main/java/org/apache/myfaces/tobago/maven/plugin/UnPackThemeMojo.java
+index e31fbbc1a6..259462b0ba 100644
+--- a/tobago-tool/tobago-theme-plugin/src/main/java/org/apache/myfaces/tobago/maven/plugin/UnPackThemeMojo.java
++++ b/tobago-tool/tobago-theme-plugin/src/main/java/org/apache/myfaces/tobago/maven/plugin/UnPackThemeMojo.java
+@@ -19,12 +19,13 @@
+ 
+ package org.apache.myfaces.tobago.maven.plugin;
+ 
+-import org.apache.maven.artifact.DependencyResolutionRequiredException;
+ import org.apache.maven.plugin.MojoExecutionException;
++import org.apache.maven.plugin.MojoFailureException;
+ import org.apache.maven.plugins.annotations.Component;
+ import org.apache.maven.plugins.annotations.LifecyclePhase;
+ import org.apache.maven.plugins.annotations.Mojo;
+ import org.apache.maven.plugins.annotations.Parameter;
++import org.apache.maven.api.Project;
+ import org.apache.maven.plugins.annotations.ResolutionScope;
+ import org.codehaus.plexus.archiver.ArchiverException;
+ import org.codehaus.plexus.archiver.UnArchiver;
+@@ -45,6 +46,8 @@ import java.io.StringReader;
+ import java.io.StringWriter;
+ import java.util.Enumeration;
+ import java.util.Iterator;
++import java.util.List;
++import java.util.ArrayList;
+ import java.util.Locale;
+ import java.util.Properties;
+ import java.util.zip.ZipEntry;
+@@ -105,9 +108,14 @@ public class UnPackThemeMojo extends AbstractThemeMojo {
+     return null;
+   }
+ 
+-  public void execute() throws MojoExecutionException {
++  public void execute() throws MojoExecutionException, MojoFailureException {
+     try {
+-      final Iterator<String> artifacts = getProject().getRuntimeClasspathElements().iterator();
++      List<String> artifactPaths = new ArrayList<String>();
++      for (org.apache.maven.api.Dependency dependency : getProject().getDependencies()) {
++        artifactPaths.add(dependency.getArtifact().getFile().getAbsolutePath());
++      }
++      final Iterator<String> artifacts = artifactPaths.iterator();
++
+       if (!workDirectory.exists()) {
+         workDirectory.mkdirs();
+       }
+@@ -193,8 +201,8 @@ public class UnPackThemeMojo extends AbstractThemeMojo {
+           }
+         }
+       }
+-    } catch (final DependencyResolutionRequiredException drre) {
+-      throw new MojoExecutionException(drre.getMessage(), drre);
++    } catch (final Throwable e) {
++      throw new MojoFailureException("Error resolving project dependencies: " + e.getMessage(), e);
+     }
+   }
+ 

@@ -1,0 +1,157 @@
+diff --git a/pom.xml b/pom.xml
+index 9447d1d..b675668 100644
+--- a/pom.xml
++++ b/pom.xml
+@@ -57,6 +57,7 @@
+         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+         <maven.test.skip>true</maven.test.skip>
++        <dropwizard.version>4.0.0</dropwizard.version>
+     </properties>
+ 
+     <repositories>
+@@ -86,17 +87,37 @@
+         <dependency>
+             <groupId>io.dropwizard</groupId>
+             <artifactId>dropwizard-core</artifactId>
+-            <version>2.1.5</version>
++            <version>${dropwizard.version}</version>
++        </dependency>
++        <dependency>
++            <groupId>jakarta.validation</groupId>
++            <artifactId>jakarta.validation-api</artifactId>
++            <version>3.0.1</version>
+         </dependency>
+         <dependency>
+             <groupId>io.dropwizard</groupId>
+             <artifactId>dropwizard-jdbi3</artifactId>
+-            <version>2.1.5</version>
++            <version>${dropwizard.version}</version>
+         </dependency>
+         <dependency>
+             <groupId>io.dropwizard</groupId>
+             <artifactId>dropwizard-client</artifactId>
+-            <version>4.0.0</version>
++            <version>${dropwizard.version}</version>
++        </dependency>
++        <dependency>
++            <groupId>jakarta.ws.rs</groupId>
++            <artifactId>jakarta.ws.rs-api</artifactId>
++            <version>3.1.0</version>
++        </dependency>
++        <dependency>
++            <groupId>jakarta.servlet</groupId>
++            <artifactId>jakarta.servlet-api</artifactId>
++            <version>5.0.0</version>
++        </dependency>
++        <dependency>
++            <groupId>com.fasterxml.jackson.jaxrs</groupId>
++            <artifactId>jackson-jaxrs-json-provider</artifactId>
++            <version>2.13.0</version>
+         </dependency>
+         <dependency>
+             <groupId>com.github.smoketurner</groupId>
+@@ -119,7 +140,7 @@
+         <dependency>
+             <groupId>io.dropwizard</groupId>
+             <artifactId>dropwizard-testing</artifactId>
+-            <version>2.1.5</version>
++            <version>${dropwizard.version}</version>
+             <scope>test</scope>
+         </dependency>
+         <dependency>
+diff --git a/src/main/java/com/wire/lithium/API.java b/src/main/java/com/wire/lithium/API.java
+index 68d5c1b..087c3c6 100644
+--- a/src/main/java/com/wire/lithium/API.java
++++ b/src/main/java/com/wire/lithium/API.java
+@@ -36,12 +36,12 @@ import org.glassfish.jersey.media.multipart.BodyPart;
+ import org.glassfish.jersey.media.multipart.MultiPart;
+ 
+ import javax.annotation.Nullable;
+-import javax.ws.rs.NotSupportedException;
+-import javax.ws.rs.client.Client;
+-import javax.ws.rs.client.Entity;
+-import javax.ws.rs.client.Invocation;
+-import javax.ws.rs.client.WebTarget;
+-import javax.ws.rs.core.*;
++import jakarta.ws.rs.NotSupportedException;
++import jakarta.ws.rs.client.Client;
++import jakarta.ws.rs.client.Entity;
++import jakarta.ws.rs.client.Invocation;
++import jakarta.ws.rs.client.WebTarget;
++import jakarta.ws.rs.core.*;
+ import java.io.ByteArrayOutputStream;
+ import java.io.IOException;
+ import java.nio.charset.StandardCharsets;
+diff --git a/src/main/java/com/wire/lithium/Server.java b/src/main/java/com/wire/lithium/Server.java
+index 45ed039..ced57c6 100644
+--- a/src/main/java/com/wire/lithium/Server.java
++++ b/src/main/java/com/wire/lithium/Server.java
+@@ -50,7 +50,8 @@ import io.dropwizard.configuration.EnvironmentVariableSubstitutor;
+ import io.dropwizard.configuration.SubstitutingSourceProvider;
+ import io.dropwizard.servlets.tasks.Task;
+ import io.dropwizard.setup.Bootstrap;
+-import io.dropwizard.setup.Environment;
++import io.dropwizard.core.Configuration;
++import io.dropwizard.core.setup.Environment;
+ import io.federecio.dropwizard.swagger.SwaggerBundle;
+ import io.federecio.dropwizard.swagger.SwaggerBundleConfiguration;
+ import org.flywaydb.core.Flyway;
+@@ -71,7 +72,7 @@ import java.util.concurrent.TimeUnit;
+ public abstract class Server<Config extends Configuration> extends Application<Config> {
+     protected ClientRepo repo;
+     protected Config config;
+-    protected Environment environment;
++    protected io.dropwizard.core.setup.Environment environment;
+     protected Client client;
+     protected MessageHandlerBase messageHandler;
+     protected Jdbi jdbi;
+@@ -84,7 +85,7 @@ public abstract class Server<Config extends Configuration> extends Application<C
+      * @return Instance of your class that implements {@link MessageHandlerBase}
+      * @throws Exception allowed to throw exception
+      */
+-    protected abstract MessageHandlerBase createHandler(Config config, Environment env) throws Exception;
++    protected abstract MessageHandlerBase createHandler(Config config, io.dropwizard.core.setup.Environment env) throws Exception;
+ 
+     /**
+      * Override this method to put your custom initialization
+@@ -95,7 +96,7 @@ public abstract class Server<Config extends Configuration> extends Application<C
+      * @throws Exception allowed to throw exception
+      */
+     @SuppressWarnings("RedundantThrows") // this method can be overridden
+-    protected void initialize(Config config, Environment env) throws Exception {
++    protected void initialize(Config config, io.dropwizard.core.setup.Environment env) throws Exception {
+ 
+     }
+ 
+@@ -109,7 +110,7 @@ public abstract class Server<Config extends Configuration> extends Application<C
+      * @throws Exception allowed to throw exception
+      */
+     @SuppressWarnings("RedundantThrows") // this method can be overridden
+-    protected void onRun(Config config, Environment env) throws Exception {
++    protected void onRun(Config config, io.dropwizard.core.setup.Environment env) throws Exception {
+ 
+     }
+ 
+@@ -126,7 +127,7 @@ public abstract class Server<Config extends Configuration> extends Application<C
+     }
+ 
+     @Override
+-    public void run(final Config config, Environment env) throws Exception {
++    public void run(final Config config, io.dropwizard.core.setup.Environment env) throws Exception {
+         this.config = config;
+         this.environment = env;
+ 
+@@ -156,10 +157,10 @@ public abstract class Server<Config extends Configuration> extends Application<C
+         onRun(config, env);
+     }
+ 
+-    private Client createHttpClient(Config config, Environment env) {
++    private Client createHttpClient(Config config, io.dropwizard.core.setup.Environment env) {
+         return new JerseyClientBuilder(env)
+                 .using(config.getJerseyClient())
+-                .withProvider(MultiPartFeature.class)
++                .register(MultiPartFeature.class)
+                 .withProvider(JacksonJsonProvider.class)
+                 .build(getName());
+     }

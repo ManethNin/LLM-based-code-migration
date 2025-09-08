@@ -1,0 +1,82 @@
+diff --git a/cdi-test-api/src/main/java/de/hilling/junit/cdi/annotations/GlobalTestImplementation.java b/cdi-test-api/src/main/java/de/hilling/junit/cdi/annotations/GlobalTestImplementation.java
+index 04df1a7..a219418 100644
+--- a/cdi-test-api/src/main/java/de/hilling/junit/cdi/annotations/GlobalTestImplementation.java
++++ b/cdi-test-api/src/main/java/de/hilling/junit/cdi/annotations/GlobalTestImplementation.java
+@@ -3,7 +3,8 @@ package de.hilling.junit.cdi.annotations;
+ import de.hilling.junit.cdi.scope.TestScoped;
+ import org.immutables.value.Value;
+ 
+-import javax.annotation.Priority;
++import jakarta.annotation.Priority;
++import jakarta.annotation.Priority;
+ import javax.enterprise.inject.Alternative;
+ import javax.enterprise.inject.Stereotype;
+ import java.lang.annotation.ElementType;
+diff --git a/cdi-test-core/src/main/java/de/hilling/junit/cdi/scope/CallRedirectionInterceptor.java b/cdi-test-core/src/main/java/de/hilling/junit/cdi/scope/CallRedirectionInterceptor.java
+index 6eb35d3..9c60744 100644
+--- a/cdi-test-core/src/main/java/de/hilling/junit/cdi/scope/CallRedirectionInterceptor.java
++++ b/cdi-test-core/src/main/java/de/hilling/junit/cdi/scope/CallRedirectionInterceptor.java
+@@ -3,7 +3,7 @@ package de.hilling.junit.cdi.scope;
+ import de.hilling.junit.cdi.util.ReflectionsUtils;
+ import org.apache.deltaspike.core.api.provider.BeanProvider;
+ 
+-import javax.annotation.Priority;
++import jakarta.annotation.Priority;
+ import javax.enterprise.context.Dependent;
+ import javax.enterprise.inject.Instance;
+ import javax.inject.Inject;
+@@ -13,6 +13,7 @@ import javax.interceptor.InvocationContext;
+ import java.io.Serializable;
+ import java.lang.reflect.InvocationTargetException;
+ import java.lang.reflect.Method;
++import java.util.logging.Logger;
+ 
+ @Replaceable
+ @Interceptor
+@@ -20,6 +21,7 @@ import java.lang.reflect.Method;
+ @Priority(0)
+ public class CallRedirectionInterceptor implements Serializable {
+     private static final long serialVersionUID = 1L;
++    private static final Logger LOGGER = Logger.getLogger(CallRedirectionInterceptor.class.getName());
+ 
+     @Inject
+     private Instance<InvocationTargetManager> invocationTargetManager;
+@@ -28,10 +30,13 @@ public class CallRedirectionInterceptor implements Serializable {
+     public Object invokeMockableBean(InvocationContext ctx) throws Throwable {
+         Class<?> javaClass = ReflectionsUtils.getOriginalClass(ctx.getTarget().getClass());
+         if (invocationTargetManager.get().isAlternativeEnabled(javaClass)) {
++            LOGGER.info("Calling alternative for " + javaClass.getName() + ", method: " + ctx.getMethod().getName());
+             return callAlternative(ctx, javaClass);
+         } else if (invocationTargetManager.get().isMockEnabled(javaClass)) {
++            LOGGER.info("Calling mock for " + javaClass.getName() + ", method: " + ctx.getMethod().getName());
+             return callMock(ctx, javaClass);
+         } else {
++            LOGGER.info("Proceeding with original method for " + javaClass.getName() + ", method: " + ctx.getMethod().getName());
+             return ctx.proceed();
+         }
+     }
+@@ -43,7 +48,10 @@ public class CallRedirectionInterceptor implements Serializable {
+                 .getContextualReference(invocationTargetManager.get().alternativeFor(javaClass));
+         try {
+             Method alternativeMethod = alternative.getClass().getMethod(method.getName(), method.getParameterTypes());
+-            return alternativeMethod.invoke(alternative, ctx.getParameters());
++            LOGGER.info("Invoking alternative method: " + alternativeMethod.getName() + " on " + alternative.getClass().getName());
++            Object result = alternativeMethod.invoke(alternative, ctx.getParameters());
++            LOGGER.info("Alternative method invoked: " + alternativeMethod.getName() + ", result: " + result + ", invocation counter: " + (alternative instanceof TestActivatedOverridenService ? ((TestActivatedOverridenService) alternative).getInvocationCounter() : "N/A"));
++            return result;
+         } catch (NoSuchMethodException nme) {
+             throw new IllegalStateException("method " + method.getName() + " not found on alternative " + alternative);
+         } catch (InvocationTargetException ite) {
+@@ -54,7 +62,11 @@ public class CallRedirectionInterceptor implements Serializable {
+     @SuppressWarnings("squid:S00112")
+     private Object callMock(InvocationContext ctx, Class<?> javaClass) throws Throwable {
+         try {
+-            return ctx.getMethod().invoke(invocationTargetManager.get().mock(javaClass), ctx.getParameters());
++            Object mock = invocationTargetManager.get().mock(javaClass);
++            LOGGER.info("Invoking mock method: " + ctx.getMethod().getName() + " on " + mock.getClass().getName());
++            Object result = ctx.getMethod().invoke(mock, ctx.getParameters());
++            LOGGER.info("Mock method invoked: " + ctx.getMethod().getName() + ", result: " + result + ", invocation counter: " + (mock instanceof TestActivatedOverridenService ? ((TestActivatedOverridenService) mock).getInvocationCounter() : "N/A"));
++            return result;
+         } catch (InvocationTargetException ite) {
+             throw ite.getCause();
+         }

@@ -1,0 +1,132 @@
+diff --git a/thrift-logger/src/main/java/com/pinterest/singer/client/ThriftCodec.java b/thrift-logger/src/main/java/com/pinterest/singer/client/ThriftCodec.java
+index 4f3a5f4..281b21b 100644
+--- a/thrift-logger/src/main/java/com/pinterest/singer/client/ThriftCodec.java
++++ b/thrift-logger/src/main/java/com/pinterest/singer/client/ThriftCodec.java
+@@ -27,7 +27,8 @@ import org.apache.thrift.protocol.TProtocol;
+ import org.apache.thrift.transport.TIOStreamTransport;
+ import org.apache.thrift.transport.TMemoryInputTransport;
+ 
+-import java.io.ByteArrayInputStream;
++import java.io.ByteArrayInputStream;import org.apache.thrift.transport.TTransportException;
++
+ import java.io.ByteArrayOutputStream;
+ import java.io.IOException;
+ import java.io.UnsupportedEncodingException;
+@@ -176,15 +177,33 @@ public class ThriftCodec {
+ 
+   private ThreadLocal<TDeserializer> decoder = new ThreadLocal<TDeserializer>() {
+     @Override
++
++  private static final ThreadLocal<TDeserializer> binaryDeserializer =
++      new ThreadLocal<TDeserializer>() {
++  private static final ThreadLocal<TDeserializer> compactDeserializer =
++      new ThreadLocal<TDeserializer>() {
+     protected TDeserializer initialValue() {
+-      return new TDeserializer(new TBinaryProtocol.Factory());
++      try {
++        return new TDeserializer(new TBinaryProtocol.Factory());
++      } catch (TTransportException e) {
++        throw new RuntimeException("Failed to create TDeserializer", e);
++      }
+     }
+   };
+ 
+   private ThreadLocal<TDeserializer> decoderCompact = new ThreadLocal<TDeserializer>() {
+     @Override
++
++  private static final ThreadLocal<TDeserializer> binaryDeserializer =
++      new ThreadLocal<TDeserializer>() {
++  private static final ThreadLocal<TDeserializer> compactDeserializer =
++      new ThreadLocal<TDeserializer>() {
+     protected TDeserializer initialValue() {
+-      return new TDeserializer(new TCompactProtocol.Factory());
++      try {
++        return new TDeserializer(new TCompactProtocol.Factory());
++      } catch (TTransportException e) {
++        throw new RuntimeException("Failed to create TDeserializer", e);
++      }
+     }
+   };
+ 
+@@ -203,7 +222,14 @@ public class ThriftCodec {
+     /**
+      * This transport wraps that byte array
+      */
+-    private final TIOStreamTransport transport = new TIOStreamTransport(outputStream);
++    private final TIOStreamTransport transport;
++    {
++      try {
++        transport = new TIOStreamTransport(outputStream);
++      } catch (TTransportException e) {
++        throw new RuntimeException("Failed to create TIOStreamTransport", e);
++      }
++    }
+ 
+     /**
+      * Internal protocol used for serializing objects.
+@@ -233,8 +259,12 @@ public class ThriftCodec {
+     private final TMemoryInputTransport transport;
+ 
+     public PrefixedDeserializer() {
+-      transport = new TMemoryInputTransport();
+-      protocol = new TCompactProtocol(transport);
++      try {
++        transport = new TMemoryInputTransport();
++        protocol = new TCompactProtocol(transport);
++      } catch (TTransportException e) {
++        throw new RuntimeException("Failed to create TMemoryInputTransport", e);
++      }
+     }
+ 
+     /**
+@@ -289,7 +319,10 @@ public class ThriftCodec {
+   private ThreadLocal<TSerializer> encoder = new ThreadLocal<TSerializer>() {
+     @Override
+     protected TSerializer initialValue() {
+-      return new TSerializer(new TBinaryProtocol.Factory());
++      try {
++        return new TSerializer(new TBinaryProtocol.Factory());
++      } catch (TTransportException e) {
++        throw new RuntimeException("Failed to create TSerializer", e);
+     }
+   };
+ 
+diff --git a/thrift-logger/src/main/java/com/pinterest/singer/client/logback/AppenderUtils.java b/thrift-logger/src/main/java/com/pinterest/singer/client/logback/AppenderUtils.java
+index 4fc31f6..36914c2 100644
+--- a/thrift-logger/src/main/java/com/pinterest/singer/client/logback/AppenderUtils.java
++++ b/thrift-logger/src/main/java/com/pinterest/singer/client/logback/AppenderUtils.java
+@@ -27,8 +27,9 @@ import ch.qos.logback.core.util.FileSize;
+ import org.apache.thrift.TException;
+ import org.apache.thrift.protocol.TBinaryProtocol;
+ import org.apache.thrift.protocol.TProtocol;
+-import org.apache.thrift.transport.TFastFramedTransport;
+ import org.apache.thrift.transport.TIOStreamTransport;
++import org.apache.thrift.transport.TTransportFactory;
++import org.apache.thrift.transport.TTransportException;
+ import org.apache.thrift.transport.TTransport;
+ 
+ import java.io.File;
+@@ -55,14 +56,16 @@ public class AppenderUtils {
+     private OutputStream os;
+ 
+     @Override
+-    public void init(OutputStream os) {
++    public void init(OutputStream os) throws IOException {
+       this.os = os;
+-      // Use the TFlushingFastFramedTransport to be compatible with singer_thrift
+-      // log.
+-      final int bufferCapacity = 10;
+-      framedTransport = new TFastFramedTransport(new TIOStreamTransport(os),
+-          bufferCapacity);
+-      protocol = new TBinaryProtocol(framedTransport);
++      // Use TTransportFactory to create a transport
++      TTransportFactory transportFactory = new TTransportFactory();
++      try {
++        framedTransport = transportFactory.getTransport(new TIOStreamTransport(os));
++        protocol = new TBinaryProtocol(framedTransport);
++      } catch (TTransportException e) {
++        throw new IOException("Failed to initialize Thrift transport", e);
++      }
+     }
+ 
+     @Override

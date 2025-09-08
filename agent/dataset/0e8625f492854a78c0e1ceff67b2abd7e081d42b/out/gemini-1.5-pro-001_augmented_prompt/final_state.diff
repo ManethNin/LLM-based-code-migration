@@ -1,0 +1,92 @@
+diff --git a/jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JettyStubHttpServer.java b/jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JettyStubHttpServer.java
+index b6fde22..f79e5b4 100644
+--- a/jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JettyStubHttpServer.java
++++ b/jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JettyStubHttpServer.java
+@@ -9,7 +9,6 @@ import net.jadler.stubbing.server.StubHttpServer;
+ import org.apache.commons.lang.Validate;
+ import org.eclipse.jetty.server.Connector;
+ import org.eclipse.jetty.server.Server;
+-import org.eclipse.jetty.server.nio.SelectChannelConnector;
+ import org.slf4j.Logger;
+ import org.slf4j.LoggerFactory;
+ 
+@@ -21,7 +20,7 @@ public class JettyStubHttpServer implements StubHttpServer {
+ 
+     private static final Logger logger = LoggerFactory.getLogger(JettyStubHttpServer.class);
+     private final Server server;
+-    private final Connector httpConnector;
++    private int port;
+ 
+     public JettyStubHttpServer() {
+         this(0);
+@@ -29,13 +28,14 @@ public class JettyStubHttpServer implements StubHttpServer {
+ 
+ 
+     public JettyStubHttpServer(final int port) {
++        this.port = port;
++
+         this.server = new Server();
+-        this.server.setSendServerVersion(false);
+-        this.server.setSendDateHeader(true);
+ 
+-        this.httpConnector = new SelectChannelConnector();
+-        this.httpConnector.setPort(port);
+-        server.addConnector(this.httpConnector);
++        ServerConnector httpConnector = new ServerConnector(server);
++        httpConnector.setHost("localhost");
++        httpConnector.setPort(port);
++        server.addConnector(httpConnector);
+     }
+ 
+ 
+@@ -46,7 +46,7 @@ public class JettyStubHttpServer implements StubHttpServer {
+     public void registerRequestManager(final RequestManager ruleProvider) {
+         Validate.notNull(ruleProvider, "ruleProvider cannot be null");
+ 
+-        server.setHandler(new JadlerHandler(ruleProvider));
++        this.server.setHandler(new JadlerHandler(ruleProvider));
+     }
+ 
+ 
+@@ -55,8 +55,11 @@ public class JettyStubHttpServer implements StubHttpServer {
+      */
+     @Override
+     public void start() throws Exception {
+-        logger.debug("starting jetty");
+-        server.start();
++-        logger.debug("starting jetty");
+++        logger.debug("starting jetty");
+++        this.server.setHandler(new JadlerHandler(this));
+++        this.server.start();
+++        this.port = ((ServerConnector) server.getConnectors()[0]).getLocalPort();
+         logger.debug("jetty started");
+     }
+ 
+@@ -66,17 +69,18 @@ public class JettyStubHttpServer implements StubHttpServer {
+      */
+     @Override
+     public void stop() throws Exception {
+-        logger.debug("stopping jetty");
++-        logger.debug(\"stopping jetty\");
+++        this.port = -1;
+         server.stop();
+-        logger.debug("jetty stopped");
+-    }
++logger.debug("jetty stopped");
++}
+ 
+ 
+-    /**
++/**
+      * {@inheritDoc}
+-     */
+-    @Override
++*/
++@Override
+     public int getPort() {
+-        return httpConnector.getLocalPort();
+-    }
++        return this.port;
++}
+ }
+\ No newline at end of file

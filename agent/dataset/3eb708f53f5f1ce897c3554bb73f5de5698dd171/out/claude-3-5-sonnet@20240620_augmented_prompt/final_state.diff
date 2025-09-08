@@ -1,0 +1,144 @@
+diff --git a/java-translate/google-cloud-translate/src/main/java/com/google/cloud/translate/Detection.java b/java-translate/google-cloud-translate/src/main/java/com/google/cloud/translate/Detection.java
+index 3b8e164f115..1985713d7fd 100644
+--- a/java-translate/google-cloud-translate/src/main/java/com/google/cloud/translate/Detection.java
++++ b/java-translate/google-cloud-translate/src/main/java/com/google/cloud/translate/Detection.java
+@@ -16,7 +16,7 @@
+ 
+ package com.google.cloud.translate;
+ 
+-import com.google.api.services.translate.model.DetectionsResourceItems;
++import com.google.cloud.translate.v3.DetectedLanguage;
+ import com.google.common.base.MoreObjects;
+ import java.io.Serializable;
+ import java.util.Objects;
+@@ -84,7 +84,7 @@ public class Detection implements Serializable {
+     return Objects.equals(language, other.language) && Objects.equals(confidence, other.confidence);
+   }
+ 
+-  static Detection fromPb(DetectionsResourceItems detectionPb) {
+-    return new Detection(detectionPb.getLanguage(), detectionPb.getConfidence());
++  static Detection fromPb(DetectedLanguage detectionPb) {
++    return new Detection(detectionPb.getLanguageCode(), detectionPb.getConfidence());
+   }
+ }
+diff --git a/java-translate/google-cloud-translate/src/main/java/com/google/cloud/translate/Language.java b/java-translate/google-cloud-translate/src/main/java/com/google/cloud/translate/Language.java
+index 01cc03c04c9..c3e1b5a622d 100644
+--- a/java-translate/google-cloud-translate/src/main/java/com/google/cloud/translate/Language.java
++++ b/java-translate/google-cloud-translate/src/main/java/com/google/cloud/translate/Language.java
+@@ -16,7 +16,7 @@
+ 
+ package com.google.cloud.translate;
+ 
+-import com.google.api.services.translate.model.LanguagesResource;
++import com.google.cloud.translate.v3.SupportedLanguage;
+ import com.google.common.base.Function;
+ import com.google.common.base.MoreObjects;
+ import java.io.Serializable;
+@@ -33,10 +33,10 @@ import java.util.Objects;
+ public class Language implements Serializable {
+ 
+   private static final long serialVersionUID = 5205240279371907020L;
+-  static final Function<LanguagesResource, Language> FROM_PB_FUNCTION =
+-      new Function<LanguagesResource, Language>() {
++  static final Function<SupportedLanguage, Language> FROM_PB_FUNCTION =
++      new Function<SupportedLanguage, Language>() {
+         @Override
+-        public Language apply(LanguagesResource languagePb) {
++        public Language apply(SupportedLanguage languagePb) {
+           return Language.fromPb(languagePb);
+         }
+       };
+@@ -81,7 +81,7 @@ public class Language implements Serializable {
+     return Objects.equals(code, other.code) && Objects.equals(name, other.name);
+   }
+ 
+-  static Language fromPb(LanguagesResource languagePb) {
+-    return new Language(languagePb.getLanguage(), languagePb.getName());
++  static Language fromPb(SupportedLanguage languagePb) {
++    return new Language(languagePb.getLanguageCode(), languagePb.getDisplayName());
+   }
+ }
+diff --git a/java-translate/google-cloud-translate/src/main/java/com/google/cloud/translate/Translation.java b/java-translate/google-cloud-translate/src/main/java/com/google/cloud/translate/Translation.java
+index 8522921b06c..b0619b342dc 100644
+--- a/java-translate/google-cloud-translate/src/main/java/com/google/cloud/translate/Translation.java
++++ b/java-translate/google-cloud-translate/src/main/java/com/google/cloud/translate/Translation.java
+@@ -16,7 +16,7 @@
+ 
+ package com.google.cloud.translate;
+ 
+-import com.google.api.services.translate.model.TranslationsResource;
++import com.google.cloud.translate.v3.Translation.TranslatedText;
+ import com.google.common.base.Function;
+ import com.google.common.base.MoreObjects;
+ import java.io.Serializable;
+@@ -34,10 +34,10 @@ import java.util.Objects;
+ public class Translation implements Serializable {
+ 
+   private static final long serialVersionUID = 2556017420486245581L;
+-  static final Function<TranslationsResource, Translation> FROM_PB_FUNCTION =
+-      new Function<TranslationsResource, Translation>() {
++  static final Function<TranslatedText, Translation> FROM_PB_FUNCTION =
++      new Function<TranslatedText, Translation>() {
+         @Override
+-        public Translation apply(TranslationsResource translationPb) {
++        public Translation apply(TranslatedText translationPb) {
+           return Translation.fromPb(translationPb);
+         }
+       };
+@@ -103,10 +103,10 @@ public class Translation implements Serializable {
+         && Objects.equals(sourceLanguage, other.sourceLanguage);
+   }
+ 
+-  static Translation fromPb(TranslationsResource translationPb) {
++  static Translation fromPb(TranslatedText translationPb) {
+     return new Translation(
+-        translationPb.getTranslatedText(),
+-        translationPb.getDetectedSourceLanguage(),
+-        translationPb.getModel());
++        translationPb.getText(),
++        translationPb.getDetectedLanguageCode(),
++        ""); // The new API doesn't provide model information directly
+   }
+ }
+diff --git a/java-translate/google-cloud-translate/src/main/java/com/google/cloud/translate/spi/v2/TranslateRpc.java b/java-translate/google-cloud-translate/src/main/java/com/google/cloud/translate/spi/v2/TranslateRpc.java
+index ed69c8fb009..fabd3f40f96 100644
+--- a/java-translate/google-cloud-translate/src/main/java/com/google/cloud/translate/spi/v2/TranslateRpc.java
++++ b/java-translate/google-cloud-translate/src/main/java/com/google/cloud/translate/spi/v2/TranslateRpc.java
+@@ -16,9 +16,9 @@
+ 
+ package com.google.cloud.translate.spi.v2;
+ 
+-import com.google.api.services.translate.model.DetectionsResourceItems;
+-import com.google.api.services.translate.model.LanguagesResource;
+-import com.google.api.services.translate.model.TranslationsResource;
++import com.google.cloud.translate.v3.DetectedLanguage;
++import com.google.cloud.translate.v3.SupportedLanguage;
++import com.google.cloud.translate.v3.TranslateTextResponse;
+ import com.google.cloud.ServiceRpc;
+ import java.util.List;
+ import java.util.Map;
+@@ -56,7 +56,7 @@ public interface TranslateRpc extends ServiceRpc {
+    *
+    * @param optionMap options to listing language translations
+    */
+-  List<LanguagesResource> listSupportedLanguages(Map<Option, ?> optionMap);
++  List<SupportedLanguage> listSupportedLanguages(Map<Option, ?> optionMap);
+ 
+   /**
+    * Detects the language of the provided texts.
+@@ -64,7 +64,7 @@ public interface TranslateRpc extends ServiceRpc {
+    * @param texts the texts to translate
+    * @return a list of lists of detections, one list of detections for each provided text, in order
+    */
+-  List<List<DetectionsResourceItems>> detect(List<String> texts);
++  List<List<DetectedLanguage>> detect(List<String> texts);
+ 
+   /**
+    * Translates the provided texts.
+@@ -74,5 +74,5 @@ public interface TranslateRpc extends ServiceRpc {
+    * @return a list of resources containing translation information, in the same order of the
+    *     provided texts
+    */
+-  List<TranslationsResource> translate(List<String> texts, Map<Option, ?> optionMap);
++  List<TranslateTextResponse> translate(List<String> texts, Map<Option, ?> optionMap);
+ }

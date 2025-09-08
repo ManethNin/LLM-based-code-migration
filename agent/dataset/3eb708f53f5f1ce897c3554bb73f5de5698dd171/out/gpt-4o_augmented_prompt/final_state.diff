@@ -1,0 +1,269 @@
+diff --git a/java-translate/google-cloud-translate/src/main/java/com/google/cloud/translate/Detection.java b/java-translate/google-cloud-translate/src/main/java/com/google/cloud/translate/Detection.java
+index 3b8e164f115..42394817770 100644
+--- a/java-translate/google-cloud-translate/src/main/java/com/google/cloud/translate/Detection.java
++++ b/java-translate/google-cloud-translate/src/main/java/com/google/cloud/translate/Detection.java
+@@ -16,7 +16,6 @@
+ 
+ package com.google.cloud.translate;
+ 
+-import com.google.api.services.translate.model.DetectionsResourceItems;
+ import com.google.common.base.MoreObjects;
+ import java.io.Serializable;
+ import java.util.Objects;
+@@ -84,7 +83,8 @@ public class Detection implements Serializable {
+     return Objects.equals(language, other.language) && Objects.equals(confidence, other.confidence);
+   }
+ 
+-  static Detection fromPb(DetectionsResourceItems detectionPb) {
++  static Detection fromPb(DetectedLanguage detectionPb) {
+     return new Detection(detectionPb.getLanguage(), detectionPb.getConfidence());
+   }
+ }
++import com.google.api.services.translate.v3.model.DetectedLanguage;
+diff --git a/java-translate/google-cloud-translate/src/main/java/com/google/cloud/translate/Language.java b/java-translate/google-cloud-translate/src/main/java/com/google/cloud/translate/Language.java
+index 01cc03c04c9..3199c42a435 100644
+--- a/java-translate/google-cloud-translate/src/main/java/com/google/cloud/translate/Language.java
++++ b/java-translate/google-cloud-translate/src/main/java/com/google/cloud/translate/Language.java
+@@ -16,7 +16,6 @@
+ 
+ package com.google.cloud.translate;
+ 
+-import com.google.api.services.translate.model.LanguagesResource;
+ import com.google.common.base.Function;
+ import com.google.common.base.MoreObjects;
+ import java.io.Serializable;
+@@ -33,10 +32,10 @@ import java.util.Objects;
+ public class Language implements Serializable {
+ 
+   private static final long serialVersionUID = 5205240279371907020L;
+-  static final Function<LanguagesResource, Language> FROM_PB_FUNCTION =
+-      new Function<LanguagesResource, Language>() {
++  static final Function<SupportedLanguage, Language> FROM_PB_FUNCTION =
++      new Function<SupportedLanguage, Language>() {
+         @Override
+-        public Language apply(LanguagesResource languagePb) {
++        public Language apply(SupportedLanguage languagePb) {
+           return Language.fromPb(languagePb);
+         }
+       };
+@@ -81,7 +80,8 @@ public class Language implements Serializable {
+     return Objects.equals(code, other.code) && Objects.equals(name, other.name);
+   }
+ 
+-  static Language fromPb(LanguagesResource languagePb) {
++  static Language fromPb(SupportedLanguage languagePb) {
+     return new Language(languagePb.getLanguage(), languagePb.getName());
+   }
+ }
++import com.google.api.services.translate.v3.model.SupportedLanguage;
+diff --git a/java-translate/google-cloud-translate/src/main/java/com/google/cloud/translate/TranslateImpl.java b/java-translate/google-cloud-translate/src/main/java/com/google/cloud/translate/TranslateImpl.java
+index 4f4edb4f8a6..aaa5801e799 100644
+--- a/java-translate/google-cloud-translate/src/main/java/com/google/cloud/translate/TranslateImpl.java
++++ b/java-translate/google-cloud-translate/src/main/java/com/google/cloud/translate/TranslateImpl.java
+@@ -20,9 +20,6 @@ import static com.google.cloud.RetryHelper.runWithRetries;
+ import static com.google.common.base.Preconditions.checkArgument;
+ import static com.google.common.base.Preconditions.checkState;
+ 
+-import com.google.api.services.translate.model.DetectionsResourceItems;
+-import com.google.api.services.translate.model.LanguagesResource;
+-import com.google.api.services.translate.model.TranslationsResource;
+ import com.google.cloud.BaseService;
+ import com.google.cloud.RetryHelper.RetryHelperException;
+ import com.google.cloud.translate.spi.v2.TranslateRpc;
+@@ -146,4 +143,109 @@ final class TranslateImpl extends BaseService<TranslateOptions> implements Trans
+     }
+     return optionMap;
+   }
++private static final Function<List<DetectedLanguage>, Detection>
++      DETECTION_FROM_PB_FUNCTION =
++new Function<List<DetectedLanguage>, Detection>() {
++@Override
++public Detection apply(List<DetectedLanguage> detectionPb) {
++              return Detection.fromPb(detectionPb.get(0));
++}
++};
++
++@Override
++  public List<Language> listSupportedLanguages(final LanguageListOption... options) {
++try {
++      return Lists.transform(
++          runWithRetries(
++new Callable<List<SupportedLanguage>>() {
++@Override
++public List<SupportedLanguage> call() {
++                  return translateRpc.listSupportedLanguages(optionMap(options));
++}
++},
++              getOptions().getRetrySettings(),
++              EXCEPTION_HANDLER,
++              getOptions().getClock()),
++          Language.FROM_PB_FUNCTION);
++    } catch (RetryHelperException e) {
++      throw TranslateException.translateAndThrow(e);
++}
++}
++
++@Override
++  public List<Detection> detect(final List<String> texts) {
++try {
++List<List<DetectedLanguage>> detectionsPb =
++          runWithRetries(
++new Callable<List<List<DetectedLanguage>>>() {
++@Override
++public List<List<DetectedLanguage>> call() {
++                  return translateRpc.detect(texts);
++}
++},
++              getOptions().getRetrySettings(),
++              EXCEPTION_HANDLER,
++              getOptions().getClock());
++Iterator<List<DetectedLanguage>> detectionIterator = detectionsPb.iterator();
++      Iterator<String> textIterator = texts.iterator();
++      while (detectionIterator.hasNext() && textIterator.hasNext()) {
++List<DetectedLanguage> detectionPb = detectionIterator.next();
++        String text = textIterator.next();
++        checkState(
++            detectionPb != null && !detectionPb.isEmpty(), "No detection found for text: %s", text);
++        checkState(detectionPb.size() == 1, "Multiple detections found for text: %s", text);
++}
++      return Lists.transform(detectionsPb, DETECTION_FROM_PB_FUNCTION);
++    } catch (RetryHelperException e) {
++      throw TranslateException.translateAndThrow(e);
++}
++}
++
++@Override
++  public List<Detection> detect(String... texts) {
++    return detect(Arrays.asList(texts));
++}
++
++@Override
++  public Detection detect(String text) {
++    return detect(Collections.singletonList(text)).get(0);
++}
++
++@Override
++  public List<Translation> translate(final List<String> texts, final TranslateOption... options) {
++try {
++      return Lists.transform(
++          runWithRetries(
++new Callable<List<Translation>>() {
++@Override
++public List<Translation> call() {
++                  return translateRpc.translate(texts, optionMap(options));
++}
++},
++              getOptions().getRetrySettings(),
++              EXCEPTION_HANDLER,
++              getOptions().getClock()),
++          Translation.FROM_PB_FUNCTION);
++    } catch (RetryHelperException e) {
++      throw TranslateException.translateAndThrow(e);
++}
++}
++
++@Override
++  public Translation translate(String text, TranslateOption... options) {
++    return translate(Collections.singletonList(text), options).get(0);
++}
++
++  private Map<TranslateRpc.Option, ?> optionMap(Option... options) {
++    Map<TranslateRpc.Option, Object> optionMap = Maps.newEnumMap(TranslateRpc.Option.class);
++    for (Option option : options) {
++      Object prev = optionMap.put(option.getRpcOption(), option.getValue());
++      checkArgument(prev == null, "Duplicate option %s", option);
++}
++    return optionMap;
++}
++}
+ }
++import com.google.api.services.translate.v3.model.DetectedLanguage;
++import com.google.api.services.translate.v3.model.SupportedLanguage;
++import com.google.api.services.translate.v3.model.Translation;
+\ No newline at end of file
+diff --git a/java-translate/google-cloud-translate/src/main/java/com/google/cloud/translate/Translation.java b/java-translate/google-cloud-translate/src/main/java/com/google/cloud/translate/Translation.java
+index 8522921b06c..99f0d01ac4a 100644
+--- a/java-translate/google-cloud-translate/src/main/java/com/google/cloud/translate/Translation.java
++++ b/java-translate/google-cloud-translate/src/main/java/com/google/cloud/translate/Translation.java
+@@ -16,7 +16,6 @@
+ 
+ package com.google.cloud.translate;
+ 
+-import com.google.api.services.translate.model.TranslationsResource;
+ import com.google.common.base.Function;
+ import com.google.common.base.MoreObjects;
+ import java.io.Serializable;
+@@ -34,10 +33,10 @@ import java.util.Objects;
+ public class Translation implements Serializable {
+ 
+   private static final long serialVersionUID = 2556017420486245581L;
+-  static final Function<TranslationsResource, Translation> FROM_PB_FUNCTION =
+-      new Function<TranslationsResource, Translation>() {
++  static final Function<Translation, Translation> FROM_PB_FUNCTION =
++      new Function<Translation, Translation>() {
+         @Override
+-        public Translation apply(TranslationsResource translationPb) {
++        public Translation apply(Translation translationPb) {
+           return Translation.fromPb(translationPb);
+         }
+       };
+@@ -103,10 +102,11 @@ public class Translation implements Serializable {
+         && Objects.equals(sourceLanguage, other.sourceLanguage);
+   }
+ 
+-  static Translation fromPb(TranslationsResource translationPb) {
++  static Translation fromPb(Translation translationPb) {
+     return new Translation(
+         translationPb.getTranslatedText(),
+         translationPb.getDetectedSourceLanguage(),
+         translationPb.getModel());
+   }
+ }
++import com.google.api.services.translate.v3.model.Translation;
+diff --git a/java-translate/google-cloud-translate/src/main/java/com/google/cloud/translate/spi/v2/HttpTranslateRpc.java b/java-translate/google-cloud-translate/src/main/java/com/google/cloud/translate/spi/v2/HttpTranslateRpc.java
+index 11c0b85aab7..dc62831e25b 100644
+--- a/java-translate/google-cloud-translate/src/main/java/com/google/cloud/translate/spi/v2/HttpTranslateRpc.java
++++ b/java-translate/google-cloud-translate/src/main/java/com/google/cloud/translate/spi/v2/HttpTranslateRpc.java
+@@ -23,9 +23,6 @@ import com.google.api.client.http.HttpRequestInitializer;
+ import com.google.api.client.http.HttpTransport;
+ import com.google.api.client.json.jackson2.JacksonFactory;
+ import com.google.api.services.translate.Translate;
+-import com.google.api.services.translate.model.DetectionsResourceItems;
+-import com.google.api.services.translate.model.LanguagesResource;
+-import com.google.api.services.translate.model.TranslationsResource;
+ import com.google.cloud.http.HttpTransportOptions;
+ import com.google.cloud.translate.TranslateException;
+ import com.google.cloud.translate.TranslateOptions;
+@@ -127,3 +124,7 @@ public class HttpTranslateRpc implements TranslateRpc {
+     }
+   }
+ }
++import com.google.api.services.translate.v3.Translate;
++import com.google.api.services.translate.v3.model.DetectedLanguage;
++import com.google.api.services.translate.v3.model.SupportedLanguage;
++import com.google.api.services.translate.v3.model.Translation;
+diff --git a/java-translate/google-cloud-translate/src/main/java/com/google/cloud/translate/spi/v2/TranslateRpc.java b/java-translate/google-cloud-translate/src/main/java/com/google/cloud/translate/spi/v2/TranslateRpc.java
+index ed69c8fb009..f868c51ed51 100644
+--- a/java-translate/google-cloud-translate/src/main/java/com/google/cloud/translate/spi/v2/TranslateRpc.java
++++ b/java-translate/google-cloud-translate/src/main/java/com/google/cloud/translate/spi/v2/TranslateRpc.java
+@@ -16,9 +16,6 @@
+ 
+ package com.google.cloud.translate.spi.v2;
+ 
+-import com.google.api.services.translate.model.DetectionsResourceItems;
+-import com.google.api.services.translate.model.LanguagesResource;
+-import com.google.api.services.translate.model.TranslationsResource;
+ import com.google.cloud.ServiceRpc;
+ import java.util.List;
+ import java.util.Map;
+@@ -75,4 +72,10 @@ public interface TranslateRpc extends ServiceRpc {
+    *     provided texts
+    */
+   List<TranslationsResource> translate(List<String> texts, Map<Option, ?> optionMap);
++  List<SupportedLanguage> listSupportedLanguages(Map<Option, ?> optionMap);
++  List<List<DetectedLanguage>> detect(List<String> texts);
++  List<Translation> translate(List<String> texts, Map<Option, ?> optionMap);
+ }
++import com.google.api.services.translate.v3.model.DetectedLanguage;
++import com.google.api.services.translate.v3.model.SupportedLanguage;
++import com.google.api.services.translate.v3.model.Translation;

@@ -1,0 +1,63 @@
+diff --git a/xchange-stream-service-pubnub/src/main/java/info/bitrich/xchangestream/service/pubnub/PubnubStreamingService.java b/xchange-stream-service-pubnub/src/main/java/info/bitrich/xchangestream/service/pubnub/PubnubStreamingService.java
+index 6880c4e608..4072d87f0f 100644
+--- a/xchange-stream-service-pubnub/src/main/java/info/bitrich/xchangestream/service/pubnub/PubnubStreamingService.java
++++ b/xchange-stream-service-pubnub/src/main/java/info/bitrich/xchangestream/service/pubnub/PubnubStreamingService.java
+@@ -12,9 +12,12 @@ import com.pubnub.api.models.consumer.pubsub.PNMessageResult;
+ import com.pubnub.api.models.consumer.pubsub.PNPresenceEventResult;
+ import com.pubnub.api.models.consumer.pubsub.PNSignalResult;
+ import com.pubnub.api.models.consumer.pubsub.message_actions.PNMessageActionResult;
+-import com.pubnub.api.models.consumer.pubsub.objects.PNMembershipResult;
+-import com.pubnub.api.models.consumer.pubsub.objects.PNSpaceResult;
+-import com.pubnub.api.models.consumer.pubsub.objects.PNUserResult;
++import com.pubnub.api.models.consumer.pubsub.PNSignalResult;
++import com.pubnub.api.models.consumer.pubsub.files.PNFileEventResult;
++import com.pubnub.api.models.consumer.objects_api.membership.PNMembershipResult;
++import com.pubnub.api.models.consumer.objects_api.channel.PNChannelMetadataResult;
++import com.pubnub.api.models.consumer.objects_api.uuid.PNUUIDMetadataResult;
++import com.pubnub.api.models.consumer.pubsub.message_actions.PNMessageActionResult;
+ import io.reactivex.Completable;
+ import io.reactivex.Observable;
+ import io.reactivex.ObservableEmitter;
+@@ -34,10 +37,10 @@ public class PubnubStreamingService {
+   private final Map<String, ObservableEmitter<JsonNode>> subscriptions = new ConcurrentHashMap<>();
+   private final ObjectMapper mapper;
+ 
+-  public PubnubStreamingService(String publicKey) {
++  public PubnubStreamingService(String publicKey, String userId) {
+     mapper = new ObjectMapper();
+     mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+-    PNConfiguration pnConfiguration = new PNConfiguration();
++    PNConfiguration pnConfiguration = new PNConfiguration(userId);
+     pnConfiguration.setSubscribeKey(publicKey);
+     pubnub = new PubNub(pnConfiguration);
+     pnStatusCategory = PNStatusCategory.PNDisconnectedCategory;
+@@ -91,18 +94,23 @@ public class PubnubStreamingService {
+                 }
+ 
+                 @Override
+-                public void user(PubNub pubnub, PNUserResult pnUserResult) {
+-                  LOG.debug("PubNub user: {}", pnUserResult.toString());
++                public void file(PubNub pubnub, PNFileEventResult pnFileEventResult) {
++                  LOG.debug("PubNub file: {}", pnFileEventResult.toString());
+                 }
+ 
+                 @Override
+-                public void space(PubNub pubnub, PNSpaceResult pnSpaceResult) {
+-                  LOG.debug("PubNub space: {}", pnSpaceResult.toString());
++                public void membership(PubNub pubnub, PNMembershipResult pnMembershipResult) {
++                  LOG.debug("PubNub membership: {}", pnMembershipResult.toString());
+                 }
+ 
+                 @Override
+-                public void membership(PubNub pubnub, PNMembershipResult pnMembershipResult) {
+-                  LOG.debug("PubNub membership: {}", pnMembershipResult.toString());
++                public void channel(PubNub pubnub, PNChannelMetadataResult pnChannelMetadataResult) {
++                  LOG.debug("PubNub channel: {}", pnChannelMetadataResult.toString());
++                }
++
++                @Override
++                public void uuid(PubNub pubnub, PNUUIDMetadataResult pnUUIDMetadataResult) {
++                  LOG.debug("PubNub UUID: {}", pnUUIDMetadataResult.toString());
+                 }
+ 
+                 @Override

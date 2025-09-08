@@ -1,0 +1,190 @@
+{
+    "validate_diffs": [
+        {
+            "input": "```diff\n--- jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JettyStubHttpServer.java\n+++ jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JettyStubHttpServer.java\n@@ -7,8 +7,8 @@ import net.jadler.RequestManager;\n import net.jadler.stubbing.server.StubHttpServer;\n import org.apache.commons.lang.Validate;\n import org.eclipse.jetty.server.Connector;\n+import org.eclipse.jetty.server.ServerConnector;\n import org.eclipse.jetty.server.Server;\n-import org.eclipse.jetty.server.nio.SelectChannelConnector;\n import org.slf4j.Logger;\n import org.slf4j.LoggerFactory;\n \n@@ -19,7 +19,7 @@ public class JettyStubHttpServer implements StubHttpServer {\n \n     private static final Logger logger = LoggerFactory.getLogger(JettyStubHttpServer.class);\n     private final Server server;\n-    private final Connector httpConnector;\n+    private final ServerConnector httpConnector;\n \n     public JettyStubHttpServer() {\n         this(0);\n@@ -28,11 +28,9 @@ public class JettyStubHttpServer implements StubHttpServer {\n \n     public JettyStubHttpServer(final int port) {\n         this.server = new Server();\n-        this.server.setSendServerVersion(false);\n-        this.server.setSendDateHeader(true);\n \n-        this.httpConnector = new SelectChannelConnector();\n-        this.httpConnector.setPort(port);\n+        this.httpConnector = new ServerConnector(server);\n+        this.httpConnector.setPort(port);\n         server.addConnector(this.httpConnector);\n     }\n \n@@ -77,6 +75,6 @@ public class JettyStubHttpServer implements StubHttpServer {\n      */\n     @Override\n     public int getPort() {\n-        return httpConnector.getLocalPort();\n+        return httpConnector.getPort();\n     }\n }\n```",
+            "output": "{'jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JettyStubHttpServer.java': '/*\\n * Copyright (c) 2012 - 2016 Jadler contributors\\n * This program is made available under the terms of the MIT License.\\n */\\npackage net.jadler.stubbing.server.jetty;\\n\\nimport net.jadler.RequestManager;\\nimport net.jadler.stubbing.server.StubHttpServer;\\nimport org.apache.commons.lang.Validate;\\nimport org.eclipse.jetty.server.Connector;\\nimport org.eclipse.jetty.server.ServerConnector;\\nimport org.eclipse.jetty.server.Server;\\nimport org.slf4j.Logger;\\nimport org.slf4j.LoggerFactory;\\n\\n\\n/**\\n * Default stub http server implementation using Jetty as an http server.\\n */\\npublic class JettyStubHttpServer implements StubHttpServer {\\n\\n    private static final Logger logger = LoggerFactory.getLogger(JettyStubHttpServer.class);\\n    private final Server server;\\n    private final ServerConnector httpConnector;\\n\\n    public JettyStubHttpServer() {\\n        this(0);\\n    }\\n\\n\\n    public JettyStubHttpServer(final int port) {\\n        this.server = new Server();\\n\\n        this.httpConnector = new ServerConnector(server);\\n        this.httpConnector.setPort(port);\\n        server.addConnector(this.httpConnector);\\n    }\\n\\n\\n    /**\\n     * {@inheritDoc}\\n     */\\n    @Override\\n    public void registerRequestManager(final RequestManager ruleProvider) {\\n        Validate.notNull(ruleProvider, \"ruleProvider cannot be null\");\\n\\n        server.setHandler(new JadlerHandler(ruleProvider));\\n    }\\n\\n\\n    /**\\n     * {@inheritDoc}\\n     */\\n    @Override\\n    public void start() throws Exception {\\n        logger.debug(\"starting jetty\");\\n        server.start();\\n        logger.debug(\"jetty started\");\\n    }\\n\\n\\n    /**\\n     * {@inheritDoc}\\n     */\\n    @Override\\n    public void stop() throws Exception {\\n        logger.debug(\"stopping jetty\");\\n        server.stop();\\n        logger.debug(\"jetty stopped\");\\n    }\\n\\n\\n    /**\\n     * {@inheritDoc}\\n     */\\n    @Override\\n    public int getPort() {\\nreturn httpConnector.getPort();\\n    }\\n}'}",
+            "error": "",
+            "span_id": 16142858225794295244
+        },
+        {
+            "input": "```diff\n--- jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JadlerHandler.java\n+++ jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JadlerHandler.java\n@@ -8,6 +8,7 @@ import net.jadler.RequestManager;\n import net.jadler.stubbing.StubResponse;\n import org.apache.commons.lang.Validate;\n import org.eclipse.jetty.server.Request;\n+import org.eclipse.jetty.server.Handler;\n import org.eclipse.jetty.server.handler.AbstractHandler;\n \n import javax.servlet.ServletException;\n@@ -21,7 +22,7 @@ import java.io.OutputStream;\n  * Jetty Handler which handles all http communication by returning an http response according to a stub response\n  * obtained from a {@link RequestManager} instance.\n  */\n-class JadlerHandler extends AbstractHandler {\n+class JadlerHandler extends AbstractHandler implements Handler.Oriented {\n \n     private final RequestManager requestManager;\n \n@@ -36,6 +37,7 @@ class JadlerHandler extends AbstractHandler {\n \n \n     @Override\n+    @SuppressWarnings(\"deprecated\")\n     public void handle(final String target, final Request baseRequest, final HttpServletRequest request,\n                        final HttpServletResponse response) throws IOException, ServletException {\n \n```",
+            "output": "{'jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JadlerHandler.java': '/*\\n * Copyright (c) 2012 - 2016 Jadler contributors\\n * This program is made available under the terms of the MIT License.\\n */\\npackage net.jadler.stubbing.server.jetty;\\n\\nimport net.jadler.KeyValues;\\nimport net.jadler.RequestManager;\\nimport net.jadler.stubbing.StubResponse;\\nimport org.apache.commons.lang.Validate;\\nimport org.eclipse.jetty.server.Request;\\nimport org.eclipse.jetty.server.Handler;\\nimport org.eclipse.jetty.server.handler.AbstractHandler;\\n\\nimport javax.servlet.ServletException;\\nimport javax.servlet.http.HttpServletRequest;\\nimport javax.servlet.http.HttpServletResponse;\\nimport java.io.IOException;\\nimport java.io.OutputStream;\\n\\n\\n/**\\n * Jetty Handler which handles all http communication by returning an http response according to a stub response\\n * obtained from a {@link RequestManager} instance.\\n */\\nclass JadlerHandler extends AbstractHandler implements Handler.Oriented {\\n\\n    private final RequestManager requestManager;\\n\\n\\n    /**\\n     * @param requestManager request manager instance to retrieve stub responses\\n     */\\n    JadlerHandler(final RequestManager requestManager) {\\n        Validate.notNull(requestManager, \"requestManager cannot be null\");\\n        this.requestManager = requestManager;\\n    }\\n\\n\\n    @Override\\n    @SuppressWarnings(\"deprecated\")\\n    public void handle(final String target, final Request baseRequest, final HttpServletRequest request,\\n                       final HttpServletResponse response) throws IOException, ServletException {\\n\\n        final net.jadler.Request req = RequestUtils.convert(request);\\n        final StubResponse stubResponse = this.requestManager.provideStubResponseFor(req);\\n\\n        response.setStatus(stubResponse.getStatus());\\n        this.insertResponseHeaders(stubResponse.getHeaders(), response);\\n\\n        baseRequest.setHandled(true);\\n\\n        this.processDelay(stubResponse.getDelay());\\n        this.insertResponseBody(stubResponse.getBody(), response);\\n    }\\n\\n\\n    private void insertResponseBody(final byte[] body, final HttpServletResponse response) throws IOException {\\n        if (body.length > 0) {\\n            final OutputStream os = response.getOutputStream();\\n            os.write(body);\\n        }\\n    }\\n\\n\\n    private void insertResponseHeaders(final KeyValues headers, final HttpServletResponse response) {\\n        for (final String key : headers.getKeys()) {\\n\\n            for (final String value : headers.getValues(key)) {\\n                response.addHeader(key, value);\\n            }\\n        }\\n    }\\n\\n\\n    private void processDelay(final long delay) {\\n        if (delay > 0) {\\n            try {\\n                Thread.sleep(delay);\\n            } catch (final InterruptedException e) {\\n                Thread.currentThread().interrupt();\\n            }\\n        }\\n    }\\n}'}",
+            "error": "",
+            "span_id": 12582426827047158994
+        }
+    ],
+    "compile_maven": [
+        {
+            "input": "```diff\n--- jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JettyStubHttpServer.java\n+++ jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JettyStubHttpServer.java\n@@ -7,8 +7,8 @@ import net.jadler.RequestManager;\n import net.jadler.stubbing.server.StubHttpServer;\n import org.apache.commons.lang.Validate;\n import org.eclipse.jetty.server.Connector;\n+import org.eclipse.jetty.server.ServerConnector;\n import org.eclipse.jetty.server.Server;\n-import org.eclipse.jetty.server.nio.SelectChannelConnector;\n import org.slf4j.Logger;\n import org.slf4j.LoggerFactory;\n \n@@ -19,7 +19,7 @@ public class JettyStubHttpServer implements StubHttpServer {\n \n     private static final Logger logger = LoggerFactory.getLogger(JettyStubHttpServer.class);\n     private final Server server;\n-    private final Connector httpConnector;\n+    private final ServerConnector httpConnector;\n \n     public JettyStubHttpServer() {\n         this(0);\n@@ -28,11 +28,9 @@ public class JettyStubHttpServer implements StubHttpServer {\n \n     public JettyStubHttpServer(final int port) {\n         this.server = new Server();\n-        this.server.setSendServerVersion(false);\n-        this.server.setSendDateHeader(true);\n \n-        this.httpConnector = new SelectChannelConnector();\n-        this.httpConnector.setPort(port);\n+        this.httpConnector = new ServerConnector(server);\n+        this.httpConnector.setPort(port);\n         server.addConnector(this.httpConnector);\n     }\n \n@@ -77,6 +75,6 @@ public class JettyStubHttpServer implements StubHttpServer {\n      */\n     @Override\n     public int getPort() {\n-        return httpConnector.getLocalPort();\n+        return httpConnector.getPort();\n     }\n }\n--- jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JadlerHandler.java\n+++ jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JadlerHandler.java\n@@ -8,6 +8,7 @@ import net.jadler.RequestManager;\n import net.jadler.stubbing.StubResponse;\n import org.apache.commons.lang.Validate;\n import org.eclipse.jetty.server.Request;\n+import org.eclipse.jetty.server.Handler;\n import org.eclipse.jetty.server.handler.AbstractHandler;\n \n import javax.servlet.ServletException;\n@@ -21,7 +22,7 @@ import java.io.OutputStream;\n  * Jetty Handler which handles all http communication by returning an http response according to a stub response\n  * obtained from a {@link RequestManager} instance.\n  */\n-class JadlerHandler extends AbstractHandler {\n+class JadlerHandler extends AbstractHandler implements Handler.Oriented {\n \n     private final RequestManager requestManager;\n \n@@ -36,6 +37,7 @@ class JadlerHandler extends AbstractHandler {\n \n \n     @Override\n+    @SuppressWarnings(\"deprecated\")\n     public void handle(final String target, final Request baseRequest, final HttpServletRequest request,\n                        final HttpServletResponse response) throws IOException, ServletException {\n \n```",
+            "output": {
+                "compilation_has_succeeded": false,
+                "test_has_succeeded": false,
+                "error_text": "error: method does not override or implement a method from a supertype\n",
+                "updated_files": {
+                    "jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JettyStubHttpServer.java": "/*\n * Copyright (c) 2012 - 2016 Jadler contributors\n * This program is made available under the terms of the MIT License.\n */\npackage net.jadler.stubbing.server.jetty;\n\nimport net.jadler.RequestManager;\nimport net.jadler.stubbing.server.StubHttpServer;\nimport org.apache.commons.lang.Validate;\nimport org.eclipse.jetty.server.Connector;\nimport org.eclipse.jetty.server.ServerConnector;\nimport org.eclipse.jetty.server.Server;\nimport org.slf4j.Logger;\nimport org.slf4j.LoggerFactory;\n\n\n/**\n * Default stub http server implementation using Jetty as an http server.\n */\npublic class JettyStubHttpServer implements StubHttpServer {\n\n    private static final Logger logger = LoggerFactory.getLogger(JettyStubHttpServer.class);\n    private final Server server;\n    private final ServerConnector httpConnector;\n\n    public JettyStubHttpServer() {\n        this(0);\n    }\n\n\n    public JettyStubHttpServer(final int port) {\n        this.server = new Server();\n\n        this.httpConnector = new ServerConnector(server);\n        this.httpConnector.setPort(port);\n        server.addConnector(this.httpConnector);\n    }\n\n\n    /**\n     * {@inheritDoc}\n     */\n    @Override\n    public void registerRequestManager(final RequestManager ruleProvider) {\n        Validate.notNull(ruleProvider, \"ruleProvider cannot be null\");\n\n        server.setHandler(new JadlerHandler(ruleProvider));\n    }\n\n\n    /**\n     * {@inheritDoc}\n     */\n    @Override\n    public void start() throws Exception {\n        logger.debug(\"starting jetty\");\n        server.start();\n        logger.debug(\"jetty started\");\n    }\n\n\n    /**\n     * {@inheritDoc}\n     */\n    @Override\n    public void stop() throws Exception {\n        logger.debug(\"stopping jetty\");\n        server.stop();\n        logger.debug(\"jetty stopped\");\n    }\n\n\n    /**\n     * {@inheritDoc}\n     */\n    @Override\n    public int getPort() {\nreturn httpConnector.getPort();\n    }\n}",
+                    "jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JadlerHandler.java": "/*\n * Copyright (c) 2012 - 2016 Jadler contributors\n * This program is made available under the terms of the MIT License.\n */\npackage net.jadler.stubbing.server.jetty;\n\nimport net.jadler.KeyValues;\nimport net.jadler.RequestManager;\nimport net.jadler.stubbing.StubResponse;\nimport org.apache.commons.lang.Validate;\nimport org.eclipse.jetty.server.Request;\nimport org.eclipse.jetty.server.Handler;\nimport org.eclipse.jetty.server.handler.AbstractHandler;\n\nimport javax.servlet.ServletException;\nimport javax.servlet.http.HttpServletRequest;\nimport javax.servlet.http.HttpServletResponse;\nimport java.io.IOException;\nimport java.io.OutputStream;\n\n\n/**\n * Jetty Handler which handles all http communication by returning an http response according to a stub response\n * obtained from a {@link RequestManager} instance.\n */\nclass JadlerHandler extends AbstractHandler implements Handler.Oriented {\n\n    private final RequestManager requestManager;\n\n\n    /**\n     * @param requestManager request manager instance to retrieve stub responses\n     */\n    JadlerHandler(final RequestManager requestManager) {\n        Validate.notNull(requestManager, \"requestManager cannot be null\");\n        this.requestManager = requestManager;\n    }\n\n\n    @Override\n    @SuppressWarnings(\"deprecated\")\n    public void handle(final String target, final Request baseRequest, final HttpServletRequest request,\n                       final HttpServletResponse response) throws IOException, ServletException {\n\n        final net.jadler.Request req = RequestUtils.convert(request);\n        final StubResponse stubResponse = this.requestManager.provideStubResponseFor(req);\n\n        response.setStatus(stubResponse.getStatus());\n        this.insertResponseHeaders(stubResponse.getHeaders(), response);\n\n        baseRequest.setHandled(true);\n\n        this.processDelay(stubResponse.getDelay());\n        this.insertResponseBody(stubResponse.getBody(), response);\n    }\n\n\n    private void insertResponseBody(final byte[] body, final HttpServletResponse response) throws IOException {\n        if (body.length > 0) {\n            final OutputStream os = response.getOutputStream();\n            os.write(body);\n        }\n    }\n\n\n    private void insertResponseHeaders(final KeyValues headers, final HttpServletResponse response) {\n        for (final String key : headers.getKeys()) {\n\n            for (final String value : headers.getValues(key)) {\n                response.addHeader(key, value);\n            }\n        }\n    }\n\n\n    private void processDelay(final long delay) {\n        if (delay > 0) {\n            try {\n                Thread.sleep(delay);\n            } catch (final InterruptedException e) {\n                Thread.currentThread().interrupt();\n            }\n        }\n    }\n}"
+                },
+                "compile_error_details": {
+                    "jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JadlerHandler.java": {
+                        "26": {
+                            "lines": [
+                                {
+                                    "line_no": 25,
+                                    "content": " */"
+                                },
+                                {
+                                    "line_no": 26,
+                                    "content": "class JadlerHandler extends AbstractHandler implements Handler.Oriented {"
+                                },
+                                {
+                                    "line_no": 27,
+                                    "content": ""
+                                }
+                            ],
+                            "error_texts": [
+                                "[26,62] error: cannot find symbol\n",
+                                "[26,] error: JadlerHandler is not abstract and does not override abstract method handle(String,Request,HttpServletRequest,HttpServletResponse) in AbstractHandler\n",
+                                "[26,62] error: cannot find symbol\nsymbol: class Oriented\nlocation: interface Handler\n"
+                            ]
+                        },
+                        "40": {
+                            "lines": [
+                                {
+                                    "line_no": 39,
+                                    "content": ""
+                                },
+                                {
+                                    "line_no": 40,
+                                    "content": "    @Override"
+                                },
+                                {
+                                    "line_no": 41,
+                                    "content": "    @SuppressWarnings(\"deprecated\")"
+                                }
+                            ],
+                            "error_texts": [
+                                "[40,4] error: method does not override or implement a method from a supertype\n"
+                            ]
+                        }
+                    }
+                }
+            },
+            "error": "error: method does not override or implement a method from a supertype\n",
+            "span_id": 2596971006565568377
+        },
+        {
+            "input": "```diff\n--- jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JadlerHandler.java\n+++ jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JadlerHandler.java\n@@ -8,7 +8,7 @@ import net.jadler.RequestManager;\n import net.jadler.stubbing.StubResponse;\n import org.apache.commons.lang.Validate;\n import org.eclipse.jetty.server.Request;\n-import org.eclipse.jetty.server.Handler;\n+import org.eclipse.jetty.server.Handler.Abstract;\n import org.eclipse.jetty.server.handler.AbstractHandler;\n \n import javax.servlet.ServletException;\n@@ -22,7 +22,7 @@ import java.io.OutputStream;\n  * Jetty Handler which handles all http communication by returning an http response according to a stub response\n  * obtained from a {@link RequestManager} instance.\n  */\n-class JadlerHandler extends AbstractHandler implements Handler.Oriented {\n+class JadlerHandler extends Abstract {\n \n     private final RequestManager requestManager;\n \n@@ -37,7 +37,6 @@ class JadlerHandler extends AbstractHandler implements Handler.Oriented {\n \n \n     @Override\n-    @SuppressWarnings(\"deprecated\")\n     public void handle(final String target, final Request baseRequest, final HttpServletRequest request,\n                        final HttpServletResponse response) throws IOException, ServletException {\n \n```",
+            "output": {
+                "compilation_has_succeeded": false,
+                "test_has_succeeded": false,
+                "error_text": "error: incompatible types: JadlerHandler cannot be converted to Handler\n",
+                "updated_files": {
+                    "jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JadlerHandler.java": "/*\n * Copyright (c) 2012 - 2016 Jadler contributors\n * This program is made available under the terms of the MIT License.\n */\npackage net.jadler.stubbing.server.jetty;\n\nimport net.jadler.KeyValues;\nimport net.jadler.RequestManager;\nimport net.jadler.stubbing.StubResponse;\nimport org.apache.commons.lang.Validate;\nimport org.eclipse.jetty.server.Request;\nimport org.eclipse.jetty.server.Handler.Abstract;\nimport org.eclipse.jetty.server.handler.AbstractHandler;\n\nimport javax.servlet.ServletException;\nimport javax.servlet.http.HttpServletRequest;\nimport javax.servlet.http.HttpServletResponse;\nimport java.io.IOException;\nimport java.io.OutputStream;\n\n\n/**\n * Jetty Handler which handles all http communication by returning an http response according to a stub response\n * obtained from a {@link RequestManager} instance.\n */\nclass JadlerHandler extends Abstract {\n\n    private final RequestManager requestManager;\n\n\n    /**\n     * @param requestManager request manager instance to retrieve stub responses\n     */\n    JadlerHandler(final RequestManager requestManager) {\n        Validate.notNull(requestManager, \"requestManager cannot be null\");\n        this.requestManager = requestManager;\n    }\n\n\n    @Override\n    public void handle(final String target, final Request baseRequest, final HttpServletRequest request,\n                       final HttpServletResponse response) throws IOException, ServletException {\n\n        final net.jadler.Request req = RequestUtils.convert(request);\n        final StubResponse stubResponse = this.requestManager.provideStubResponseFor(req);\n\n        response.setStatus(stubResponse.getStatus());\n        this.insertResponseHeaders(stubResponse.getHeaders(), response);\n\n        baseRequest.setHandled(true);\n\n        this.processDelay(stubResponse.getDelay());\n        this.insertResponseBody(stubResponse.getBody(), response);\n    }\n\n\n    private void insertResponseBody(final byte[] body, final HttpServletResponse response) throws IOException {\n        if (body.length > 0) {\n            final OutputStream os = response.getOutputStream();\n            os.write(body);\n        }\n    }\n\n\n    private void insertResponseHeaders(final KeyValues headers, final HttpServletResponse response) {\n        for (final String key : headers.getKeys()) {\n\n            for (final String value : headers.getValues(key)) {\n                response.addHeader(key, value);\n            }\n        }\n    }\n\n\n    private void processDelay(final long delay) {\n        if (delay > 0) {\n            try {\n                Thread.sleep(delay);\n            } catch (final InterruptedException e) {\n                Thread.currentThread().interrupt();\n            }\n        }\n    }\n}"
+                },
+                "compile_error_details": {
+                    "jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JadlerHandler.java": {
+                        "12": {
+                            "lines": [
+                                {
+                                    "line_no": 11,
+                                    "content": "import org.eclipse.jetty.server.Request;"
+                                },
+                                {
+                                    "line_no": 12,
+                                    "content": "import org.eclipse.jetty.server.Handler.Abstract;"
+                                },
+                                {
+                                    "line_no": 13,
+                                    "content": "import org.eclipse.jetty.server.handler.AbstractHandler;"
+                                }
+                            ],
+                            "error_texts": [
+                                "[12,39] error: cannot find symbol\n",
+                                "[12,39] error: cannot find symbol\nsymbol: class Abstract\nlocation: interface Handler\n"
+                            ]
+                        },
+                        "26": {
+                            "lines": [
+                                {
+                                    "line_no": 25,
+                                    "content": " */"
+                                },
+                                {
+                                    "line_no": 26,
+                                    "content": "class JadlerHandler extends Abstract {"
+                                },
+                                {
+                                    "line_no": 27,
+                                    "content": ""
+                                }
+                            ],
+                            "error_texts": [
+                                "[26,28] error: cannot find symbol\nsymbol: class Abstract\n",
+                                "[26,28] error: cannot find symbol\n"
+                            ]
+                        },
+                        "40": {
+                            "lines": [
+                                {
+                                    "line_no": 39,
+                                    "content": ""
+                                },
+                                {
+                                    "line_no": 40,
+                                    "content": "    @Override"
+                                },
+                                {
+                                    "line_no": 41,
+                                    "content": "    public void handle(final String target, final Request baseRequest, final HttpServletRequest request,"
+                                }
+                            ],
+                            "error_texts": [
+                                "[40,4] error: method does not override or implement a method from a supertype\n"
+                            ]
+                        }
+                    },
+                    "jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JettyStubHttpServer.java": {
+                        "47": {
+                            "lines": [
+                                {
+                                    "line_no": 46,
+                                    "content": ""
+                                },
+                                {
+                                    "line_no": 47,
+                                    "content": "        server.setHandler(new JadlerHandler(ruleProvider));"
+                                },
+                                {
+                                    "line_no": 48,
+                                    "content": "    }"
+                                }
+                            ],
+                            "error_texts": [
+                                "[47,26] error: incompatible types: JadlerHandler cannot be converted to Handler\n"
+                            ]
+                        }
+                    }
+                }
+            },
+            "error": "error: incompatible types: JadlerHandler cannot be converted to Handler\n",
+            "span_id": 3150984917754253828
+        }
+    ],
+    "read_file": [
+        {
+            "input": "jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JettyStubHttpServer.java",
+            "output": "/*\n * Copyright (c) 2012 - 2016 Jadler contributors\n * This program is made available under the terms of the MIT License.\n */\npackage net.jadler.stubbing.server.jetty;\n\nimport net.jadler.RequestManager;\nimport net.jadler.stubbing.server.StubHttpServer;\nimport org.apache.commons.lang.Validate;\nimport org.eclipse.jetty.server.Connector;\nimport org.eclipse.jetty.server.Server;\nimport org.eclipse.jetty.server.nio.SelectChannelConnector;\nimport org.slf4j.Logger;\nimport org.slf4j.LoggerFactory;\n\n\n/**\n * Default stub http server implementation using Jetty as an http server.\n */\npublic class JettyStubHttpServer implements StubHttpServer {\n\n    private static final Logger logger = LoggerFactory.getLogger(JettyStubHttpServer.class);\n    private final Server server;\n    private final Connector httpConnector;\n\n    public JettyStubHttpServer() {\n        this(0);\n    }\n\n\n    public JettyStubHttpServer(final int port) {\n        this.server = new Server();\n        this.server.setSendServerVersion(false);\n        this.server.setSendDateHeader(true);\n\n        this.httpConnector = new SelectChannelConnector();\n        this.httpConnector.setPort(port);\n        server.addConnector(this.httpConnector);\n    }\n\n\n    /**\n     * {@inheritDoc}\n     */\n    @Override\n    public void registerRequestManager(final RequestManager ruleProvider) {\n        Validate.notNull(ruleProvider, \"ruleProvider cannot be null\");\n\n        server.setHandler(new JadlerHandler(ruleProvider));\n    }\n\n\n    /**\n     * {@inheritDoc}\n     */\n    @Override\n    public void start() throws Exception {\n        logger.debug(\"starting jetty\");\n        server.start();\n        logger.debug(\"jetty started\");\n    }\n\n\n    /**\n     * {@inheritDoc}\n     */\n    @Override\n    public void stop() throws Exception {\n        logger.debug(\"stopping jetty\");\n        server.stop();\n        logger.debug(\"jetty stopped\");\n    }\n\n\n    /**\n     * {@inheritDoc}\n     */\n    @Override\n    public int getPort() {\n        return httpConnector.getLocalPort();\n    }\n}",
+            "error": "",
+            "span_id": 18164890570151994087
+        },
+        {
+            "input": "jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JadlerHandler.java",
+            "output": "/*\n * Copyright (c) 2012 - 2016 Jadler contributors\n * This program is made available under the terms of the MIT License.\n */\npackage net.jadler.stubbing.server.jetty;\n\nimport net.jadler.KeyValues;\nimport net.jadler.RequestManager;\nimport net.jadler.stubbing.StubResponse;\nimport org.apache.commons.lang.Validate;\nimport org.eclipse.jetty.server.Request;\nimport org.eclipse.jetty.server.handler.AbstractHandler;\n\nimport javax.servlet.ServletException;\nimport javax.servlet.http.HttpServletRequest;\nimport javax.servlet.http.HttpServletResponse;\nimport java.io.IOException;\nimport java.io.OutputStream;\n\n\n/**\n * Jetty Handler which handles all http communication by returning an http response according to a stub response\n * obtained from a {@link RequestManager} instance.\n */\nclass JadlerHandler extends AbstractHandler {\n\n    private final RequestManager requestManager;\n\n\n    /**\n     * @param requestManager request manager instance to retrieve stub responses\n     */\n    JadlerHandler(final RequestManager requestManager) {\n        Validate.notNull(requestManager, \"requestManager cannot be null\");\n        this.requestManager = requestManager;\n    }\n\n\n    @Override\n    public void handle(final String target, final Request baseRequest, final HttpServletRequest request,\n                       final HttpServletResponse response) throws IOException, ServletException {\n\n        final net.jadler.Request req = RequestUtils.convert(request);\n        final StubResponse stubResponse = this.requestManager.provideStubResponseFor(req);\n\n        response.setStatus(stubResponse.getStatus());\n        this.insertResponseHeaders(stubResponse.getHeaders(), response);\n\n        baseRequest.setHandled(true);\n\n        this.processDelay(stubResponse.getDelay());\n        this.insertResponseBody(stubResponse.getBody(), response);\n    }\n\n\n    private void insertResponseBody(final byte[] body, final HttpServletResponse response) throws IOException {\n        if (body.length > 0) {\n            final OutputStream os = response.getOutputStream();\n            os.write(body);\n        }\n    }\n\n\n    private void insertResponseHeaders(final KeyValues headers, final HttpServletResponse response) {\n        for (final String key : headers.getKeys()) {\n\n            for (final String value : headers.getValues(key)) {\n                response.addHeader(key, value);\n            }\n        }\n    }\n\n\n    private void processDelay(final long delay) {\n        if (delay > 0) {\n            try {\n                Thread.sleep(delay);\n            } catch (final InterruptedException e) {\n                Thread.currentThread().interrupt();\n            }\n        }\n    }\n}",
+            "error": "",
+            "span_id": 6954746407750987919
+        }
+    ],
+    "get_directory_tree": [],
+    "get_language_server_suggestions": [],
+    "reset_repo": []
+}

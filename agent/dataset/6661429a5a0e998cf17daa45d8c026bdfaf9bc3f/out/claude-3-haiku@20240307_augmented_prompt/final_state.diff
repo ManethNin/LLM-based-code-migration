@@ -1,0 +1,83 @@
+diff --git a/ui-tests/src/main/java/io/jenkins/plugins/coverage/util/ChartUtil.java b/ui-tests/src/main/java/io/jenkins/plugins/coverage/util/ChartUtil.java
+index 28b14809..b99d7422 100644
+--- a/ui-tests/src/main/java/io/jenkins/plugins/coverage/util/ChartUtil.java
++++ b/ui-tests/src/main/java/io/jenkins/plugins/coverage/util/ChartUtil.java
+@@ -4,7 +4,7 @@ import org.openqa.selenium.By;
+ import org.openqa.selenium.NoSuchElementException;
+ import org.openqa.selenium.WebElement;
+ 
+-import com.gargoylesoftware.htmlunit.ScriptResult;
++import org.jenkinsci.test.acceptance.po.ScriptResult;
+ 
+ import org.jenkinsci.test.acceptance.po.PageObject;
+ 
+@@ -109,3 +109,69 @@ public class ChartUtil {
+     }
+ 
+ }
++package io.jenkins.plugins.coverage.util;
++
++import hudson.model.Run;
++import hudson.util.ChartUtil.NumberOnlyBuildLabel;
++import hudson.util.DataSetBuilder;
++import hudson.util.Graph;
++-import com.gargoylesoftware.htmlunit.ScriptResult;
+++import org.jenkinsci.test.acceptance.po.ScriptResult;
++import io.jenkins.plugins.coverage.CoverageAction;
++import io.jenkins.plugins.coverage.CoverageResult;
++import io.jenkins.plugins.coverage.targets.CoverageElement;
++
++import java.util.Map;
++
++public class ChartUtil {
++
++    /**
++     * Generates a coverage chart for the given coverage element.
++     *
++     * @param run     the current build
++     * @param element the coverage element to generate the chart for
++     * @return the generated chart
++     */
++    public static Graph generateCoverageChart(Run<?, ?> run, CoverageElement element) {
++        DataSetBuilder<String, NumberOnlyBuildLabel> dataSetBuilder = new DataSetBuilder<>();
++
++        ScriptResult scriptResult = run.getJavaScriptResult("document.getElementById('coverage-chart-" + element.getName() + "').getContext('2d')");
++        if (scriptResult != null) {
++            Object context = scriptResult.getOutput();
++            CoverageAction coverageAction = run.getAction(CoverageAction.class);
++            if (coverageAction != null) {
++                CoverageResult coverageResult = coverageAction.getResult();
++                Map<Integer, CoverageResult> buildCoverageResults = coverageResult.getChildrenReal();
++                for (Map.Entry<Integer, CoverageResult> entry : buildCoverageResults.entrySet()) {
++                    CoverageResult childResult = entry.getValue();
++                    dataSetBuilder.add(childResult.getCoveragePercent(element), element.getName(), new NumberOnlyBuildLabel(run, entry.getKey()));
++                }
++            }
++            return new Graph(-1, 500, 300) {
++                @Override
++                protected DataSetBuilder<String, NumberOnlyBuildLabel> createDataSet() {
++                    return dataSetBuilder;
++                }
++            };
++        }
++        return null;
++    }
++
++    /**
++     * Generates a coverage chart for the given coverage element and chart ID.
++     *
++     * @param run      the current build
++     * @param element  the coverage element to generate the chart for
++     * @param chartId  the ID of the chart container
++     * @return the generated chart
++     */
++    public static Graph generateCoverageChart(Run<?, ?> run, CoverageElement element, String chartId) {
++        ScriptResult scriptResult = run.getJavaScriptResult("document.getElementById('" + chartId + "').getContext('2d')");
++        if (scriptResult != null) {
++            Object context = scriptResult.getOutput();
++            CoverageAction coverageAction = run.getAction(CoverageAction.class);
++            // Implement chart generation logic here
++        }
++        return null;
++    }
++}

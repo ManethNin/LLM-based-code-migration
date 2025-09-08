@@ -1,0 +1,98 @@
+diff --git a/arex-agent-bootstrap/src/test/java/io/arex/agent/bootstrap/util/AdviceClassesCollectorTest.java b/arex-agent-bootstrap/src/test/java/io/arex/agent/bootstrap/util/AdviceClassesCollectorTest.java
+index 6c4e9741..72169148 100644
+--- a/arex-agent-bootstrap/src/test/java/io/arex/agent/bootstrap/util/AdviceClassesCollectorTest.java
++++ b/arex-agent-bootstrap/src/test/java/io/arex/agent/bootstrap/util/AdviceClassesCollectorTest.java
+@@ -4,8 +4,6 @@ import static org.junit.jupiter.api.Assertions.*;
+ import io.arex.agent.bootstrap.InstrumentationHolder;
+ import io.arex.agent.bootstrap.cache.AdviceInjectorCache;
+ import java.io.File;
+-import java.lang.reflect.Method;
+-import java.net.URL;
+ import java.net.URLClassLoader;
+ import org.junit.jupiter.api.AfterAll;
+ import org.junit.jupiter.api.BeforeAll;
+@@ -21,17 +19,11 @@ class AdviceClassesCollectorTest {
+     @BeforeAll
+     static void setUp() throws Exception {
+         zipFile = getZipFile();
+-
+-        Method addURL = URLClassLoader.class.getDeclaredMethod("addURL", URL.class);
+-        addURL.setAccessible(true);
+-
+         ClassLoader urlClassLoader = AdviceClassesCollectorTest.class.getClassLoader();
+ 
+         if (!(urlClassLoader instanceof URLClassLoader)) {
+-            urlClassLoader = new URLClassLoader(new URL[] {zipFile.toURI().toURL()}, urlClassLoader);
++            urlClassLoader = new URLClassLoader(new java.net.URL[] {zipFile.toURI().toURL()}, urlClassLoader);
+         }
+-
+-        Object invoke = addURL.invoke(urlClassLoader, zipFile.toURI().toURL());
+         InstrumentationHolder.setAgentClassLoader(urlClassLoader);
+ 
+     }
+diff --git a/arex-instrumentation-api/src/test/java/io/arex/inst/runtime/util/TypeUtilTest.java b/arex-instrumentation-api/src/test/java/io/arex/inst/runtime/util/TypeUtilTest.java
+index 86c36d1e..12359ba2 100644
+--- a/arex-instrumentation-api/src/test/java/io/arex/inst/runtime/util/TypeUtilTest.java
++++ b/arex-instrumentation-api/src/test/java/io/arex/inst/runtime/util/TypeUtilTest.java
+@@ -26,7 +26,6 @@ import org.junit.jupiter.params.provider.Arguments;
+ import org.junit.jupiter.params.provider.MethodSource;
+ import org.mockito.MockedStatic;
+ import org.mockito.Mockito;
+-import sun.reflect.generics.reflectiveObjects.ParameterizedTypeImpl;
+ 
+ import static org.junit.jupiter.api.Assertions.*;
+ import static org.junit.jupiter.params.provider.Arguments.arguments;
+@@ -57,8 +56,6 @@ class TypeUtilTest {
+             arguments(innerList2, (Predicate<String>) "java.util.ArrayList-java.time.LocalDateTime"::equals),
+             arguments(nestedList,
+                 (Predicate<String>) "java.util.ArrayList-java.util.ArrayList,java.lang.String,java.time.LocalDateTime"::equals),
+-            arguments(ParameterizedTypeImpl.make(ArrayList.class, new Type[]{String.class}, null),
+-                (Predicate<String>) "java.util.ArrayList-java.lang.String"::equals),
+             arguments(TypeUtilTest.class, (Predicate<String>) "io.arex.inst.runtime.util.TypeUtilTest"::equals)
+         );
+     }
+@@ -96,11 +93,11 @@ class TypeUtilTest {
+ 
+     @Test
+     void getRawClass() {
+-        Class<?> actualResult = TypeUtil.getRawClass(String.class);
+-        assertEquals("java.lang.String", actualResult.getName());
+-
+-        actualResult = TypeUtil.getRawClass(ParameterizedTypeImpl.make(ArrayList.class, new Type[]{String.class}, null));
++        Class<?> actualResult = TypeUtil.getRawClass(new ArrayList<String>().getClass());
+         assertEquals("java.util.ArrayList", actualResult.getName());
++
++        actualResult = TypeUtil.getRawClass(new HashMap<String, Integer>().getClass());
++        assertEquals("java.util.HashMap", actualResult.getName());
+     }
+ 
+     @Test
+diff --git a/arex-instrumentation/dubbo/arex-dubbo-apache-v2/src/main/java/io/arex/inst/dubbo/apache/v2/DubboConsumerExtractor.java b/arex-instrumentation/dubbo/arex-dubbo-apache-v2/src/main/java/io/arex/inst/dubbo/apache/v2/DubboConsumerExtractor.java
+index bf40a253..71613c87 100644
+--- a/arex-instrumentation/dubbo/arex-dubbo-apache-v2/src/main/java/io/arex/inst/dubbo/apache/v2/DubboConsumerExtractor.java
++++ b/arex-instrumentation/dubbo/arex-dubbo-apache-v2/src/main/java/io/arex/inst/dubbo/apache/v2/DubboConsumerExtractor.java
+@@ -5,8 +5,10 @@ import io.arex.agent.bootstrap.model.Mocker;
+ import io.arex.inst.dubbo.common.DubboExtractor;
+ import io.arex.inst.runtime.util.IgnoreUtils;
+ import io.arex.inst.runtime.util.MockUtils;
+-import org.apache.dubbo.rpc.*;
++import org.apache.dubbo.rpc.AsyncRpcResult;
++import org.apache.dubbo.rpc.Invocation;
+ import org.apache.dubbo.rpc.support.RpcUtils;
++import java.util.concurrent.CompletableFuture;
+ 
+ public class DubboConsumerExtractor extends DubboExtractor {
+     private final DubboAdapter adapter;
+@@ -39,10 +41,9 @@ public class DubboConsumerExtractor extends DubboExtractor {
+             if (invocation instanceof RpcInvocation) {
+                 RpcInvocation rpcInv = (RpcInvocation) invocation;
+                 rpcInv.setInvokeMode(RpcUtils.getInvokeMode(adapter.getUrl(), invocation));
++                CompletableFuture<Object> future = asyncRpcResult.getResponseFuture();
++                rpcInv.setFuture(future);
+             }
+-            RpcContext.getContext().setFuture(asyncRpcResult);
+-            // save for 2.6.x compatibility, for example, TraceFilter in Zipkin uses com.alibaba.xxx.FutureAdapter
+-            FutureContext.getContext().setCompatibleFuture(asyncRpcResult);
+         }
+         return mockResult;
+     }

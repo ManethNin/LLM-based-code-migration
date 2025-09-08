@@ -1,0 +1,87 @@
+diff --git a/pom.xml b/pom.xml
+index 12ee7e4..0c184b2 100644
+--- a/pom.xml
++++ b/pom.xml
+@@ -19,6 +19,7 @@
+         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+         <thrift.version>0.12.0</thrift.version>
+         <kafka.version>2.3.1</kafka.version>
++        <maven.test.jvmargs>-Xmx4096m</maven.test.jvmargs>
+     </properties>
+ 
+     <licenses>
+@@ -111,6 +112,14 @@
+                     </execution>
+                 </executions>
+             </plugin>
++            <plugin>
++                <groupId>org.apache.maven.plugins</groupId>
++                <artifactId>maven-surefire-plugin</artifactId>
++                <version>3.2.5</version>
++                <configuration>
++                    <argLine>-Xmx4096m</argLine>
++                </configuration>
++            </plugin>
+         </plugins>
+     </build>
+     <profiles>
+diff --git a/singer-commons/src/main/java/com/pinterest/singer/loggingaudit/client/AuditEventKafkaSender.java b/singer-commons/src/main/java/com/pinterest/singer/loggingaudit/client/AuditEventKafkaSender.java
+index 58dabd4..da74a3a 100644
+--- a/singer-commons/src/main/java/com/pinterest/singer/loggingaudit/client/AuditEventKafkaSender.java
++++ b/singer-commons/src/main/java/com/pinterest/singer/loggingaudit/client/AuditEventKafkaSender.java
+@@ -30,6 +30,8 @@ import org.apache.kafka.clients.producer.ProducerRecord;
+ import org.apache.kafka.clients.producer.RecordMetadata;
+ import org.apache.kafka.common.PartitionInfo;
+ import org.apache.thrift.TException;
++import org.apache.thrift.transport.TTransportException;
++import org.apache.thrift.protocol.TBinaryProtocol;
+ import org.apache.thrift.TSerializer;
+ import org.slf4j.Logger;
+ import org.slf4j.LoggerFactory;
+@@ -118,7 +120,7 @@ public class AuditEventKafkaSender implements LoggingAuditEventSender {
+   /**
+    * Serialize key and value to byte[]
+    */
+-  private TSerializer serializer = new TSerializer();
++  private TSerializer serializer;
+ 
+   /**
+    *  flag to control the start and stop of the executing thread.
+@@ -183,6 +185,11 @@ public class AuditEventKafkaSender implements LoggingAuditEventSender {
+     this.name = name;
+     this.stopGracePeriodInSeconds = config.getStopGracePeriodInSeconds();
+     this.badPartitions.add(-1);
++    try {
++      this.serializer = new TSerializer(new TBinaryProtocol.Factory());
++    } catch (TTransportException e) {
++      LOG.error("Failed to initialize TSerializer", e);
++    }
+   }
+ 
+ 
+@@ -266,7 +273,11 @@ public class AuditEventKafkaSender implements LoggingAuditEventSender {
+         event = queue.poll(DEQUEUE_WAIT_IN_SECONDS, TimeUnit.SECONDS);
+         if (event != null) {
+           try {
+-            value = serializer.serialize(event);
++            try {
++              value = serializer != null ? serializer.serialize(event) : null;
++            } catch (TTransportException e) {
++              throw new TException("Failed to serialize event", e);
++            }
+             record = new ProducerRecord<>(this.topic, currentPartitionId , null, value);
+             kafkaProducer.send(record, new KafkaProducerCallback(event, currentPartitionId));
+           } catch (TException e) {
+diff --git a/singer/pom.xml b/singer/pom.xml
+index 3ba12be..8ee0323 100644
+--- a/singer/pom.xml
++++ b/singer/pom.xml
+@@ -293,7 +293,7 @@
+                 <groupId>org.apache.maven.plugins</groupId>
+                 <artifactId>maven-surefire-plugin</artifactId>
+                 <configuration>
+-                    <argLine>-Xmx4096m -XX:MaxPermSize=256m</argLine>
++                    <argLine>-Xmx4096m</argLine>
+                 </configuration>
+             </plugin>
+         </plugins>

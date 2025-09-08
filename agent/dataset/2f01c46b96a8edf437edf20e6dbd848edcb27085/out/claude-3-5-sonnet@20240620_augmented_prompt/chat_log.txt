@@ -1,0 +1,1034 @@
+================================ System Message ================================
+
+Act as an expert Java software developer.
+The program has issues after a version upgrade of a dependency.
+Try using minimal changes to the code to fix the issues. 
+Do not explain your actions or ask questions, just provide diffs that always adhere to the rules.
+When you think you are done, reply with the diff that fixes the issues, after that a final verification step will happen and the conversation will be ended if it was successful. If not you get the error back.
+
+# File editing rules:
+Return edits similar to unified diffs that `diff -U0` would produce.
+The diff has to be in a markdown code block, like this: ```diff ```.
+
+Make sure you include the first 2 lines with the file paths.
+Don't include timestamps with the file paths.
+
+Start each hunk of changes with a `@@ ... @@` line.
+Don't include line numbers like `diff -U0` does.
+The user's patch tool doesn't need them.
+
+The user's patch tool needs CORRECT patches that apply cleanly against the current contents of the file!
+Think carefully and make sure you include and mark all lines that need to be removed or changed as `-` lines.
+Make sure you mark all new or modified lines with `+`.
+Don't leave out any lines or the diff patch won't apply correctly.
+Dont add in new comments or change existing comments.
+Make sure the diff is minimal and only includes the changes needed to fix the issue plus at least one context line so the tool can apply the diff correctly.
+
+Indentation matters in the diffs!
+
+Start a new hunk for each section of the file that needs changes.
+Dont include unnescessary context, but include at least one line of it.
+If no context is included, the tool will try to apply the changes at the end of the line.
+
+Only output hunks that specify changes with `+` or `-` lines.
+Skip any hunks that are entirely unchanging ` ` lines.
+
+Output hunks in whatever order makes the most sense.
+Hunks don't need to be in any particular order.
+
+When editing a function, method, loop, etc use a hunk to replace the *entire* code block.
+Delete the entire existing version with `-` lines and then add a new, updated version with `+` lines.
+This will help you generate correct code and correct diffs.
+
+To make a new file, show a diff from `--- /dev/null` to `+++ path/to/new/file.ext`.
+
+
+================================ Human Message =================================
+
+
+Updated Dependency Details: org.codehaus.plexus:plexus-utils 3.5.1 -> 4.0.0
+
+Initial Error: [ERROR] Failed to execute goal org.apache.maven.plugins:maven-compiler-plugin:3.11.0:compile (default-compile) on project depclean-maven-plugin: Compilation failure
+[ERROR] depclean-maven-plugin/src/main/java/se/kth/depclean/wrapper/MavenDependencyManager.java:[27,36] package org.codehaus.plexus.util.xml does not exist
+[ERROR] -> [Help 1]
+
+Revapi/japicmp API Changes, which describe changes in the APIs used by this project: {"japicmpResult": {}, "elementLines": {}, "revapiResult": {}, "allPotentialBreakingElements": [], "elementPatterns": {}, "project": "depclean"}
+
+
+================================== Ai Message ==================================
+
+To address the compilation error caused by the upgrade of plexus-utils from 3.5.1 to 4.0.0, we need to update the import statement in the MavenDependencyManager.java file. Let's read the file contents first and then make the necessary changes.
+Tool Calls:
+  read_file (toolu_vrtx_018PhekMuszpMc938azYVjKv)
+ Call ID: toolu_vrtx_018PhekMuszpMc938azYVjKv
+  Args:
+    file_path: depclean-maven-plugin/src/main/java/se/kth/depclean/wrapper/MavenDependencyManager.java
+
+================================= Tool Message =================================
+Name: read_file
+
+package se.kth.depclean.wrapper;
+
+import static com.google.common.collect.ImmutableSet.of;
+
+import java.io.File;
+import java.io.FileReader;
+import java.io.IOException;
+import java.io.Serializable;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
+import lombok.AllArgsConstructor;
+import lombok.SneakyThrows;
+import org.apache.maven.execution.MavenSession;
+import org.apache.maven.model.Model;
+import org.apache.maven.model.io.xpp3.MavenXpp3Reader;
+import org.apache.maven.plugin.logging.Log;
+import org.apache.maven.project.DefaultProjectBuildingRequest;
+import org.apache.maven.project.MavenProject;
+import org.apache.maven.project.ProjectBuildingRequest;
+import org.apache.maven.shared.dependency.graph.DependencyGraphBuilder;
+import org.apache.maven.shared.dependency.graph.DependencyNode;
+import org.codehaus.plexus.util.xml.Xpp3Dom;
+import se.kth.depclean.core.AbstractDebloater;
+import se.kth.depclean.core.analysis.graph.DependencyGraph;
+import se.kth.depclean.core.analysis.model.ProjectDependencyAnalysis;
+import se.kth.depclean.core.analysis.src.ImportsAnalyzer;
+import se.kth.depclean.core.wrapper.DependencyManagerWrapper;
+import se.kth.depclean.core.wrapper.LogWrapper;
+import se.kth.depclean.graph.MavenDependencyGraph;
+import se.kth.depclean.util.MavenDebloater;
+import se.kth.depclean.util.MavenInvoker;
+import se.kth.depclean.util.json.ParsedDependencies;
+
+/**
+ * Maven's implementation of the dependency manager wrapper.
+ */
+@AllArgsConstructor
+public class MavenDependencyManager implements DependencyManagerWrapper {
+
+  private static final String DIRECTORY_TO_COPY_DEPENDENCIES = "dependency";
+
+  private final Log logger;
+  private final MavenProject project;
+  private final MavenSession session;
+  private final DependencyGraphBuilder dependencyGraphBuilder;
+  private final Model model;
+
+  /**
+   * Creates the manager.
+   *
+   * @param logger                 the logger
+   * @param project                the maven project
+   * @param session                the maven session
+   * @param dependencyGraphBuilder a tool to build the dependency graph
+   */
+  public MavenDependencyManager(Log logger, MavenProject project, MavenSession session,
+      DependencyGraphBuilder dependencyGraphBuilder) {
+    this.logger = logger;
+    this.project = project;
+    this.session = session;
+    this.dependencyGraphBuilder = dependencyGraphBuilder;
+    this.model = buildModel(project);
+  }
+
+  @Override
+  public LogWrapper getLog() {
+    return new LogWrapper() {
+      @Override
+      public void info(String message) {
+        logger.info(message);
+      }
+
+      @Override
+      public void error(String message) {
+        logger.error(message);
+      }
+
+      @Override
+      public void debug(String message) {
+        logger.debug(message);
+      }
+    };
+  }
+
+  @Override
+  public boolean isMaven() {
+    return true;
+  }
+
+  @Override
+  public boolean isPackagingPom() {
+    return project.getPackaging().equals("pom");
+  }
+
+  @Override
+  @SneakyThrows
+  public DependencyGraph dependencyGraph() {
+    ProjectBuildingRequest buildingRequest = new DefaultProjectBuildingRequest(session.getProjectBuildingRequest());
+    buildingRequest.setProject(project);
+    DependencyNode rootNode = dependencyGraphBuilder.buildDependencyGraph(buildingRequest, null);
+    return new MavenDependencyGraph(project, model, rootNode);
+  }
+
+  @Override
+  public Set<Path> getOutputDirectories() {
+    return Set.of(Paths.get(project.getBuild().getOutputDirectory()));
+  }
+
+  @Override
+  public Set<Path> getTestOutputDirectories() {
+    return Set.of(Paths.get(project.getBuild().getTestOutputDirectory()));
+  }
+
+  private Model buildModel(MavenProject project) {
+    File pomFile = new File(project.getBasedir().getAbsolutePath() + File.separator + "pom.xml");
+
+    /* Build Maven model to manipulate the pom */
+    final Model model;
+    FileReader reader;
+    MavenXpp3Reader mavenReader = new MavenXpp3Reader();
+    try {
+      reader = new FileReader(pomFile);
+      model = mavenReader.read(reader);
+      model.setPomFile(pomFile);
+    } catch (Exception ex) {
+      getLog().error("Unable to build the maven project.");
+      throw new RuntimeException(ex);
+    }
+    return model;
+  }
+
+  /**
+   * Maven processors are defined like this.
+   * <pre>{@code
+   *       <plugin>
+   *         <groupId>org.bsc.maven</groupId>
+   *         <artifactId>maven-processor-plugin</artifactId>
+   *         <executions>
+   *           <execution>
+   *             <id>process</id>
+   *             [...]
+   *             <configuration>
+   *               <processors>
+   *                 <processor>XXXProcessor</processor>
+   *               </processors>
+   *             </configuration>
+   *           </execution>
+   *         </executions>
+   *       </plugin>
+   * }</pre>
+   */
+  @Override
+  public Set<String> collectUsedClassesFromProcessors() {
+    getLog().debug("# collectUsedClassesFromProcessors()");
+    return Optional.ofNullable(project.getPlugin("org.bsc.maven:maven-processor-plugin"))
+        .map(plugin -> plugin.getExecutionsAsMap().get("process"))
+        .map(exec -> (Xpp3Dom) exec.getConfiguration())
+        .map(config -> config.getChild("processors"))
+        .map(Xpp3Dom::getChildren)
+        .map(arr -> Arrays.stream(arr).map(Xpp3Dom::getValue).collect(Collectors.toSet()))
+        .orElse(of());
+  }
+
+  @Override
+  public Path getDependenciesDirectory() {
+    String dependencyDirectoryName = project.getBuild().getDirectory() + "/" + DIRECTORY_TO_COPY_DEPENDENCIES;
+    return new File(dependencyDirectoryName).toPath();
+  }
+
+  @Override
+  public Set<String> collectUsedClassesFromSource(Path sourceDirectory, Path testSourceDirectory) {
+    Set<String> allImports = new HashSet<>();
+    ImportsAnalyzer importsInSourceFolder = new ImportsAnalyzer(sourceDirectory);
+    ImportsAnalyzer importsInTestsFolder = new ImportsAnalyzer(testSourceDirectory);
+    Set<String> importsInSourceFolderSet = importsInSourceFolder.collectImportedClassesFromSource();
+    Set<String> importsInTestsFolderSet = importsInTestsFolder.collectImportedClassesFromSource();
+    allImports.addAll(importsInSourceFolderSet);
+    allImports.addAll(importsInTestsFolderSet);
+    return allImports;
+  }
+
+  @Override
+  public AbstractDebloater<? extends Serializable> getDebloater(ProjectDependencyAnalysis analysis) {
+    return new MavenDebloater(
+        analysis,
+        project,
+        model
+    );
+  }
+
+  @Override
+  public Path getBuildDirectory() {
+    return Paths.get(project.getBuild().getDirectory());
+  }
+
+  @Override
+  public Path getSourceDirectory() {
+    return new File(project.getBuild().getSourceDirectory()).toPath();
+  }
+
+  @Override
+  public Path getTestDirectory() {
+    return new File(project.getBuild().getTestSourceDirectory()).toPath();
+  }
+
+  @Override
+  public void generateDependencyTree(File treeFile) throws IOException, InterruptedException {
+    MavenInvoker.runCommand("mvn dependency:tree -DoutputFile=" + treeFile + " -Dverbose=true", null);
+  }
+
+  @SneakyThrows
+  @Override
+  public String getTreeAsJson(
+      File treeFile, ProjectDependencyAnalysis analysis, File classUsageFile, boolean createCallGraphCsv) {
+    return new ParsedDependencies(
+        treeFile,
+        analysis,
+        classUsageFile,
+        createCallGraphCsv
+    ).parseTreeToJson();
+  }
+}
+
+
+================================== Ai Message ==================================
+
+Now, let's update the import statement for the Xpp3Dom class. In plexus-utils 4.0.0, the package for Xpp3Dom has changed. We need to update the import statement to use the new package.
+
+Here's the diff to fix the issue:
+
+```diff
+--- depclean-maven-plugin/src/main/java/se/kth/depclean/wrapper/MavenDependencyManager.java
++++ depclean-maven-plugin/src/main/java/se/kth/depclean/wrapper/MavenDependencyManager.java
+@@ -23,7 +23,7 @@ import org.apache.maven.project.MavenProject;
+ import org.apache.maven.project.ProjectBuildingRequest;
+ import org.apache.maven.shared.dependency.graph.DependencyGraphBuilder;
+ import org.apache.maven.shared.dependency.graph.DependencyNode;
+-import org.codehaus.plexus.util.xml.Xpp3Dom;
++import org.codehaus.plexus.util.xml.Xpp3DomBuilder;
+ import se.kth.depclean.core.AbstractDebloater;
+ import se.kth.depclean.core.analysis.graph.DependencyGraph;
+ import se.kth.depclean.core.analysis.model.ProjectDependencyAnalysis;
+@@ -159,9 +159,9 @@ public class MavenDependencyManager implements DependencyManagerWrapper {
+     getLog().debug("# collectUsedClassesFromProcessors()");
+     return Optional.ofNullable(project.getPlugin("org.bsc.maven:maven-processor-plugin"))
+         .map(plugin -> plugin.getExecutionsAsMap().get("process"))
+-        .map(exec -> (Xpp3Dom) exec.getConfiguration())
++        .map(exec -> (Xpp3DomBuilder.build(exec.getConfiguration().toString())))
+         .map(config -> config.getChild("processors"))
+-        .map(Xpp3Dom::getChildren)
+-        .map(arr -> Arrays.stream(arr).map(Xpp3Dom::getValue).collect(Collectors.toSet()))
++        .map(Xpp3DomBuilder::getChildren)
++        .map(arr -> Arrays.stream(arr).map(Xpp3DomBuilder::getValue).collect(Collectors.toSet()))
+         .orElse(of());
+   }
+```
+
+This diff updates the import statement for Xpp3Dom to use Xpp3DomBuilder instead, which is the correct class in plexus-utils 4.0.0. It also updates the usage of Xpp3Dom to Xpp3DomBuilder in the collectUsedClassesFromProcessors() method.
+
+Let's validate this diff:
+Tool Calls:
+  validate_diffs (toolu_vrtx_01Akoqvj559s2tcCvpw9QQo2)
+ Call ID: toolu_vrtx_01Akoqvj559s2tcCvpw9QQo2
+  Args:
+
+================================= Tool Message =================================
+Name: validate_diffs
+
+Error: ValidationError(model='validate_diffsSchema', errors=[{'loc': ('diff',), 'msg': 'field required', 'type': 'value_error.missing'}])
+ Please fix your mistakes.
+
+================================== Ai Message ==================================
+
+I apologize for the oversight. Let me correct the function call and provide the diff as a parameter.
+Tool Calls:
+  validate_diffs (toolu_vrtx_01CZLtARhwwVV6UHt72Sdy13)
+ Call ID: toolu_vrtx_01CZLtARhwwVV6UHt72Sdy13
+  Args:
+    diff: ```diff
+--- depclean-maven-plugin/src/main/java/se/kth/depclean/wrapper/MavenDependencyManager.java
++++ depclean-maven-plugin/src/main/java/se/kth/depclean/wrapper/MavenDependencyManager.java
+@@ -23,7 +23,7 @@ import org.apache.maven.project.MavenProject;
+ import org.apache.maven.project.ProjectBuildingRequest;
+ import org.apache.maven.shared.dependency.graph.DependencyGraphBuilder;
+ import org.apache.maven.shared.dependency.graph.DependencyNode;
+-import org.codehaus.plexus.util.xml.Xpp3Dom;
++import org.codehaus.plexus.util.xml.Xpp3DomBuilder;
+ import se.kth.depclean.core.AbstractDebloater;
+ import se.kth.depclean.core.analysis.graph.DependencyGraph;
+ import se.kth.depclean.core.analysis.model.ProjectDependencyAnalysis;
+@@ -159,9 +159,9 @@ public class MavenDependencyManager implements DependencyManagerWrapper {
+     getLog().debug("# collectUsedClassesFromProcessors()");
+     return Optional.ofNullable(project.getPlugin("org.bsc.maven:maven-processor-plugin"))
+         .map(plugin -> plugin.getExecutionsAsMap().get("process"))
+-        .map(exec -> (Xpp3Dom) exec.getConfiguration())
++        .map(exec -> (Xpp3DomBuilder.build(exec.getConfiguration().toString())))
+         .map(config -> config.getChild("processors"))
+-        .map(Xpp3Dom::getChildren)
+-        .map(arr -> Arrays.stream(arr).map(Xpp3Dom::getValue).collect(Collectors.toSet()))
++        .map(Xpp3DomBuilder::getChildren)
++        .map(arr -> Arrays.stream(arr).map(Xpp3DomBuilder::getValue).collect(Collectors.toSet()))
+         .orElse(of());
+   }
+```
+
+================================= Tool Message =================================
+Name: validate_diffs
+
+{'depclean-maven-plugin/src/main/java/se/kth/depclean/wrapper/MavenDependencyManager.java': 'package se.kth.depclean.wrapper;\n\nimport static com.google.common.collect.ImmutableSet.of;\n\nimport java.io.File;\nimport java.io.FileReader;\nimport java.io.IOException;\nimport java.io.Serializable;\nimport java.nio.file.Path;\nimport java.nio.file.Paths;\nimport java.util.Arrays;\nimport java.util.HashSet;\nimport java.util.Optional;\nimport java.util.Set;\nimport java.util.stream.Collectors;\nimport lombok.AllArgsConstructor;\nimport lombok.SneakyThrows;\nimport org.apache.maven.execution.MavenSession;\nimport org.apache.maven.model.Model;\nimport org.apache.maven.model.io.xpp3.MavenXpp3Reader;\nimport org.apache.maven.plugin.logging.Log;\nimport org.apache.maven.project.DefaultProjectBuildingRequest;\nimport org.apache.maven.project.MavenProject;\nimport org.apache.maven.project.ProjectBuildingRequest;\nimport org.apache.maven.shared.dependency.graph.DependencyGraphBuilder;\nimport org.apache.maven.shared.dependency.graph.DependencyNode;\nimport org.codehaus.plexus.util.xml.Xpp3DomBuilder;\nimport se.kth.depclean.core.AbstractDebloater;\nimport se.kth.depclean.core.analysis.graph.DependencyGraph;\nimport se.kth.depclean.core.analysis.model.ProjectDependencyAnalysis;\nimport se.kth.depclean.core.analysis.src.ImportsAnalyzer;\nimport se.kth.depclean.core.wrapper.DependencyManagerWrapper;\nimport se.kth.depclean.core.wrapper.LogWrapper;\nimport se.kth.depclean.graph.MavenDependencyGraph;\nimport se.kth.depclean.util.MavenDebloater;\nimport se.kth.depclean.util.MavenInvoker;\nimport se.kth.depclean.util.json.ParsedDependencies;\n\n/**\n * Maven\'s implementation of the dependency manager wrapper.\n */\n@AllArgsConstructor\npublic class MavenDependencyManager implements DependencyManagerWrapper {\n\n  private static final String DIRECTORY_TO_COPY_DEPENDENCIES = "dependency";\n\n  private final Log logger;\n  private final MavenProject project;\n  private final MavenSession session;\n  private final DependencyGraphBuilder dependencyGraphBuilder;\n  private final Model model;\n\n  /**\n   * Creates the manager.\n   *\n   * @param logger                 the logger\n   * @param project                the maven project\n   * @param session                the maven session\n   * @param dependencyGraphBuilder a tool to build the dependency graph\n   */\n  public MavenDependencyManager(Log logger, MavenProject project, MavenSession session,\n      DependencyGraphBuilder dependencyGraphBuilder) {\n    this.logger = logger;\n    this.project = project;\n    this.session = session;\n    this.dependencyGraphBuilder = dependencyGraphBuilder;\n    this.model = buildModel(project);\n  }\n\n  @Override\n  public LogWrapper getLog() {\n    return new LogWrapper() {\n      @Override\n      public void info(String message) {\n        logger.info(message);\n      }\n\n      @Override\n      public void error(String message) {\n        logger.error(message);\n      }\n\n      @Override\n      public void debug(String message) {\n        logger.debug(message);\n      }\n    };\n  }\n\n  @Override\n  public boolean isMaven() {\n    return true;\n  }\n\n  @Override\n  public boolean isPackagingPom() {\n    return project.getPackaging().equals("pom");\n  }\n\n  @Override\n  @SneakyThrows\n  public DependencyGraph dependencyGraph() {\n    ProjectBuildingRequest buildingRequest = new DefaultProjectBuildingRequest(session.getProjectBuildingRequest());\n    buildingRequest.setProject(project);\n    DependencyNode rootNode = dependencyGraphBuilder.buildDependencyGraph(buildingRequest, null);\n    return new MavenDependencyGraph(project, model, rootNode);\n  }\n\n  @Override\n  public Set<Path> getOutputDirectories() {\n    return Set.of(Paths.get(project.getBuild().getOutputDirectory()));\n  }\n\n  @Override\n  public Set<Path> getTestOutputDirectories() {\n    return Set.of(Paths.get(project.getBuild().getTestOutputDirectory()));\n  }\n\n  private Model buildModel(MavenProject project) {\n    File pomFile = new File(project.getBasedir().getAbsolutePath() + File.separator + "pom.xml");\n\n    /* Build Maven model to manipulate the pom */\n    final Model model;\n    FileReader reader;\n    MavenXpp3Reader mavenReader = new MavenXpp3Reader();\n    try {\n      reader = new FileReader(pomFile);\n      model = mavenReader.read(reader);\n      model.setPomFile(pomFile);\n    } catch (Exception ex) {\n      getLog().error("Unable to build the maven project.");\n      throw new RuntimeException(ex);\n    }\n    return model;\n  }\n\n  /**\n   * Maven processors are defined like this.\n   * <pre>{@code\n   *       <plugin>\n   *         <groupId>org.bsc.maven</groupId>\n   *         <artifactId>maven-processor-plugin</artifactId>\n   *         <executions>\n   *           <execution>\n   *             <id>process</id>\n   *             [...]\n   *             <configuration>\n   *               <processors>\n   *                 <processor>XXXProcessor</processor>\n   *               </processors>\n   *             </configuration>\n   *           </execution>\n   *         </executions>\n   *       </plugin>\n   * }</pre>\n   */\n  @Override\n  public Set<String> collectUsedClassesFromProcessors() {\n    getLog().debug("# collectUsedClassesFromProcessors()");\n    return Optional.ofNullable(project.getPlugin("org.bsc.maven:maven-processor-plugin"))\n        .map(plugin -> plugin.getExecutionsAsMap().get("process"))\n        .map(exec -> (Xpp3DomBuilder.build(exec.getConfiguration().toString())))\n        .map(config -> config.getChild("processors"))\n        .map(Xpp3DomBuilder::getChildren)\n        .map(arr -> Arrays.stream(arr).map(Xpp3DomBuilder::getValue).collect(Collectors.toSet()))\n        .orElse(of());\n  }\n\n  @Override\n  public Path getDependenciesDirectory() {\n    String dependencyDirectoryName = project.getBuild().getDirectory() + "/" + DIRECTORY_TO_COPY_DEPENDENCIES;\n    return new File(dependencyDirectoryName).toPath();\n  }\n\n  @Override\n  public Set<String> collectUsedClassesFromSource(Path sourceDirectory, Path testSourceDirectory) {\n    Set<String> allImports = new HashSet<>();\n    ImportsAnalyzer importsInSourceFolder = new ImportsAnalyzer(sourceDirectory);\n    ImportsAnalyzer importsInTestsFolder = new ImportsAnalyzer(testSourceDirectory);\n    Set<String> importsInSourceFolderSet = importsInSourceFolder.collectImportedClassesFromSource();\n    Set<String> importsInTestsFolderSet = importsInTestsFolder.collectImportedClassesFromSource();\n    allImports.addAll(importsInSourceFolderSet);\n    allImports.addAll(importsInTestsFolderSet);\n    return allImports;\n  }\n\n  @Override\n  public AbstractDebloater<? extends Serializable> getDebloater(ProjectDependencyAnalysis analysis) {\n    return new MavenDebloater(\n        analysis,\n        project,\n        model\n    );\n  }\n\n  @Override\n  public Path getBuildDirectory() {\n    return Paths.get(project.getBuild().getDirectory());\n  }\n\n  @Override\n  public Path getSourceDirectory() {\n    return new File(project.getBuild().getSourceDirectory()).toPath();\n  }\n\n  @Override\n  public Path getTestDirectory() {\n    return new File(project.getBuild().getTestSourceDirectory()).toPath();\n  }\n\n  @Override\n  public void generateDependencyTree(File treeFile) throws IOException, InterruptedException {\n    MavenInvoker.runCommand("mvn dependency:tree -DoutputFile=" + treeFile + " -Dverbose=true", null);\n  }\n\n  @SneakyThrows\n  @Override\n  public String getTreeAsJson(\n      File treeFile, ProjectDependencyAnalysis analysis, File classUsageFile, boolean createCallGraphCsv) {\n    return new ParsedDependencies(\n        treeFile,\n        analysis,\n        classUsageFile,\n        createCallGraphCsv\n    ).parseTreeToJson();\n  }\n}\n'}
+
+================================== Ai Message ==================================
+
+The diff has been successfully validated. Now, let's apply this change to the project:
+Tool Calls:
+  compile_maven_stateful (toolu_vrtx_01QvB4VoG4DJhZW6etGzSYq2)
+ Call ID: toolu_vrtx_01QvB4VoG4DJhZW6etGzSYq2
+  Args:
+    diff: ```diff
+--- depclean-maven-plugin/src/main/java/se/kth/depclean/wrapper/MavenDependencyManager.java
++++ depclean-maven-plugin/src/main/java/se/kth/depclean/wrapper/MavenDependencyManager.java
+@@ -23,7 +23,7 @@ import org.apache.maven.project.MavenProject;
+ import org.apache.maven.project.ProjectBuildingRequest;
+ import org.apache.maven.shared.dependency.graph.DependencyGraphBuilder;
+ import org.apache.maven.shared.dependency.graph.DependencyNode;
+-import org.codehaus.plexus.util.xml.Xpp3Dom;
++import org.codehaus.plexus.util.xml.Xpp3DomBuilder;
+ import se.kth.depclean.core.AbstractDebloater;
+ import se.kth.depclean.core.analysis.graph.DependencyGraph;
+ import se.kth.depclean.core.analysis.model.ProjectDependencyAnalysis;
+@@ -159,9 +159,9 @@ public class MavenDependencyManager implements DependencyManagerWrapper {
+     getLog().debug("# collectUsedClassesFromProcessors()");
+     return Optional.ofNullable(project.getPlugin("org.bsc.maven:maven-processor-plugin"))
+         .map(plugin -> plugin.getExecutionsAsMap().get("process"))
+-        .map(exec -> (Xpp3Dom) exec.getConfiguration())
++        .map(exec -> (Xpp3DomBuilder.build(exec.getConfiguration().toString())))
+         .map(config -> config.getChild("processors"))
+-        .map(Xpp3Dom::getChildren)
+-        .map(arr -> Arrays.stream(arr).map(Xpp3Dom::getValue).collect(Collectors.toSet()))
++        .map(Xpp3DomBuilder::getChildren)
++        .map(arr -> Arrays.stream(arr).map(Xpp3DomBuilder::getValue).collect(Collectors.toSet()))
+         .orElse(of());
+   }
+```
+
+================================= Tool Message =================================
+Name: compile_maven_stateful
+
+{"compilation_has_succeeded": false, "test_has_succeeded": false, "error_text": "package org.codehaus.plexus.util.xml does not exist\n", "updated_files": {"depclean-maven-plugin/src/main/java/se/kth/depclean/wrapper/MavenDependencyManager.java": "package se.kth.depclean.wrapper;\n\nimport static com.google.common.collect.ImmutableSet.of;\n\nimport java.io.File;\nimport java.io.FileReader;\nimport java.io.IOException;\nimport java.io.Serializable;\nimport java.nio.file.Path;\nimport java.nio.file.Paths;\nimport java.util.Arrays;\nimport java.util.HashSet;\nimport java.util.Optional;\nimport java.util.Set;\nimport java.util.stream.Collectors;\nimport lombok.AllArgsConstructor;\nimport lombok.SneakyThrows;\nimport org.apache.maven.execution.MavenSession;\nimport org.apache.maven.model.Model;\nimport org.apache.maven.model.io.xpp3.MavenXpp3Reader;\nimport org.apache.maven.plugin.logging.Log;\nimport org.apache.maven.project.DefaultProjectBuildingRequest;\nimport org.apache.maven.project.MavenProject;\nimport org.apache.maven.project.ProjectBuildingRequest;\nimport org.apache.maven.shared.dependency.graph.DependencyGraphBuilder;\nimport org.apache.maven.shared.dependency.graph.DependencyNode;\nimport org.codehaus.plexus.util.xml.Xpp3DomBuilder;\nimport se.kth.depclean.core.AbstractDebloater;\nimport se.kth.depclean.core.analysis.graph.DependencyGraph;\nimport se.kth.depclean.core.analysis.model.ProjectDependencyAnalysis;\nimport se.kth.depclean.core.analysis.src.ImportsAnalyzer;\nimport se.kth.depclean.core.wrapper.DependencyManagerWrapper;\nimport se.kth.depclean.core.wrapper.LogWrapper;\nimport se.kth.depclean.graph.MavenDependencyGraph;\nimport se.kth.depclean.util.MavenDebloater;\nimport se.kth.depclean.util.MavenInvoker;\nimport se.kth.depclean.util.json.ParsedDependencies;\n\n/**\n * Maven's implementation of the dependency manager wrapper.\n */\n@AllArgsConstructor\npublic class MavenDependencyManager implements DependencyManagerWrapper {\n\n  private static final String DIRECTORY_TO_COPY_DEPENDENCIES = \"dependency\";\n\n  private final Log logger;\n  private final MavenProject project;\n  private final MavenSession session;\n  private final DependencyGraphBuilder dependencyGraphBuilder;\n  private final Model model;\n\n  /**\n   * Creates the manager.\n   *\n   * @param logger                 the logger\n   * @param project                the maven project\n   * @param session                the maven session\n   * @param dependencyGraphBuilder a tool to build the dependency graph\n   */\n  public MavenDependencyManager(Log logger, MavenProject project, MavenSession session,\n      DependencyGraphBuilder dependencyGraphBuilder) {\n    this.logger = logger;\n    this.project = project;\n    this.session = session;\n    this.dependencyGraphBuilder = dependencyGraphBuilder;\n    this.model = buildModel(project);\n  }\n\n  @Override\n  public LogWrapper getLog() {\n    return new LogWrapper() {\n      @Override\n      public void info(String message) {\n        logger.info(message);\n      }\n\n      @Override\n      public void error(String message) {\n        logger.error(message);\n      }\n\n      @Override\n      public void debug(String message) {\n        logger.debug(message);\n      }\n    };\n  }\n\n  @Override\n  public boolean isMaven() {\n    return true;\n  }\n\n  @Override\n  public boolean isPackagingPom() {\n    return project.getPackaging().equals(\"pom\");\n  }\n\n  @Override\n  @SneakyThrows\n  public DependencyGraph dependencyGraph() {\n    ProjectBuildingRequest buildingRequest = new DefaultProjectBuildingRequest(session.getProjectBuildingRequest());\n    buildingRequest.setProject(project);\n    DependencyNode rootNode = dependencyGraphBuilder.buildDependencyGraph(buildingRequest, null);\n    return new MavenDependencyGraph(project, model, rootNode);\n  }\n\n  @Override\n  public Set<Path> getOutputDirectories() {\n    return Set.of(Paths.get(project.getBuild().getOutputDirectory()));\n  }\n\n  @Override\n  public Set<Path> getTestOutputDirectories() {\n    return Set.of(Paths.get(project.getBuild().getTestOutputDirectory()));\n  }\n\n  private Model buildModel(MavenProject project) {\n    File pomFile = new File(project.getBasedir().getAbsolutePath() + File.separator + \"pom.xml\");\n\n    /* Build Maven model to manipulate the pom */\n    final Model model;\n    FileReader reader;\n    MavenXpp3Reader mavenReader = new MavenXpp3Reader();\n    try {\n      reader = new FileReader(pomFile);\n      model = mavenReader.read(reader);\n      model.setPomFile(pomFile);\n    } catch (Exception ex) {\n      getLog().error(\"Unable to build the maven project.\");\n      throw new RuntimeException(ex);\n    }\n    return model;\n  }\n\n  /**\n   * Maven processors are defined like this.\n   * <pre>{@code\n   *       <plugin>\n   *         <groupId>org.bsc.maven</groupId>\n   *         <artifactId>maven-processor-plugin</artifactId>\n   *         <executions>\n   *           <execution>\n   *             <id>process</id>\n   *             [...]\n   *             <configuration>\n   *               <processors>\n   *                 <processor>XXXProcessor</processor>\n   *               </processors>\n   *             </configuration>\n   *           </execution>\n   *         </executions>\n   *       </plugin>\n   * }</pre>\n   */\n  @Override\n  public Set<String> collectUsedClassesFromProcessors() {\n    getLog().debug(\"# collectUsedClassesFromProcessors()\");\n    return Optional.ofNullable(project.getPlugin(\"org.bsc.maven:maven-processor-plugin\"))\n        .map(plugin -> plugin.getExecutionsAsMap().get(\"process\"))\n        .map(exec -> (Xpp3DomBuilder.build(exec.getConfiguration().toString())))\n        .map(config -> config.getChild(\"processors\"))\n        .map(Xpp3DomBuilder::getChildren)\n        .map(arr -> Arrays.stream(arr).map(Xpp3DomBuilder::getValue).collect(Collectors.toSet()))\n        .orElse(of());\n  }\n\n  @Override\n  public Path getDependenciesDirectory() {\n    String dependencyDirectoryName = project.getBuild().getDirectory() + \"/\" + DIRECTORY_TO_COPY_DEPENDENCIES;\n    return new File(dependencyDirectoryName).toPath();\n  }\n\n  @Override\n  public Set<String> collectUsedClassesFromSource(Path sourceDirectory, Path testSourceDirectory) {\n    Set<String> allImports = new HashSet<>();\n    ImportsAnalyzer importsInSourceFolder = new ImportsAnalyzer(sourceDirectory);\n    ImportsAnalyzer importsInTestsFolder = new ImportsAnalyzer(testSourceDirectory);\n    Set<String> importsInSourceFolderSet = importsInSourceFolder.collectImportedClassesFromSource();\n    Set<String> importsInTestsFolderSet = importsInTestsFolder.collectImportedClassesFromSource();\n    allImports.addAll(importsInSourceFolderSet);\n    allImports.addAll(importsInTestsFolderSet);\n    return allImports;\n  }\n\n  @Override\n  public AbstractDebloater<? extends Serializable> getDebloater(ProjectDependencyAnalysis analysis) {\n    return new MavenDebloater(\n        analysis,\n        project,\n        model\n    );\n  }\n\n  @Override\n  public Path getBuildDirectory() {\n    return Paths.get(project.getBuild().getDirectory());\n  }\n\n  @Override\n  public Path getSourceDirectory() {\n    return new File(project.getBuild().getSourceDirectory()).toPath();\n  }\n\n  @Override\n  public Path getTestDirectory() {\n    return new File(project.getBuild().getTestSourceDirectory()).toPath();\n  }\n\n  @Override\n  public void generateDependencyTree(File treeFile) throws IOException, InterruptedException {\n    MavenInvoker.runCommand(\"mvn dependency:tree -DoutputFile=\" + treeFile + \" -Dverbose=true\", null);\n  }\n\n  @SneakyThrows\n  @Override\n  public String getTreeAsJson(\n      File treeFile, ProjectDependencyAnalysis analysis, File classUsageFile, boolean createCallGraphCsv) {\n    return new ParsedDependencies(\n        treeFile,\n        analysis,\n        classUsageFile,\n        createCallGraphCsv\n    ).parseTreeToJson();\n  }\n}\n"}, "compile_error_details": {"depclean-maven-plugin/src/main/java/se/kth/depclean/wrapper/MavenDependencyManager.java": {"27": {"lines": [{"line_no": 26, "content": "import org.apache.maven.shared.dependency.graph.DependencyNode;"}, {"line_no": 27, "content": "import org.codehaus.plexus.util.xml.Xpp3DomBuilder;"}, {"line_no": 28, "content": "import se.kth.depclean.core.AbstractDebloater;"}], "error_texts": ["[27,36] package org.codehaus.plexus.util.xml does not exist\n"]}}}}
+
+================================== Ai Message ==================================
+
+I apologize for the oversight. It seems that the package structure for Xpp3DomBuilder has changed in plexus-utils 4.0.0. Let's try to update the import statement with the correct package. Here's the updated diff:
+Tool Calls:
+  compile_maven_stateful (toolu_vrtx_0188RRF4hyEAM24L2LntrGcg)
+ Call ID: toolu_vrtx_0188RRF4hyEAM24L2LntrGcg
+  Args:
+    diff: ```diff
+--- depclean-maven-plugin/src/main/java/se/kth/depclean/wrapper/MavenDependencyManager.java
++++ depclean-maven-plugin/src/main/java/se/kth/depclean/wrapper/MavenDependencyManager.java
+@@ -23,7 +23,7 @@ import org.apache.maven.project.MavenProject;
+ import org.apache.maven.project.ProjectBuildingRequest;
+ import org.apache.maven.shared.dependency.graph.DependencyGraphBuilder;
+ import org.apache.maven.shared.dependency.graph.DependencyNode;
+-import org.codehaus.plexus.util.xml.Xpp3Dom;
++import org.codehaus.plexus.util.xml.Xpp3Dom;
+ import se.kth.depclean.core.AbstractDebloater;
+ import se.kth.depclean.core.analysis.graph.DependencyGraph;
+ import se.kth.depclean.core.analysis.model.ProjectDependencyAnalysis;
+@@ -159,9 +159,9 @@ public class MavenDependencyManager implements DependencyManagerWrapper {
+     getLog().debug("# collectUsedClassesFromProcessors()");
+     return Optional.ofNullable(project.getPlugin("org.bsc.maven:maven-processor-plugin"))
+         .map(plugin -> plugin.getExecutionsAsMap().get("process"))
+-        .map(exec -> (Xpp3Dom) exec.getConfiguration())
++        .map(exec -> (Xpp3Dom) exec.getConfiguration())
+         .map(config -> config.getChild("processors"))
+-        .map(Xpp3Dom::getChildren)
+-        .map(arr -> Arrays.stream(arr).map(Xpp3Dom::getValue).collect(Collectors.toSet()))
++        .map(Xpp3Dom::getChildren)
++        .map(arr -> Arrays.stream(arr).map(Xpp3Dom::getValue).collect(Collectors.toSet()))
+         .orElse(of());
+   }
+```
+
+================================= Tool Message =================================
+Name: compile_maven_stateful
+
+{"compilation_has_succeeded": false, "test_has_succeeded": false, "error_text": "Failed to prepare diffs: Diff is not valid, UnifiedDiffNoEdits: no applicable hunks found!\nThe provided diff does not contain any hunks that can be applied to the files in the repository.\nEnsure that your diff correctly specifies the changes and try again.\nThe diff needs to apply to the existing lines in the files.", "updated_files": {}, "compile_error_details": {}}
+
+================================== Ai Message ==================================
+
+I apologize for the confusion. It seems that the previous changes were not applied correctly. Let's try to apply the changes again with a more comprehensive diff:
+Tool Calls:
+  compile_maven_stateful (toolu_vrtx_012YczjyqRTXbasBV96PXJTC)
+ Call ID: toolu_vrtx_012YczjyqRTXbasBV96PXJTC
+  Args:
+    diff: ```diff
+--- depclean-maven-plugin/src/main/java/se/kth/depclean/wrapper/MavenDependencyManager.java
++++ depclean-maven-plugin/src/main/java/se/kth/depclean/wrapper/MavenDependencyManager.java
+@@ -23,7 +23,7 @@ import org.apache.maven.project.MavenProject;
+ import org.apache.maven.project.ProjectBuildingRequest;
+ import org.apache.maven.shared.dependency.graph.DependencyGraphBuilder;
+ import org.apache.maven.shared.dependency.graph.DependencyNode;
+-import org.codehaus.plexus.util.xml.Xpp3Dom;
++import org.codehaus.plexus.util.xml.Xpp3Dom;
+ import se.kth.depclean.core.AbstractDebloater;
+ import se.kth.depclean.core.analysis.graph.DependencyGraph;
+ import se.kth.depclean.core.analysis.model.ProjectDependencyAnalysis;
+@@ -159,9 +159,9 @@ public class MavenDependencyManager implements DependencyManagerWrapper {
+     getLog().debug("# collectUsedClassesFromProcessors()");
+     return Optional.ofNullable(project.getPlugin("org.bsc.maven:maven-processor-plugin"))
+         .map(plugin -> plugin.getExecutionsAsMap().get("process"))
+-        .map(exec -> (Xpp3Dom) exec.getConfiguration())
++        .map(exec -> (Xpp3Dom) exec.getConfiguration())
+         .map(config -> config.getChild("processors"))
+-        .map(Xpp3Dom::getChildren)
+-        .map(arr -> Arrays.stream(arr).map(Xpp3Dom::getValue).collect(Collectors.toSet()))
++        .map(Xpp3Dom::getChildren)
++        .map(arr -> Arrays.stream(arr).map(Xpp3Dom::getValue).collect(Collectors.toSet()))
+         .orElse(of());
+   }
+```
+
+================================= Tool Message =================================
+Name: compile_maven_stateful
+
+{"compilation_has_succeeded": false, "test_has_succeeded": false, "error_text": "Failed to prepare diffs: Diff is not valid, UnifiedDiffNoEdits: no applicable hunks found!\nThe provided diff does not contain any hunks that can be applied to the files in the repository.\nEnsure that your diff correctly specifies the changes and try again.\nThe diff needs to apply to the existing lines in the files.", "updated_files": {}, "compile_error_details": {}}
+
+================================== Ai Message ==================================
+
+I apologize for the continued issues. It seems that the file content might have changed since our last successful read. Let's try to read the current content of the file again and then create a new diff based on the current state:
+Tool Calls:
+  read_file (toolu_vrtx_01JpjE55CbwGpaCQy3S8aFQo)
+ Call ID: toolu_vrtx_01JpjE55CbwGpaCQy3S8aFQo
+  Args:
+    file_path: depclean-maven-plugin/src/main/java/se/kth/depclean/wrapper/MavenDependencyManager.java
+
+================================= Tool Message =================================
+Name: read_file
+
+package se.kth.depclean.wrapper;
+
+import static com.google.common.collect.ImmutableSet.of;
+
+import java.io.File;
+import java.io.FileReader;
+import java.io.IOException;
+import java.io.Serializable;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
+import lombok.AllArgsConstructor;
+import lombok.SneakyThrows;
+import org.apache.maven.execution.MavenSession;
+import org.apache.maven.model.Model;
+import org.apache.maven.model.io.xpp3.MavenXpp3Reader;
+import org.apache.maven.plugin.logging.Log;
+import org.apache.maven.project.DefaultProjectBuildingRequest;
+import org.apache.maven.project.MavenProject;
+import org.apache.maven.project.ProjectBuildingRequest;
+import org.apache.maven.shared.dependency.graph.DependencyGraphBuilder;
+import org.apache.maven.shared.dependency.graph.DependencyNode;
+import org.codehaus.plexus.util.xml.Xpp3DomBuilder;
+import se.kth.depclean.core.AbstractDebloater;
+import se.kth.depclean.core.analysis.graph.DependencyGraph;
+import se.kth.depclean.core.analysis.model.ProjectDependencyAnalysis;
+import se.kth.depclean.core.analysis.src.ImportsAnalyzer;
+import se.kth.depclean.core.wrapper.DependencyManagerWrapper;
+import se.kth.depclean.core.wrapper.LogWrapper;
+import se.kth.depclean.graph.MavenDependencyGraph;
+import se.kth.depclean.util.MavenDebloater;
+import se.kth.depclean.util.MavenInvoker;
+import se.kth.depclean.util.json.ParsedDependencies;
+
+/**
+ * Maven's implementation of the dependency manager wrapper.
+ */
+@AllArgsConstructor
+public class MavenDependencyManager implements DependencyManagerWrapper {
+
+  private static final String DIRECTORY_TO_COPY_DEPENDENCIES = "dependency";
+
+  private final Log logger;
+  private final MavenProject project;
+  private final MavenSession session;
+  private final DependencyGraphBuilder dependencyGraphBuilder;
+  private final Model model;
+
+  /**
+   * Creates the manager.
+   *
+   * @param logger                 the logger
+   * @param project                the maven project
+   * @param session                the maven session
+   * @param dependencyGraphBuilder a tool to build the dependency graph
+   */
+  public MavenDependencyManager(Log logger, MavenProject project, MavenSession session,
+      DependencyGraphBuilder dependencyGraphBuilder) {
+    this.logger = logger;
+    this.project = project;
+    this.session = session;
+    this.dependencyGraphBuilder = dependencyGraphBuilder;
+    this.model = buildModel(project);
+  }
+
+  @Override
+  public LogWrapper getLog() {
+    return new LogWrapper() {
+      @Override
+      public void info(String message) {
+        logger.info(message);
+      }
+
+      @Override
+      public void error(String message) {
+        logger.error(message);
+      }
+
+      @Override
+      public void debug(String message) {
+        logger.debug(message);
+      }
+    };
+  }
+
+  @Override
+  public boolean isMaven() {
+    return true;
+  }
+
+  @Override
+  public boolean isPackagingPom() {
+    return project.getPackaging().equals("pom");
+  }
+
+  @Override
+  @SneakyThrows
+  public DependencyGraph dependencyGraph() {
+    ProjectBuildingRequest buildingRequest = new DefaultProjectBuildingRequest(session.getProjectBuildingRequest());
+    buildingRequest.setProject(project);
+    DependencyNode rootNode = dependencyGraphBuilder.buildDependencyGraph(buildingRequest, null);
+    return new MavenDependencyGraph(project, model, rootNode);
+  }
+
+  @Override
+  public Set<Path> getOutputDirectories() {
+    return Set.of(Paths.get(project.getBuild().getOutputDirectory()));
+  }
+
+  @Override
+  public Set<Path> getTestOutputDirectories() {
+    return Set.of(Paths.get(project.getBuild().getTestOutputDirectory()));
+  }
+
+  private Model buildModel(MavenProject project) {
+    File pomFile = new File(project.getBasedir().getAbsolutePath() + File.separator + "pom.xml");
+
+    /* Build Maven model to manipulate the pom */
+    final Model model;
+    FileReader reader;
+    MavenXpp3Reader mavenReader = new MavenXpp3Reader();
+    try {
+      reader = new FileReader(pomFile);
+      model = mavenReader.read(reader);
+      model.setPomFile(pomFile);
+    } catch (Exception ex) {
+      getLog().error("Unable to build the maven project.");
+      throw new RuntimeException(ex);
+    }
+    return model;
+  }
+
+  /**
+   * Maven processors are defined like this.
+   * <pre>{@code
+   *       <plugin>
+   *         <groupId>org.bsc.maven</groupId>
+   *         <artifactId>maven-processor-plugin</artifactId>
+   *         <executions>
+   *           <execution>
+   *             <id>process</id>
+   *             [...]
+   *             <configuration>
+   *               <processors>
+   *                 <processor>XXXProcessor</processor>
+   *               </processors>
+   *             </configuration>
+   *           </execution>
+   *         </executions>
+   *       </plugin>
+   * }</pre>
+   */
+  @Override
+  public Set<String> collectUsedClassesFromProcessors() {
+    getLog().debug("# collectUsedClassesFromProcessors()");
+    return Optional.ofNullable(project.getPlugin("org.bsc.maven:maven-processor-plugin"))
+        .map(plugin -> plugin.getExecutionsAsMap().get("process"))
+        .map(exec -> (Xpp3DomBuilder.build(exec.getConfiguration().toString())))
+        .map(config -> config.getChild("processors"))
+        .map(Xpp3DomBuilder::getChildren)
+        .map(arr -> Arrays.stream(arr).map(Xpp3DomBuilder::getValue).collect(Collectors.toSet()))
+        .orElse(of());
+  }
+
+  @Override
+  public Path getDependenciesDirectory() {
+    String dependencyDirectoryName = project.getBuild().getDirectory() + "/" + DIRECTORY_TO_COPY_DEPENDENCIES;
+    return new File(dependencyDirectoryName).toPath();
+  }
+
+  @Override
+  public Set<String> collectUsedClassesFromSource(Path sourceDirectory, Path testSourceDirectory) {
+    Set<String> allImports = new HashSet<>();
+    ImportsAnalyzer importsInSourceFolder = new ImportsAnalyzer(sourceDirectory);
+    ImportsAnalyzer importsInTestsFolder = new ImportsAnalyzer(testSourceDirectory);
+    Set<String> importsInSourceFolderSet = importsInSourceFolder.collectImportedClassesFromSource();
+    Set<String> importsInTestsFolderSet = importsInTestsFolder.collectImportedClassesFromSource();
+    allImports.addAll(importsInSourceFolderSet);
+    allImports.addAll(importsInTestsFolderSet);
+    return allImports;
+  }
+
+  @Override
+  public AbstractDebloater<? extends Serializable> getDebloater(ProjectDependencyAnalysis analysis) {
+    return new MavenDebloater(
+        analysis,
+        project,
+        model
+    );
+  }
+
+  @Override
+  public Path getBuildDirectory() {
+    return Paths.get(project.getBuild().getDirectory());
+  }
+
+  @Override
+  public Path getSourceDirectory() {
+    return new File(project.getBuild().getSourceDirectory()).toPath();
+  }
+
+  @Override
+  public Path getTestDirectory() {
+    return new File(project.getBuild().getTestSourceDirectory()).toPath();
+  }
+
+  @Override
+  public void generateDependencyTree(File treeFile) throws IOException, InterruptedException {
+    MavenInvoker.runCommand("mvn dependency:tree -DoutputFile=" + treeFile + " -Dverbose=true", null);
+  }
+
+  @SneakyThrows
+  @Override
+  public String getTreeAsJson(
+      File treeFile, ProjectDependencyAnalysis analysis, File classUsageFile, boolean createCallGraphCsv) {
+    return new ParsedDependencies(
+        treeFile,
+        analysis,
+        classUsageFile,
+        createCallGraphCsv
+    ).parseTreeToJson();
+  }
+}
+
+
+================================== Ai Message ==================================
+
+Now that we have the current content of the file, let's create a new diff to update the import statement and usage of Xpp3Dom:
+Tool Calls:
+  compile_maven_stateful (toolu_vrtx_01PEL5B2jzseJtFmjJ6XF6Re)
+ Call ID: toolu_vrtx_01PEL5B2jzseJtFmjJ6XF6Re
+  Args:
+    diff: ```diff
+--- depclean-maven-plugin/src/main/java/se/kth/depclean/wrapper/MavenDependencyManager.java
++++ depclean-maven-plugin/src/main/java/se/kth/depclean/wrapper/MavenDependencyManager.java
+@@ -26,7 +26,7 @@ import org.apache.maven.project.MavenProject;
+ import org.apache.maven.project.ProjectBuildingRequest;
+ import org.apache.maven.shared.dependency.graph.DependencyGraphBuilder;
+ import org.apache.maven.shared.dependency.graph.DependencyNode;
+-import org.codehaus.plexus.util.xml.Xpp3DomBuilder;
++import org.codehaus.plexus.util.xml.Xpp3Dom;
+ import se.kth.depclean.core.AbstractDebloater;
+ import se.kth.depclean.core.analysis.graph.DependencyGraph;
+ import se.kth.depclean.core.analysis.model.ProjectDependencyAnalysis;
+@@ -174,9 +174,9 @@ public class MavenDependencyManager implements DependencyManagerWrapper {
+     getLog().debug("# collectUsedClassesFromProcessors()");
+     return Optional.ofNullable(project.getPlugin("org.bsc.maven:maven-processor-plugin"))
+         .map(plugin -> plugin.getExecutionsAsMap().get("process"))
+-        .map(exec -> (Xpp3DomBuilder.build(exec.getConfiguration().toString())))
++        .map(exec -> (Xpp3Dom) exec.getConfiguration())
+         .map(config -> config.getChild("processors"))
+-        .map(Xpp3DomBuilder::getChildren)
+-        .map(arr -> Arrays.stream(arr).map(Xpp3DomBuilder::getValue).collect(Collectors.toSet()))
++        .map(Xpp3Dom::getChildren)
++        .map(arr -> Arrays.stream(arr).map(Xpp3Dom::getValue).collect(Collectors.toSet()))
+         .orElse(of());
+   }
+```
+
+================================= Tool Message =================================
+Name: compile_maven_stateful
+
+{"compilation_has_succeeded": false, "test_has_succeeded": false, "error_text": "package org.codehaus.plexus.util.xml does not exist\n", "updated_files": {"depclean-maven-plugin/src/main/java/se/kth/depclean/wrapper/MavenDependencyManager.java": "package se.kth.depclean.wrapper;\n\nimport static com.google.common.collect.ImmutableSet.of;\n\nimport java.io.File;\nimport java.io.FileReader;\nimport java.io.IOException;\nimport java.io.Serializable;\nimport java.nio.file.Path;\nimport java.nio.file.Paths;\nimport java.util.Arrays;\nimport java.util.HashSet;\nimport java.util.Optional;\nimport java.util.Set;\nimport java.util.stream.Collectors;\nimport lombok.AllArgsConstructor;\nimport lombok.SneakyThrows;\nimport org.apache.maven.execution.MavenSession;\nimport org.apache.maven.model.Model;\nimport org.apache.maven.model.io.xpp3.MavenXpp3Reader;\nimport org.apache.maven.plugin.logging.Log;\nimport org.apache.maven.project.DefaultProjectBuildingRequest;\nimport org.apache.maven.project.MavenProject;\nimport org.apache.maven.project.ProjectBuildingRequest;\nimport org.apache.maven.shared.dependency.graph.DependencyGraphBuilder;\nimport org.apache.maven.shared.dependency.graph.DependencyNode;\nimport org.codehaus.plexus.util.xml.Xpp3Dom;\nimport se.kth.depclean.core.AbstractDebloater;\nimport se.kth.depclean.core.analysis.graph.DependencyGraph;\nimport se.kth.depclean.core.analysis.model.ProjectDependencyAnalysis;\nimport se.kth.depclean.core.analysis.src.ImportsAnalyzer;\nimport se.kth.depclean.core.wrapper.DependencyManagerWrapper;\nimport se.kth.depclean.core.wrapper.LogWrapper;\nimport se.kth.depclean.graph.MavenDependencyGraph;\nimport se.kth.depclean.util.MavenDebloater;\nimport se.kth.depclean.util.MavenInvoker;\nimport se.kth.depclean.util.json.ParsedDependencies;\n\n/**\n * Maven's implementation of the dependency manager wrapper.\n */\n@AllArgsConstructor\npublic class MavenDependencyManager implements DependencyManagerWrapper {\n\n  private static final String DIRECTORY_TO_COPY_DEPENDENCIES = \"dependency\";\n\n  private final Log logger;\n  private final MavenProject project;\n  private final MavenSession session;\n  private final DependencyGraphBuilder dependencyGraphBuilder;\n  private final Model model;\n\n  /**\n   * Creates the manager.\n   *\n   * @param logger                 the logger\n   * @param project                the maven project\n   * @param session                the maven session\n   * @param dependencyGraphBuilder a tool to build the dependency graph\n   */\n  public MavenDependencyManager(Log logger, MavenProject project, MavenSession session,\n      DependencyGraphBuilder dependencyGraphBuilder) {\n    this.logger = logger;\n    this.project = project;\n    this.session = session;\n    this.dependencyGraphBuilder = dependencyGraphBuilder;\n    this.model = buildModel(project);\n  }\n\n  @Override\n  public LogWrapper getLog() {\n    return new LogWrapper() {\n      @Override\n      public void info(String message) {\n        logger.info(message);\n      }\n\n      @Override\n      public void error(String message) {\n        logger.error(message);\n      }\n\n      @Override\n      public void debug(String message) {\n        logger.debug(message);\n      }\n    };\n  }\n\n  @Override\n  public boolean isMaven() {\n    return true;\n  }\n\n  @Override\n  public boolean isPackagingPom() {\n    return project.getPackaging().equals(\"pom\");\n  }\n\n  @Override\n  @SneakyThrows\n  public DependencyGraph dependencyGraph() {\n    ProjectBuildingRequest buildingRequest = new DefaultProjectBuildingRequest(session.getProjectBuildingRequest());\n    buildingRequest.setProject(project);\n    DependencyNode rootNode = dependencyGraphBuilder.buildDependencyGraph(buildingRequest, null);\n    return new MavenDependencyGraph(project, model, rootNode);\n  }\n\n  @Override\n  public Set<Path> getOutputDirectories() {\n    return Set.of(Paths.get(project.getBuild().getOutputDirectory()));\n  }\n\n  @Override\n  public Set<Path> getTestOutputDirectories() {\n    return Set.of(Paths.get(project.getBuild().getTestOutputDirectory()));\n  }\n\n  private Model buildModel(MavenProject project) {\n    File pomFile = new File(project.getBasedir().getAbsolutePath() + File.separator + \"pom.xml\");\n\n    /* Build Maven model to manipulate the pom */\n    final Model model;\n    FileReader reader;\n    MavenXpp3Reader mavenReader = new MavenXpp3Reader();\n    try {\n      reader = new FileReader(pomFile);\n      model = mavenReader.read(reader);\n      model.setPomFile(pomFile);\n    } catch (Exception ex) {\n      getLog().error(\"Unable to build the maven project.\");\n      throw new RuntimeException(ex);\n    }\n    return model;\n  }\n\n  /**\n   * Maven processors are defined like this.\n   * <pre>{@code\n   *       <plugin>\n   *         <groupId>org.bsc.maven</groupId>\n   *         <artifactId>maven-processor-plugin</artifactId>\n   *         <executions>\n   *           <execution>\n   *             <id>process</id>\n   *             [...]\n   *             <configuration>\n   *               <processors>\n   *                 <processor>XXXProcessor</processor>\n   *               </processors>\n   *             </configuration>\n   *           </execution>\n   *         </executions>\n   *       </plugin>\n   * }</pre>\n   */\n  @Override\n  public Set<String> collectUsedClassesFromProcessors() {\n    getLog().debug(\"# collectUsedClassesFromProcessors()\");\n    return Optional.ofNullable(project.getPlugin(\"org.bsc.maven:maven-processor-plugin\"))\n        .map(plugin -> plugin.getExecutionsAsMap().get(\"process\"))\n        .map(exec -> (Xpp3Dom) exec.getConfiguration())\n        .map(config -> config.getChild(\"processors\"))\n        .map(Xpp3Dom::getChildren)\n        .map(arr -> Arrays.stream(arr).map(Xpp3Dom::getValue).collect(Collectors.toSet()))\n        .orElse(of());\n  }\n\n  @Override\n  public Path getDependenciesDirectory() {\n    String dependencyDirectoryName = project.getBuild().getDirectory() + \"/\" + DIRECTORY_TO_COPY_DEPENDENCIES;\n    return new File(dependencyDirectoryName).toPath();\n  }\n\n  @Override\n  public Set<String> collectUsedClassesFromSource(Path sourceDirectory, Path testSourceDirectory) {\n    Set<String> allImports = new HashSet<>();\n    ImportsAnalyzer importsInSourceFolder = new ImportsAnalyzer(sourceDirectory);\n    ImportsAnalyzer importsInTestsFolder = new ImportsAnalyzer(testSourceDirectory);\n    Set<String> importsInSourceFolderSet = importsInSourceFolder.collectImportedClassesFromSource();\n    Set<String> importsInTestsFolderSet = importsInTestsFolder.collectImportedClassesFromSource();\n    allImports.addAll(importsInSourceFolderSet);\n    allImports.addAll(importsInTestsFolderSet);\n    return allImports;\n  }\n\n  @Override\n  public AbstractDebloater<? extends Serializable> getDebloater(ProjectDependencyAnalysis analysis) {\n    return new MavenDebloater(\n        analysis,\n        project,\n        model\n    );\n  }\n\n  @Override\n  public Path getBuildDirectory() {\n    return Paths.get(project.getBuild().getDirectory());\n  }\n\n  @Override\n  public Path getSourceDirectory() {\n    return new File(project.getBuild().getSourceDirectory()).toPath();\n  }\n\n  @Override\n  public Path getTestDirectory() {\n    return new File(project.getBuild().getTestSourceDirectory()).toPath();\n  }\n\n  @Override\n  public void generateDependencyTree(File treeFile) throws IOException, InterruptedException {\n    MavenInvoker.runCommand(\"mvn dependency:tree -DoutputFile=\" + treeFile + \" -Dverbose=true\", null);\n  }\n\n  @SneakyThrows\n  @Override\n  public String getTreeAsJson(\n      File treeFile, ProjectDependencyAnalysis analysis, File classUsageFile, boolean createCallGraphCsv) {\n    return new ParsedDependencies(\n        treeFile,\n        analysis,\n        classUsageFile,\n        createCallGraphCsv\n    ).parseTreeToJson();\n  }\n}\n"}, "compile_error_details": {"depclean-maven-plugin/src/main/java/se/kth/depclean/wrapper/MavenDependencyManager.java": {"27": {"lines": [{"line_no": 26, "content": "import org.apache.maven.shared.dependency.graph.DependencyNode;"}, {"line_no": 27, "content": "import org.codehaus.plexus.util.xml.Xpp3Dom;"}, {"line_no": 28, "content": "import se.kth.depclean.core.AbstractDebloater;"}], "error_texts": ["[27,36] package org.codehaus.plexus.util.xml does not exist\n"]}}}}
+
+================================== Ai Message ==================================
+
+I apologize for the continued issues. It seems that the package structure for Xpp3Dom has changed in plexus-utils 4.0.0. Let's try to find the correct package for Xpp3Dom in the new version. We'll need to update the import statement with the correct package.
+
+Let's try using the package `org.codehaus.plexus.util`:
+Tool Calls:
+  compile_maven_stateful (toolu_vrtx_01FamRTZxH9gyxuf5iGvSxpe)
+ Call ID: toolu_vrtx_01FamRTZxH9gyxuf5iGvSxpe
+  Args:
+    diff: ```diff
+--- depclean-maven-plugin/src/main/java/se/kth/depclean/wrapper/MavenDependencyManager.java
++++ depclean-maven-plugin/src/main/java/se/kth/depclean/wrapper/MavenDependencyManager.java
+@@ -26,7 +26,7 @@ import org.apache.maven.project.MavenProject;
+ import org.apache.maven.project.ProjectBuildingRequest;
+ import org.apache.maven.shared.dependency.graph.DependencyGraphBuilder;
+ import org.apache.maven.shared.dependency.graph.DependencyNode;
+-import org.codehaus.plexus.util.xml.Xpp3Dom;
++import org.codehaus.plexus.util.Xpp3Dom;
+ import se.kth.depclean.core.AbstractDebloater;
+ import se.kth.depclean.core.analysis.graph.DependencyGraph;
+ import se.kth.depclean.core.analysis.model.ProjectDependencyAnalysis;
+```
+
+================================= Tool Message =================================
+Name: compile_maven_stateful
+
+{"compilation_has_succeeded": false, "test_has_succeeded": false, "error_text": "cannot find symbol\n", "updated_files": {"depclean-maven-plugin/src/main/java/se/kth/depclean/wrapper/MavenDependencyManager.java": "package se.kth.depclean.wrapper;\n\nimport static com.google.common.collect.ImmutableSet.of;\n\nimport java.io.File;\nimport java.io.FileReader;\nimport java.io.IOException;\nimport java.io.Serializable;\nimport java.nio.file.Path;\nimport java.nio.file.Paths;\nimport java.util.Arrays;\nimport java.util.HashSet;\nimport java.util.Optional;\nimport java.util.Set;\nimport java.util.stream.Collectors;\nimport lombok.AllArgsConstructor;\nimport lombok.SneakyThrows;\nimport org.apache.maven.execution.MavenSession;\nimport org.apache.maven.model.Model;\nimport org.apache.maven.model.io.xpp3.MavenXpp3Reader;\nimport org.apache.maven.plugin.logging.Log;\nimport org.apache.maven.project.DefaultProjectBuildingRequest;\nimport org.apache.maven.project.MavenProject;\nimport org.apache.maven.project.ProjectBuildingRequest;\nimport org.apache.maven.shared.dependency.graph.DependencyGraphBuilder;\nimport org.apache.maven.shared.dependency.graph.DependencyNode;\nimport org.codehaus.plexus.util.Xpp3Dom;\nimport se.kth.depclean.core.AbstractDebloater;\nimport se.kth.depclean.core.analysis.graph.DependencyGraph;\nimport se.kth.depclean.core.analysis.model.ProjectDependencyAnalysis;\nimport se.kth.depclean.core.analysis.src.ImportsAnalyzer;\nimport se.kth.depclean.core.wrapper.DependencyManagerWrapper;\nimport se.kth.depclean.core.wrapper.LogWrapper;\nimport se.kth.depclean.graph.MavenDependencyGraph;\nimport se.kth.depclean.util.MavenDebloater;\nimport se.kth.depclean.util.MavenInvoker;\nimport se.kth.depclean.util.json.ParsedDependencies;\n\n/**\n * Maven's implementation of the dependency manager wrapper.\n */\n@AllArgsConstructor\npublic class MavenDependencyManager implements DependencyManagerWrapper {\n\n  private static final String DIRECTORY_TO_COPY_DEPENDENCIES = \"dependency\";\n\n  private final Log logger;\n  private final MavenProject project;\n  private final MavenSession session;\n  private final DependencyGraphBuilder dependencyGraphBuilder;\n  private final Model model;\n\n  /**\n   * Creates the manager.\n   *\n   * @param logger                 the logger\n   * @param project                the maven project\n   * @param session                the maven session\n   * @param dependencyGraphBuilder a tool to build the dependency graph\n   */\n  public MavenDependencyManager(Log logger, MavenProject project, MavenSession session,\n      DependencyGraphBuilder dependencyGraphBuilder) {\n    this.logger = logger;\n    this.project = project;\n    this.session = session;\n    this.dependencyGraphBuilder = dependencyGraphBuilder;\n    this.model = buildModel(project);\n  }\n\n  @Override\n  public LogWrapper getLog() {\n    return new LogWrapper() {\n      @Override\n      public void info(String message) {\n        logger.info(message);\n      }\n\n      @Override\n      public void error(String message) {\n        logger.error(message);\n      }\n\n      @Override\n      public void debug(String message) {\n        logger.debug(message);\n      }\n    };\n  }\n\n  @Override\n  public boolean isMaven() {\n    return true;\n  }\n\n  @Override\n  public boolean isPackagingPom() {\n    return project.getPackaging().equals(\"pom\");\n  }\n\n  @Override\n  @SneakyThrows\n  public DependencyGraph dependencyGraph() {\n    ProjectBuildingRequest buildingRequest = new DefaultProjectBuildingRequest(session.getProjectBuildingRequest());\n    buildingRequest.setProject(project);\n    DependencyNode rootNode = dependencyGraphBuilder.buildDependencyGraph(buildingRequest, null);\n    return new MavenDependencyGraph(project, model, rootNode);\n  }\n\n  @Override\n  public Set<Path> getOutputDirectories() {\n    return Set.of(Paths.get(project.getBuild().getOutputDirectory()));\n  }\n\n  @Override\n  public Set<Path> getTestOutputDirectories() {\n    return Set.of(Paths.get(project.getBuild().getTestOutputDirectory()));\n  }\n\n  private Model buildModel(MavenProject project) {\n    File pomFile = new File(project.getBasedir().getAbsolutePath() + File.separator + \"pom.xml\");\n\n    /* Build Maven model to manipulate the pom */\n    final Model model;\n    FileReader reader;\n    MavenXpp3Reader mavenReader = new MavenXpp3Reader();\n    try {\n      reader = new FileReader(pomFile);\n      model = mavenReader.read(reader);\n      model.setPomFile(pomFile);\n    } catch (Exception ex) {\n      getLog().error(\"Unable to build the maven project.\");\n      throw new RuntimeException(ex);\n    }\n    return model;\n  }\n\n  /**\n   * Maven processors are defined like this.\n   * <pre>{@code\n   *       <plugin>\n   *         <groupId>org.bsc.maven</groupId>\n   *         <artifactId>maven-processor-plugin</artifactId>\n   *         <executions>\n   *           <execution>\n   *             <id>process</id>\n   *             [...]\n   *             <configuration>\n   *               <processors>\n   *                 <processor>XXXProcessor</processor>\n   *               </processors>\n   *             </configuration>\n   *           </execution>\n   *         </executions>\n   *       </plugin>\n   * }</pre>\n   */\n  @Override\n  public Set<String> collectUsedClassesFromProcessors() {\n    getLog().debug(\"# collectUsedClassesFromProcessors()\");\n    return Optional.ofNullable(project.getPlugin(\"org.bsc.maven:maven-processor-plugin\"))\n        .map(plugin -> plugin.getExecutionsAsMap().get(\"process\"))\n        .map(exec -> (Xpp3Dom) exec.getConfiguration())\n        .map(config -> config.getChild(\"processors\"))\n        .map(Xpp3Dom::getChildren)\n        .map(arr -> Arrays.stream(arr).map(Xpp3Dom::getValue).collect(Collectors.toSet()))\n        .orElse(of());\n  }\n\n  @Override\n  public Path getDependenciesDirectory() {\n    String dependencyDirectoryName = project.getBuild().getDirectory() + \"/\" + DIRECTORY_TO_COPY_DEPENDENCIES;\n    return new File(dependencyDirectoryName).toPath();\n  }\n\n  @Override\n  public Set<String> collectUsedClassesFromSource(Path sourceDirectory, Path testSourceDirectory) {\n    Set<String> allImports = new HashSet<>();\n    ImportsAnalyzer importsInSourceFolder = new ImportsAnalyzer(sourceDirectory);\n    ImportsAnalyzer importsInTestsFolder = new ImportsAnalyzer(testSourceDirectory);\n    Set<String> importsInSourceFolderSet = importsInSourceFolder.collectImportedClassesFromSource();\n    Set<String> importsInTestsFolderSet = importsInTestsFolder.collectImportedClassesFromSource();\n    allImports.addAll(importsInSourceFolderSet);\n    allImports.addAll(importsInTestsFolderSet);\n    return allImports;\n  }\n\n  @Override\n  public AbstractDebloater<? extends Serializable> getDebloater(ProjectDependencyAnalysis analysis) {\n    return new MavenDebloater(\n        analysis,\n        project,\n        model\n    );\n  }\n\n  @Override\n  public Path getBuildDirectory() {\n    return Paths.get(project.getBuild().getDirectory());\n  }\n\n  @Override\n  public Path getSourceDirectory() {\n    return new File(project.getBuild().getSourceDirectory()).toPath();\n  }\n\n  @Override\n  public Path getTestDirectory() {\n    return new File(project.getBuild().getTestSourceDirectory()).toPath();\n  }\n\n  @Override\n  public void generateDependencyTree(File treeFile) throws IOException, InterruptedException {\n    MavenInvoker.runCommand(\"mvn dependency:tree -DoutputFile=\" + treeFile + \" -Dverbose=true\", null);\n  }\n\n  @SneakyThrows\n  @Override\n  public String getTreeAsJson(\n      File treeFile, ProjectDependencyAnalysis analysis, File classUsageFile, boolean createCallGraphCsv) {\n    return new ParsedDependencies(\n        treeFile,\n        analysis,\n        classUsageFile,\n        createCallGraphCsv\n    ).parseTreeToJson();\n  }\n}\n"}, "compile_error_details": {"depclean-maven-plugin/src/main/java/se/kth/depclean/wrapper/MavenDependencyManager.java": {"27": {"lines": [{"line_no": 26, "content": "import org.apache.maven.shared.dependency.graph.DependencyNode;"}, {"line_no": 27, "content": "import org.codehaus.plexus.util.Xpp3Dom;"}, {"line_no": 28, "content": "import se.kth.depclean.core.AbstractDebloater;"}], "error_texts": ["[27,32] cannot find symbol\n", "[27,32] cannot find symbol\nsymbol: class Xpp3Dom\nlocation: package org.codehaus.plexus.util\n"]}}}}
+
+================================== Ai Message ==================================
+
+I apologize for the confusion. It seems that the Xpp3Dom class might have been moved or renamed in the new version of plexus-utils. Let's try to find an alternative class that can be used instead of Xpp3Dom. 
+
+One possible alternative is to use the `org.apache.maven.plugin.descriptor.PluginDescriptor` class, which should be available in the Maven API. Let's try updating the code to use this class instead:
+Tool Calls:
+  compile_maven_stateful (toolu_vrtx_01GZUV5Fum6N8mkXuQS2XPdj)
+ Call ID: toolu_vrtx_01GZUV5Fum6N8mkXuQS2XPdj
+  Args:
+    diff: ```diff
+--- depclean-maven-plugin/src/main/java/se/kth/depclean/wrapper/MavenDependencyManager.java
++++ depclean-maven-plugin/src/main/java/se/kth/depclean/wrapper/MavenDependencyManager.java
+@@ -26,7 +26,7 @@ import org.apache.maven.project.MavenProject;
+ import org.apache.maven.project.ProjectBuildingRequest;
+ import org.apache.maven.shared.dependency.graph.DependencyGraphBuilder;
+ import org.apache.maven.shared.dependency.graph.DependencyNode;
+-import org.codehaus.plexus.util.Xpp3Dom;
++import org.apache.maven.plugin.descriptor.PluginDescriptor;
+ import se.kth.depclean.core.AbstractDebloater;
+ import se.kth.depclean.core.analysis.graph.DependencyGraph;
+ import se.kth.depclean.core.analysis.model.ProjectDependencyAnalysis;
+@@ -174,9 +174,9 @@ public class MavenDependencyManager implements DependencyManagerWrapper {
+     getLog().debug("# collectUsedClassesFromProcessors()");
+     return Optional.ofNullable(project.getPlugin("org.bsc.maven:maven-processor-plugin"))
+         .map(plugin -> plugin.getExecutionsAsMap().get("process"))
+-        .map(exec -> (Xpp3Dom) exec.getConfiguration())
+-        .map(config -> config.getChild("processors"))
+-        .map(Xpp3Dom::getChildren)
+-        .map(arr -> Arrays.stream(arr).map(Xpp3Dom::getValue).collect(Collectors.toSet()))
++        .map(exec -> exec.getConfiguration())
++        .map(config -> ((PluginDescriptor) config).getGoals())
++        .map(goals -> goals.stream()
++            .filter(goal -> goal.getConfiguration().getChild("processors") != null)
++            .flatMap(goal -> Arrays.stream(goal.getConfiguration().getChild("processors").getChildren()))
++            .map(processor -> processor.getValue())
++            .collect(Collectors.toSet()))
+         .orElse(of());
+   }
+```
+
+================================= Tool Message =================================
+Name: compile_maven_stateful
+
+{"compilation_has_succeeded": true, "test_has_succeeded": false, "error_text": "[INFO]\n[INFO] Results:\n[INFO]\n[INFO] Tests run: 41, Failures: 0, Errors: 0, Skipped: 0\n[INFO]\n[INFO]\n[INFO] ----------------< se.kth.castor:depclean-maven-plugin >-----------------\n[INFO] Building depclean-maven-plugin 2.0.6 [3/3]\n[INFO] from depclean-maven-plugin/pom.xml\n[INFO] ----------------------------[ maven-plugin ]----------------------------\n[WARNING] Parameter 'encoding' is unknown for plugin 'maven-checkstyle-plugin:3.3.0:check (check for errors)'\n[WARNING] The artifact org.slf4j:slf4j-log4j12:jar:2.0.7 has been relocated to org.slf4j:slf4j-reload4j:jar:2.0.7\n[INFO]\n[INFO] --- clean:3.2.0:clean (default-clean) @ depclean-maven-plugin ---\n[INFO] Deleting /mnt/repo/depclean-maven-plugin/target\n[INFO]\n[INFO] --- checkstyle:3.3.0:check (check for errors) @ depclean-maven-plugin ---\n[INFO] Starting audit...\n[ERROR] /mnt/repo/depclean-maven-plugin/src/main/java/se/kth/depclean/wrapper/MavenDependencyManager.java:27:1: Wrong lexicographical order for 'org.apache.maven.plugin.descriptor.PluginDescriptor' import. Should be before 'org.apache.maven.shared.dependency.graph.DependencyNode'. [CustomImportOrder]\nAudit done.\n[INFO] ------------------------------------------------------------------------\n[INFO] Reactor Summary for depclean-parent-pom 2.0.6:\n[INFO]\n[INFO] depclean-parent-pom ................................ SUCCESS [ 2.469 s]\n[INFO] depclean-core ...................................... SUCCESS [ 15.113 s]\n[INFO] depclean-maven-plugin .............................. FAILURE [ 1.317 s]\n[INFO] ------------------------------------------------------------------------\n[INFO] BUILD FAILURE\n[INFO] ------------------------------------------------------------------------\n[INFO] Total time: 19.070 s\n[INFO] Finished at: 2024-08-05T00:06:00Z\n[INFO] ------------------------------------------------------------------------\n[ERROR] Failed to execute goal org.apache.maven.plugins:maven-checkstyle-plugin:3.3.0:check (check for errors) on project depclean-maven-plugin: Failed during checkstyle execution: There is 1 error reported by Checkstyle 8.41 with ../checkstyle.xml ruleset. -> [Help 1]\n[ERROR]\n[ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.\n[ERROR] Re-run Maven using the -X switch to enable full debug logging.\n[ERROR]\n[ERROR] For more information about the errors and possible solutions, please read the following articles:\n[ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoExecutionException\n[ERROR]\n[ERROR] After correcting the problems, you can resume the build with the command\n[ERROR] mvn <args> -rf :depclean-maven-plugin", "updated_files": {"depclean-maven-plugin/src/main/java/se/kth/depclean/wrapper/MavenDependencyManager.java": "package se.kth.depclean.wrapper;\n\nimport static com.google.common.collect.ImmutableSet.of;\n\nimport java.io.File;\nimport java.io.FileReader;\nimport java.io.IOException;\nimport java.io.Serializable;\nimport java.nio.file.Path;\nimport java.nio.file.Paths;\nimport java.util.Arrays;\nimport java.util.HashSet;\nimport java.util.Optional;\nimport java.util.Set;\nimport java.util.stream.Collectors;\nimport lombok.AllArgsConstructor;\nimport lombok.SneakyThrows;\nimport org.apache.maven.execution.MavenSession;\nimport org.apache.maven.model.Model;\nimport org.apache.maven.model.io.xpp3.MavenXpp3Reader;\nimport org.apache.maven.plugin.logging.Log;\nimport org.apache.maven.project.DefaultProjectBuildingRequest;\nimport org.apache.maven.project.MavenProject;\nimport org.apache.maven.project.ProjectBuildingRequest;\nimport org.apache.maven.shared.dependency.graph.DependencyGraphBuilder;\nimport org.apache.maven.shared.dependency.graph.DependencyNode;\nimport org.apache.maven.plugin.descriptor.PluginDescriptor;\nimport se.kth.depclean.core.AbstractDebloater;\nimport se.kth.depclean.core.analysis.graph.DependencyGraph;\nimport se.kth.depclean.core.analysis.model.ProjectDependencyAnalysis;\nimport se.kth.depclean.core.analysis.src.ImportsAnalyzer;\nimport se.kth.depclean.core.wrapper.DependencyManagerWrapper;\nimport se.kth.depclean.core.wrapper.LogWrapper;\nimport se.kth.depclean.graph.MavenDependencyGraph;\nimport se.kth.depclean.util.MavenDebloater;\nimport se.kth.depclean.util.MavenInvoker;\nimport se.kth.depclean.util.json.ParsedDependencies;\n\n/**\n * Maven's implementation of the dependency manager wrapper.\n */\n@AllArgsConstructor\npublic class MavenDependencyManager implements DependencyManagerWrapper {\n\n  private static final String DIRECTORY_TO_COPY_DEPENDENCIES = \"dependency\";\n\n  private final Log logger;\n  private final MavenProject project;\n  private final MavenSession session;\n  private final DependencyGraphBuilder dependencyGraphBuilder;\n  private final Model model;\n\n  /**\n   * Creates the manager.\n   *\n   * @param logger                 the logger\n   * @param project                the maven project\n   * @param session                the maven session\n   * @param dependencyGraphBuilder a tool to build the dependency graph\n   */\n  public MavenDependencyManager(Log logger, MavenProject project, MavenSession session,\n      DependencyGraphBuilder dependencyGraphBuilder) {\n    this.logger = logger;\n    this.project = project;\n    this.session = session;\n    this.dependencyGraphBuilder = dependencyGraphBuilder;\n    this.model = buildModel(project);\n  }\n\n  @Override\n  public LogWrapper getLog() {\n    return new LogWrapper() {\n      @Override\n      public void info(String message) {\n        logger.info(message);\n      }\n\n      @Override\n      public void error(String message) {\n        logger.error(message);\n      }\n\n      @Override\n      public void debug(String message) {\n        logger.debug(message);\n      }\n    };\n  }\n\n  @Override\n  public boolean isMaven() {\n    return true;\n  }\n\n  @Override\n  public boolean isPackagingPom() {\n    return project.getPackaging().equals(\"pom\");\n  }\n\n  @Override\n  @SneakyThrows\n  public DependencyGraph dependencyGraph() {\n    ProjectBuildingRequest buildingRequest = new DefaultProjectBuildingRequest(session.getProjectBuildingRequest());\n    buildingRequest.setProject(project);\n    DependencyNode rootNode = dependencyGraphBuilder.buildDependencyGraph(buildingRequest, null);\n    return new MavenDependencyGraph(project, model, rootNode);\n  }\n\n  @Override\n  public Set<Path> getOutputDirectories() {\n    return Set.of(Paths.get(project.getBuild().getOutputDirectory()));\n  }\n\n  @Override\n  public Set<Path> getTestOutputDirectories() {\n    return Set.of(Paths.get(project.getBuild().getTestOutputDirectory()));\n  }\n\n  private Model buildModel(MavenProject project) {\n    File pomFile = new File(project.getBasedir().getAbsolutePath() + File.separator + \"pom.xml\");\n\n    /* Build Maven model to manipulate the pom */\n    final Model model;\n    FileReader reader;\n    MavenXpp3Reader mavenReader = new MavenXpp3Reader();\n    try {\n      reader = new FileReader(pomFile);\n      model = mavenReader.read(reader);\n      model.setPomFile(pomFile);\n    } catch (Exception ex) {\n      getLog().error(\"Unable to build the maven project.\");\n      throw new RuntimeException(ex);\n    }\n    return model;\n  }\n\n  /**\n   * Maven processors are defined like this.\n   * <pre>{@code\n   *       <plugin>\n   *         <groupId>org.bsc.maven</groupId>\n   *         <artifactId>maven-processor-plugin</artifactId>\n   *         <executions>\n   *           <execution>\n   *             <id>process</id>\n   *             [...]\n   *             <configuration>\n   *               <processors>\n   *                 <processor>XXXProcessor</processor>\n   *               </processors>\n   *             </configuration>\n   *           </execution>\n   *         </executions>\n   *       </plugin>\n   * }</pre>\n   */\n  @Override\n  public Set<String> collectUsedClassesFromProcessors() {\n    getLog().debug(\"# collectUsedClassesFromProcessors()\");\n    return Optional.ofNullable(project.getPlugin(\"org.bsc.maven:maven-processor-plugin\"))\n        .map(plugin -> plugin.getExecutionsAsMap().get(\"process\"))\n        .map(exec -> exec.getConfiguration())\n        .map(config -> ((PluginDescriptor) config).getGoals())\n        .map(goals -> goals.stream()\n            .filter(goal -> goal.getConfiguration().getChild(\"processors\") != null)\n            .flatMap(goal -> Arrays.stream(goal.getConfiguration().getChild(\"processors\").getChildren()))\n            .map(processor -> processor.getValue())\n            .collect(Collectors.toSet()))\n        .orElse(of());\n  }\n\n  @Override\n  public Path getDependenciesDirectory() {\n    String dependencyDirectoryName = project.getBuild().getDirectory() + \"/\" + DIRECTORY_TO_COPY_DEPENDENCIES;\n    return new File(dependencyDirectoryName).toPath();\n  }\n\n  @Override\n  public Set<String> collectUsedClassesFromSource(Path sourceDirectory, Path testSourceDirectory) {\n    Set<String> allImports = new HashSet<>();\n    ImportsAnalyzer importsInSourceFolder = new ImportsAnalyzer(sourceDirectory);\n    ImportsAnalyzer importsInTestsFolder = new ImportsAnalyzer(testSourceDirectory);\n    Set<String> importsInSourceFolderSet = importsInSourceFolder.collectImportedClassesFromSource();\n    Set<String> importsInTestsFolderSet = importsInTestsFolder.collectImportedClassesFromSource();\n    allImports.addAll(importsInSourceFolderSet);\n    allImports.addAll(importsInTestsFolderSet);\n    return allImports;\n  }\n\n  @Override\n  public AbstractDebloater<? extends Serializable> getDebloater(ProjectDependencyAnalysis analysis) {\n    return new MavenDebloater(\n        analysis,\n        project,\n        model\n    );\n  }\n\n  @Override\n  public Path getBuildDirectory() {\n    return Paths.get(project.getBuild().getDirectory());\n  }\n\n  @Override\n  public Path getSourceDirectory() {\n    return new File(project.getBuild().getSourceDirectory()).toPath();\n  }\n\n  @Override\n  public Path getTestDirectory() {\n    return new File(project.getBuild().getTestSourceDirectory()).toPath();\n  }\n\n  @Override\n  public void generateDependencyTree(File treeFile) throws IOException, InterruptedException {\n    MavenInvoker.runCommand(\"mvn dependency:tree -DoutputFile=\" + treeFile + \" -Dverbose=true\", null);\n  }\n\n  @SneakyThrows\n  @Override\n  public String getTreeAsJson(\n      File treeFile, ProjectDependencyAnalysis analysis, File classUsageFile, boolean createCallGraphCsv) {\n    return new ParsedDependencies(\n        treeFile,\n        analysis,\n        classUsageFile,\n        createCallGraphCsv\n    ).parseTreeToJson();\n  }\n}\n"}, "compile_error_details": {}}
+
+================================== Ai Message ==================================
+
+The compilation has succeeded, but there's a checkstyle error regarding the import order. Let's fix that by reordering the imports:
+Tool Calls:
+  compile_maven_stateful (toolu_vrtx_0112byVw2JFxQXb5RDX8mR5B)
+ Call ID: toolu_vrtx_0112byVw2JFxQXb5RDX8mR5B
+  Args:
+    diff: ```diff
+--- depclean-maven-plugin/src/main/java/se/kth/depclean/wrapper/MavenDependencyManager.java
++++ depclean-maven-plugin/src/main/java/se/kth/depclean/wrapper/MavenDependencyManager.java
+@@ -19,11 +19,11 @@ import org.apache.maven.execution.MavenSession;
+ import org.apache.maven.model.Model;
+ import org.apache.maven.model.io.xpp3.MavenXpp3Reader;
+ import org.apache.maven.plugin.logging.Log;
++import org.apache.maven.plugin.descriptor.PluginDescriptor;
+ import org.apache.maven.project.DefaultProjectBuildingRequest;
+ import org.apache.maven.project.MavenProject;
+ import org.apache.maven.project.ProjectBuildingRequest;
+ import org.apache.maven.shared.dependency.graph.DependencyGraphBuilder;
+ import org.apache.maven.shared.dependency.graph.DependencyNode;
+-import org.apache.maven.plugin.descriptor.PluginDescriptor;
+ import se.kth.depclean.core.AbstractDebloater;
+ import se.kth.depclean.core.analysis.graph.DependencyGraph;
+ import se.kth.depclean.core.analysis.model.ProjectDependencyAnalysis;
+```
+
+================================= Tool Message =================================
+Name: compile_maven_stateful
+
+{"compilation_has_succeeded": true, "test_has_succeeded": false, "error_text": "[INFO]\n[INFO] Results:\n[INFO]\n[INFO] Tests run: 41, Failures: 0, Errors: 0, Skipped: 0\n[INFO]\n[INFO]\n[INFO] ----------------< se.kth.castor:depclean-maven-plugin >-----------------\n[INFO] Building depclean-maven-plugin 2.0.6 [3/3]\n[INFO] from depclean-maven-plugin/pom.xml\n[INFO] ----------------------------[ maven-plugin ]----------------------------\n[WARNING] Parameter 'encoding' is unknown for plugin 'maven-checkstyle-plugin:3.3.0:check (check for errors)'\n[WARNING] The artifact org.slf4j:slf4j-log4j12:jar:2.0.7 has been relocated to org.slf4j:slf4j-reload4j:jar:2.0.7\n[INFO]\n[INFO] --- clean:3.2.0:clean (default-clean) @ depclean-maven-plugin ---\n[INFO] Deleting /mnt/repo/depclean-maven-plugin/target\n[INFO]\n[INFO] --- checkstyle:3.3.0:check (check for errors) @ depclean-maven-plugin ---\n[INFO] Starting audit...\n[ERROR] /mnt/repo/depclean-maven-plugin/src/main/java/se/kth/depclean/wrapper/MavenDependencyManager.java:22:1: Wrong lexicographical order for 'org.apache.maven.plugin.descriptor.PluginDescriptor' import. Should be before 'org.apache.maven.plugin.logging.Log'. [CustomImportOrder]\nAudit done.\n[INFO] ------------------------------------------------------------------------\n[INFO] Reactor Summary for depclean-parent-pom 2.0.6:\n[INFO]\n[INFO] depclean-parent-pom ................................ SUCCESS [ 2.470 s]\n[INFO] depclean-core ...................................... SUCCESS [ 15.287 s]\n[INFO] depclean-maven-plugin .............................. FAILURE [ 1.408 s]\n[INFO] ------------------------------------------------------------------------\n[INFO] BUILD FAILURE\n[INFO] ------------------------------------------------------------------------\n[INFO] Total time: 19.318 s\n[INFO] Finished at: 2024-08-05T00:06:30Z\n[INFO] ------------------------------------------------------------------------\n[ERROR] Failed to execute goal org.apache.maven.plugins:maven-checkstyle-plugin:3.3.0:check (check for errors) on project depclean-maven-plugin: Failed during checkstyle execution: There is 1 error reported by Checkstyle 8.41 with ../checkstyle.xml ruleset. -> [Help 1]\n[ERROR]\n[ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.\n[ERROR] Re-run Maven using the -X switch to enable full debug logging.\n[ERROR]\n[ERROR] For more information about the errors and possible solutions, please read the following articles:\n[ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoExecutionException\n[ERROR]\n[ERROR] After correcting the problems, you can resume the build with the command\n[ERROR] mvn <args> -rf :depclean-maven-plugin", "updated_files": {"depclean-maven-plugin/src/main/java/se/kth/depclean/wrapper/MavenDependencyManager.java": "package se.kth.depclean.wrapper;\n\nimport static com.google.common.collect.ImmutableSet.of;\n\nimport java.io.File;\nimport java.io.FileReader;\nimport java.io.IOException;\nimport java.io.Serializable;\nimport java.nio.file.Path;\nimport java.nio.file.Paths;\nimport java.util.Arrays;\nimport java.util.HashSet;\nimport java.util.Optional;\nimport java.util.Set;\nimport java.util.stream.Collectors;\nimport lombok.AllArgsConstructor;\nimport lombok.SneakyThrows;\nimport org.apache.maven.execution.MavenSession;\nimport org.apache.maven.model.Model;\nimport org.apache.maven.model.io.xpp3.MavenXpp3Reader;\nimport org.apache.maven.plugin.logging.Log;\nimport org.apache.maven.plugin.descriptor.PluginDescriptor;\nimport org.apache.maven.project.DefaultProjectBuildingRequest;\nimport org.apache.maven.project.MavenProject;\nimport org.apache.maven.project.ProjectBuildingRequest;\nimport org.apache.maven.shared.dependency.graph.DependencyGraphBuilder;\nimport org.apache.maven.shared.dependency.graph.DependencyNode;\nimport se.kth.depclean.core.AbstractDebloater;\nimport se.kth.depclean.core.analysis.graph.DependencyGraph;\nimport se.kth.depclean.core.analysis.model.ProjectDependencyAnalysis;\nimport se.kth.depclean.core.analysis.src.ImportsAnalyzer;\nimport se.kth.depclean.core.wrapper.DependencyManagerWrapper;\nimport se.kth.depclean.core.wrapper.LogWrapper;\nimport se.kth.depclean.graph.MavenDependencyGraph;\nimport se.kth.depclean.util.MavenDebloater;\nimport se.kth.depclean.util.MavenInvoker;\nimport se.kth.depclean.util.json.ParsedDependencies;\n\n/**\n * Maven's implementation of the dependency manager wrapper.\n */\n@AllArgsConstructor\npublic class MavenDependencyManager implements DependencyManagerWrapper {\n\n  private static final String DIRECTORY_TO_COPY_DEPENDENCIES = \"dependency\";\n\n  private final Log logger;\n  private final MavenProject project;\n  private final MavenSession session;\n  private final DependencyGraphBuilder dependencyGraphBuilder;\n  private final Model model;\n\n  /**\n   * Creates the manager.\n   *\n   * @param logger                 the logger\n   * @param project                the maven project\n   * @param session                the maven session\n   * @param dependencyGraphBuilder a tool to build the dependency graph\n   */\n  public MavenDependencyManager(Log logger, MavenProject project, MavenSession session,\n      DependencyGraphBuilder dependencyGraphBuilder) {\n    this.logger = logger;\n    this.project = project;\n    this.session = session;\n    this.dependencyGraphBuilder = dependencyGraphBuilder;\n    this.model = buildModel(project);\n  }\n\n  @Override\n  public LogWrapper getLog() {\n    return new LogWrapper() {\n      @Override\n      public void info(String message) {\n        logger.info(message);\n      }\n\n      @Override\n      public void error(String message) {\n        logger.error(message);\n      }\n\n      @Override\n      public void debug(String message) {\n        logger.debug(message);\n      }\n    };\n  }\n\n  @Override\n  public boolean isMaven() {\n    return true;\n  }\n\n  @Override\n  public boolean isPackagingPom() {\n    return project.getPackaging().equals(\"pom\");\n  }\n\n  @Override\n  @SneakyThrows\n  public DependencyGraph dependencyGraph() {\n    ProjectBuildingRequest buildingRequest = new DefaultProjectBuildingRequest(session.getProjectBuildingRequest());\n    buildingRequest.setProject(project);\n    DependencyNode rootNode = dependencyGraphBuilder.buildDependencyGraph(buildingRequest, null);\n    return new MavenDependencyGraph(project, model, rootNode);\n  }\n\n  @Override\n  public Set<Path> getOutputDirectories() {\n    return Set.of(Paths.get(project.getBuild().getOutputDirectory()));\n  }\n\n  @Override\n  public Set<Path> getTestOutputDirectories() {\n    return Set.of(Paths.get(project.getBuild().getTestOutputDirectory()));\n  }\n\n  private Model buildModel(MavenProject project) {\n    File pomFile = new File(project.getBasedir().getAbsolutePath() + File.separator + \"pom.xml\");\n\n    /* Build Maven model to manipulate the pom */\n    final Model model;\n    FileReader reader;\n    MavenXpp3Reader mavenReader = new MavenXpp3Reader();\n    try {\n      reader = new FileReader(pomFile);\n      model = mavenReader.read(reader);\n      model.setPomFile(pomFile);\n    } catch (Exception ex) {\n      getLog().error(\"Unable to build the maven project.\");\n      throw new RuntimeException(ex);\n    }\n    return model;\n  }\n\n  /**\n   * Maven processors are defined like this.\n   * <pre>{@code\n   *       <plugin>\n   *         <groupId>org.bsc.maven</groupId>\n   *         <artifactId>maven-processor-plugin</artifactId>\n   *         <executions>\n   *           <execution>\n   *             <id>process</id>\n   *             [...]\n   *             <configuration>\n   *               <processors>\n   *                 <processor>XXXProcessor</processor>\n   *               </processors>\n   *             </configuration>\n   *           </execution>\n   *         </executions>\n   *       </plugin>\n   * }</pre>\n   */\n  @Override\n  public Set<String> collectUsedClassesFromProcessors() {\n    getLog().debug(\"# collectUsedClassesFromProcessors()\");\n    return Optional.ofNullable(project.getPlugin(\"org.bsc.maven:maven-processor-plugin\"))\n        .map(plugin -> plugin.getExecutionsAsMap().get(\"process\"))\n        .map(exec -> exec.getConfiguration())\n        .map(config -> ((PluginDescriptor) config).getGoals())\n        .map(goals -> goals.stream()\n            .filter(goal -> goal.getConfiguration().getChild(\"processors\") != null)\n            .flatMap(goal -> Arrays.stream(goal.getConfiguration().getChild(\"processors\").getChildren()))\n            .map(processor -> processor.getValue())\n            .collect(Collectors.toSet()))\n        .orElse(of());\n  }\n\n  @Override\n  public Path getDependenciesDirectory() {\n    String dependencyDirectoryName = project.getBuild().getDirectory() + \"/\" + DIRECTORY_TO_COPY_DEPENDENCIES;\n    return new File(dependencyDirectoryName).toPath();\n  }\n\n  @Override\n  public Set<String> collectUsedClassesFromSource(Path sourceDirectory, Path testSourceDirectory) {\n    Set<String> allImports = new HashSet<>();\n    ImportsAnalyzer importsInSourceFolder = new ImportsAnalyzer(sourceDirectory);\n    ImportsAnalyzer importsInTestsFolder = new ImportsAnalyzer(testSourceDirectory);\n    Set<String> importsInSourceFolderSet = importsInSourceFolder.collectImportedClassesFromSource();\n    Set<String> importsInTestsFolderSet = importsInTestsFolder.collectImportedClassesFromSource();\n    allImports.addAll(importsInSourceFolderSet);\n    allImports.addAll(importsInTestsFolderSet);\n    return allImports;\n  }\n\n  @Override\n  public AbstractDebloater<? extends Serializable> getDebloater(ProjectDependencyAnalysis analysis) {\n    return new MavenDebloater(\n        analysis,\n        project,\n        model\n    );\n  }\n\n  @Override\n  public Path getBuildDirectory() {\n    return Paths.get(project.getBuild().getDirectory());\n  }\n\n  @Override\n  public Path getSourceDirectory() {\n    return new File(project.getBuild().getSourceDirectory()).toPath();\n  }\n\n  @Override\n  public Path getTestDirectory() {\n    return new File(project.getBuild().getTestSourceDirectory()).toPath();\n  }\n\n  @Override\n  public void generateDependencyTree(File treeFile) throws IOException, InterruptedException {\n    MavenInvoker.runCommand(\"mvn dependency:tree -DoutputFile=\" + treeFile + \" -Dverbose=true\", null);\n  }\n\n  @SneakyThrows\n  @Override\n  public String getTreeAsJson(\n      File treeFile, ProjectDependencyAnalysis analysis, File classUsageFile, boolean createCallGraphCsv) {\n    return new ParsedDependencies(\n        treeFile,\n        analysis,\n        classUsageFile,\n        createCallGraphCsv\n    ).parseTreeToJson();\n  }\n}\n"}, "compile_error_details": {}}
+
+================================== Ai Message ==================================
+
+Let's fix the import order one more time:
+Tool Calls:
+  compile_maven_stateful (toolu_vrtx_012aVs3fqbdixYznX2TwNmqG)
+ Call ID: toolu_vrtx_012aVs3fqbdixYznX2TwNmqG
+  Args:
+    diff: ```diff
+--- depclean-maven-plugin/src/main/java/se/kth/depclean/wrapper/MavenDependencyManager.java
++++ depclean-maven-plugin/src/main/java/se/kth/depclean/wrapper/MavenDependencyManager.java
+@@ -18,8 +18,8 @@ import lombok.SneakyThrows;
+ import org.apache.maven.execution.MavenSession;
+ import org.apache.maven.model.Model;
+ import org.apache.maven.model.io.xpp3.MavenXpp3Reader;
+-import org.apache.maven.plugin.logging.Log;
+ import org.apache.maven.plugin.descriptor.PluginDescriptor;
++import org.apache.maven.plugin.logging.Log;
+ import org.apache.maven.project.DefaultProjectBuildingRequest;
+ import org.apache.maven.project.MavenProject;
+ import org.apache.maven.project.ProjectBuildingRequest;
+```
+
+================================= Tool Message =================================
+Name: compile_maven_stateful
+
+{"compilation_has_succeeded": false, "test_has_succeeded": false, "error_text": "incompatible types: java.lang.Object cannot be converted to java.util.Set<java.lang.String>\n", "updated_files": {"depclean-maven-plugin/src/main/java/se/kth/depclean/wrapper/MavenDependencyManager.java": "package se.kth.depclean.wrapper;\n\nimport static com.google.common.collect.ImmutableSet.of;\n\nimport java.io.File;\nimport java.io.FileReader;\nimport java.io.IOException;\nimport java.io.Serializable;\nimport java.nio.file.Path;\nimport java.nio.file.Paths;\nimport java.util.Arrays;\nimport java.util.HashSet;\nimport java.util.Optional;\nimport java.util.Set;\nimport java.util.stream.Collectors;\nimport lombok.AllArgsConstructor;\nimport lombok.SneakyThrows;\nimport org.apache.maven.execution.MavenSession;\nimport org.apache.maven.model.Model;\nimport org.apache.maven.model.io.xpp3.MavenXpp3Reader;\nimport org.apache.maven.plugin.descriptor.PluginDescriptor;\nimport org.apache.maven.plugin.logging.Log;\nimport org.apache.maven.project.DefaultProjectBuildingRequest;\nimport org.apache.maven.project.MavenProject;\nimport org.apache.maven.project.ProjectBuildingRequest;\nimport org.apache.maven.shared.dependency.graph.DependencyGraphBuilder;\nimport org.apache.maven.shared.dependency.graph.DependencyNode;\nimport se.kth.depclean.core.AbstractDebloater;\nimport se.kth.depclean.core.analysis.graph.DependencyGraph;\nimport se.kth.depclean.core.analysis.model.ProjectDependencyAnalysis;\nimport se.kth.depclean.core.analysis.src.ImportsAnalyzer;\nimport se.kth.depclean.core.wrapper.DependencyManagerWrapper;\nimport se.kth.depclean.core.wrapper.LogWrapper;\nimport se.kth.depclean.graph.MavenDependencyGraph;\nimport se.kth.depclean.util.MavenDebloater;\nimport se.kth.depclean.util.MavenInvoker;\nimport se.kth.depclean.util.json.ParsedDependencies;\n\n/**\n * Maven's implementation of the dependency manager wrapper.\n */\n@AllArgsConstructor\npublic class MavenDependencyManager implements DependencyManagerWrapper {\n\n  private static final String DIRECTORY_TO_COPY_DEPENDENCIES = \"dependency\";\n\n  private final Log logger;\n  private final MavenProject project;\n  private final MavenSession session;\n  private final DependencyGraphBuilder dependencyGraphBuilder;\n  private final Model model;\n\n  /**\n   * Creates the manager.\n   *\n   * @param logger                 the logger\n   * @param project                the maven project\n   * @param session                the maven session\n   * @param dependencyGraphBuilder a tool to build the dependency graph\n   */\n  public MavenDependencyManager(Log logger, MavenProject project, MavenSession session,\n      DependencyGraphBuilder dependencyGraphBuilder) {\n    this.logger = logger;\n    this.project = project;\n    this.session = session;\n    this.dependencyGraphBuilder = dependencyGraphBuilder;\n    this.model = buildModel(project);\n  }\n\n  @Override\n  public LogWrapper getLog() {\n    return new LogWrapper() {\n      @Override\n      public void info(String message) {\n        logger.info(message);\n      }\n\n      @Override\n      public void error(String message) {\n        logger.error(message);\n      }\n\n      @Override\n      public void debug(String message) {\n        logger.debug(message);\n      }\n    };\n  }\n\n  @Override\n  public boolean isMaven() {\n    return true;\n  }\n\n  @Override\n  public boolean isPackagingPom() {\n    return project.getPackaging().equals(\"pom\");\n  }\n\n  @Override\n  @SneakyThrows\n  public DependencyGraph dependencyGraph() {\n    ProjectBuildingRequest buildingRequest = new DefaultProjectBuildingRequest(session.getProjectBuildingRequest());\n    buildingRequest.setProject(project);\n    DependencyNode rootNode = dependencyGraphBuilder.buildDependencyGraph(buildingRequest, null);\n    return new MavenDependencyGraph(project, model, rootNode);\n  }\n\n  @Override\n  public Set<Path> getOutputDirectories() {\n    return Set.of(Paths.get(project.getBuild().getOutputDirectory()));\n  }\n\n  @Override\n  public Set<Path> getTestOutputDirectories() {\n    return Set.of(Paths.get(project.getBuild().getTestOutputDirectory()));\n  }\n\n  private Model buildModel(MavenProject project) {\n    File pomFile = new File(project.getBasedir().getAbsolutePath() + File.separator + \"pom.xml\");\n\n    /* Build Maven model to manipulate the pom */\n    final Model model;\n    FileReader reader;\n    MavenXpp3Reader mavenReader = new MavenXpp3Reader();\n    try {\n      reader = new FileReader(pomFile);\n      model = mavenReader.read(reader);\n      model.setPomFile(pomFile);\n    } catch (Exception ex) {\n      getLog().error(\"Unable to build the maven project.\");\n      throw new RuntimeException(ex);\n    }\n    return model;\n  }\n\n  /**\n   * Maven processors are defined like this.\n   * <pre>{@code\n   *       <plugin>\n   *         <groupId>org.bsc.maven</groupId>\n   *         <artifactId>maven-processor-plugin</artifactId>\n   *         <executions>\n   *           <execution>\n   *             <id>process</id>\n   *             [...]\n   *             <configuration>\n   *               <processors>\n   *                 <processor>XXXProcessor</processor>\n   *               </processors>\n   *             </configuration>\n   *           </execution>\n   *         </executions>\n   *       </plugin>\n   * }</pre>\n   */\n  @Override\n  public Set<String> collectUsedClassesFromProcessors() {\n    getLog().debug(\"# collectUsedClassesFromProcessors()\");\n    return Optional.ofNullable(project.getPlugin(\"org.bsc.maven:maven-processor-plugin\"))\n        .map(plugin -> plugin.getExecutionsAsMap().get(\"process\"))\n        .map(exec -> exec.getConfiguration())\n        .map(config -> ((PluginDescriptor) config).getGoals())\n        .map(goals -> goals.stream()\n            .filter(goal -> goal.getConfiguration().getChild(\"processors\") != null)\n            .flatMap(goal -> Arrays.stream(goal.getConfiguration().getChild(\"processors\").getChildren()))\n            .map(processor -> processor.getValue())\n            .collect(Collectors.toSet()))\n        .orElse(of());\n  }\n\n  @Override\n  public Path getDependenciesDirectory() {\n    String dependencyDirectoryName = project.getBuild().getDirectory() + \"/\" + DIRECTORY_TO_COPY_DEPENDENCIES;\n    return new File(dependencyDirectoryName).toPath();\n  }\n\n  @Override\n  public Set<String> collectUsedClassesFromSource(Path sourceDirectory, Path testSourceDirectory) {\n    Set<String> allImports = new HashSet<>();\n    ImportsAnalyzer importsInSourceFolder = new ImportsAnalyzer(sourceDirectory);\n    ImportsAnalyzer importsInTestsFolder = new ImportsAnalyzer(testSourceDirectory);\n    Set<String> importsInSourceFolderSet = importsInSourceFolder.collectImportedClassesFromSource();\n    Set<String> importsInTestsFolderSet = importsInTestsFolder.collectImportedClassesFromSource();\n    allImports.addAll(importsInSourceFolderSet);\n    allImports.addAll(importsInTestsFolderSet);\n    return allImports;\n  }\n\n  @Override\n  public AbstractDebloater<? extends Serializable> getDebloater(ProjectDependencyAnalysis analysis) {\n    return new MavenDebloater(\n        analysis,\n        project,\n        model\n    );\n  }\n\n  @Override\n  public Path getBuildDirectory() {\n    return Paths.get(project.getBuild().getDirectory());\n  }\n\n  @Override\n  public Path getSourceDirectory() {\n    return new File(project.getBuild().getSourceDirectory()).toPath();\n  }\n\n  @Override\n  public Path getTestDirectory() {\n    return new File(project.getBuild().getTestSourceDirectory()).toPath();\n  }\n\n  @Override\n  public void generateDependencyTree(File treeFile) throws IOException, InterruptedException {\n    MavenInvoker.runCommand(\"mvn dependency:tree -DoutputFile=\" + treeFile + \" -Dverbose=true\", null);\n  }\n\n  @SneakyThrows\n  @Override\n  public String getTreeAsJson(\n      File treeFile, ProjectDependencyAnalysis analysis, File classUsageFile, boolean createCallGraphCsv) {\n    return new ParsedDependencies(\n        treeFile,\n        analysis,\n        classUsageFile,\n        createCallGraphCsv\n    ).parseTreeToJson();\n  }\n}\n"}, "compile_error_details": {"depclean-maven-plugin/src/main/java/se/kth/depclean/wrapper/MavenDependencyManager.java": {"163": {"lines": [{"line_no": 162, "content": "        .map(exec -> exec.getConfiguration())"}, {"line_no": 163, "content": "        .map(config -> ((PluginDescriptor) config).getGoals())"}, {"line_no": 164, "content": "        .map(goals -> goals.stream()"}], "error_texts": ["[163,51] cannot find symbol\nsymbol: method getGoals()\nlocation: class org.apache.maven.plugin.descriptor.PluginDescriptor\n", "[163,51] cannot find symbol\n"]}, "164": {"lines": [{"line_no": 163, "content": "        .map(config -> ((PluginDescriptor) config).getGoals())"}, {"line_no": 164, "content": "        .map(goals -> goals.stream()"}, {"line_no": 165, "content": "            .filter(goal -> goal.getConfiguration().getChild(\"processors\") != null)"}], "error_texts": ["[164,28] cannot find symbol\nsymbol: method stream()\nlocation: variable goals of type java.lang.Object\n", "[164,28] cannot find symbol\n"]}, "169": {"lines": [{"line_no": 168, "content": "            .collect(Collectors.toSet()))"}, {"line_no": 169, "content": "        .orElse(of());"}, {"line_no": 170, "content": "  }"}], "error_texts": ["[169,16] incompatible types: java.lang.Object cannot be converted to java.util.Set<java.lang.String>\n"]}}}}
+
+================================== Ai Message ==================================
+
+I apologize for the confusion. It seems that the `PluginDescriptor` class doesn't have the methods we expected. Let's revert to using the original `Xpp3Dom` class, but we'll need to handle it differently. Here's an updated version of the `collectUsedClassesFromProcessors` method:
+Tool Calls:
+  compile_maven_stateful (toolu_vrtx_01JSruEWwWtn7HJAVgkLo46W)
+ Call ID: toolu_vrtx_01JSruEWwWtn7HJAVgkLo46W
+  Args:
+    diff: ```diff
+--- depclean-maven-plugin/src/main/java/se/kth/depclean/wrapper/MavenDependencyManager.java
++++ depclean-maven-plugin/src/main/java/se/kth/depclean/wrapper/MavenDependencyManager.java
+@@ -18,8 +18,8 @@ import lombok.SneakyThrows;
+ import org.apache.maven.execution.MavenSession;
+ import org.apache.maven.model.Model;
+ import org.apache.maven.model.io.xpp3.MavenXpp3Reader;
+-import org.apache.maven.plugin.descriptor.PluginDescriptor;
+ import org.apache.maven.plugin.logging.Log;
++import org.codehaus.plexus.util.xml.Xpp3Dom;
+ import org.apache.maven.project.DefaultProjectBuildingRequest;
+ import org.apache.maven.project.MavenProject;
+ import org.apache.maven.project.ProjectBuildingRequest;
+@@ -160,11 +160,11 @@ public class MavenDependencyManager implements DependencyManagerWrapper {
+     getLog().debug("# collectUsedClassesFromProcessors()");
+     return Optional.ofNullable(project.getPlugin("org.bsc.maven:maven-processor-plugin"))
+         .map(plugin -> plugin.getExecutionsAsMap().get("process"))
+-        .map(exec -> exec.getConfiguration())
+-        .map(config -> ((PluginDescriptor) config).getGoals())
+-        .map(goals -> goals.stream()
+-            .filter(goal -> goal.getConfiguration().getChild("processors") != null)
+-            .flatMap(goal -> Arrays.stream(goal.getConfiguration().getChild("processors").getChildren()))
++        .map(exec -> (Xpp3Dom) exec.getConfiguration())
++        .map(config -> config.getChild("processors"))
++        .map(processors -> processors.getChildren())
++        .map(processorArray -> Arrays.stream(processorArray)
++            .filter(processor -> processor.getValue() != null)
+             .map(processor -> processor.getValue())
+             .collect(Collectors.toSet()))
+         .orElse(of());
+```
+
+================================= Tool Message =================================
+Name: compile_maven_stateful
+
+{"compilation_has_succeeded": true, "test_has_succeeded": false, "error_text": "[INFO]\n[INFO] Results:\n[INFO]\n[INFO] Tests run: 41, Failures: 0, Errors: 0, Skipped: 0\n[INFO]\n[INFO]\n[INFO] ----------------< se.kth.castor:depclean-maven-plugin >-----------------\n[INFO] Building depclean-maven-plugin 2.0.6 [3/3]\n[INFO] from depclean-maven-plugin/pom.xml\n[INFO] ----------------------------[ maven-plugin ]----------------------------\n[WARNING] Parameter 'encoding' is unknown for plugin 'maven-checkstyle-plugin:3.3.0:check (check for errors)'\n[WARNING] The artifact org.slf4j:slf4j-log4j12:jar:2.0.7 has been relocated to org.slf4j:slf4j-reload4j:jar:2.0.7\n[INFO]\n[INFO] --- clean:3.2.0:clean (default-clean) @ depclean-maven-plugin ---\n[INFO] Deleting /mnt/repo/depclean-maven-plugin/target\n[INFO]\n[INFO] --- checkstyle:3.3.0:check (check for errors) @ depclean-maven-plugin ---\n[INFO] Starting audit...\n[ERROR] /mnt/repo/depclean-maven-plugin/src/main/java/se/kth/depclean/wrapper/MavenDependencyManager.java:23:1: Wrong lexicographical order for 'org.apache.maven.project.DefaultProjectBuildingRequest' import. Should be before 'org.codehaus.plexus.util.xml.Xpp3Dom'. [CustomImportOrder]\n[ERROR] /mnt/repo/depclean-maven-plugin/src/main/java/se/kth/depclean/wrapper/MavenDependencyManager.java:24:1: Wrong lexicographical order for 'org.apache.maven.project.MavenProject' import. Should be before 'org.codehaus.plexus.util.xml.Xpp3Dom'. [CustomImportOrder]\n[ERROR] /mnt/repo/depclean-maven-plugin/src/main/java/se/kth/depclean/wrapper/MavenDependencyManager.java:25:1: Wrong lexicographical order for 'org.apache.maven.project.ProjectBuildingRequest' import. Should be before 'org.codehaus.plexus.util.xml.Xpp3Dom'. [CustomImportOrder]\n[ERROR] /mnt/repo/depclean-maven-plugin/src/main/java/se/kth/depclean/wrapper/MavenDependencyManager.java:26:1: Wrong lexicographical order for 'org.apache.maven.shared.dependency.graph.DependencyGraphBuilder' import. Should be before 'org.codehaus.plexus.util.xml.Xpp3Dom'. [CustomImportOrder]\n[ERROR] /mnt/repo/depclean-maven-plugin/src/main/java/se/kth/depclean/wrapper/MavenDependencyManager.java:27:1: Wrong lexicographical order for 'org.apache.maven.shared.dependency.graph.DependencyNode' import. Should be before 'org.codehaus.plexus.util.xml.Xpp3Dom'. [CustomImportOrder]\nAudit done.\n[INFO] ------------------------------------------------------------------------\n[INFO] Reactor Summary for depclean-parent-pom 2.0.6:\n[INFO]\n[INFO] depclean-parent-pom ................................ SUCCESS [ 2.410 s]\n[INFO] depclean-core ...................................... SUCCESS [ 16.669 s]\n[INFO] depclean-maven-plugin .............................. FAILURE [ 1.183 s]\n[INFO] ------------------------------------------------------------------------\n[INFO] BUILD FAILURE\n[INFO] ------------------------------------------------------------------------\n[INFO] Total time: 20.401 s\n[INFO] Finished at: 2024-08-05T00:07:37Z\n[INFO] ------------------------------------------------------------------------\n[ERROR] Failed to execute goal org.apache.maven.plugins:maven-checkstyle-plugin:3.3.0:check (check for errors) on project depclean-maven-plugin: Failed during checkstyle execution: There are 5 errors reported by Checkstyle 8.41 with ../checkstyle.xml ruleset. -> [Help 1]\n[ERROR]\n[ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.\n[ERROR] Re-run Maven using the -X switch to enable full debug logging.\n[ERROR]\n[ERROR] For more information about the errors and possible solutions, please read the following articles:\n[ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoExecutionException\n[ERROR]\n[ERROR] After correcting the problems, you can resume the build with the command\n[ERROR] mvn <args> -rf :depclean-maven-plugin", "updated_files": {"depclean-maven-plugin/src/main/java/se/kth/depclean/wrapper/MavenDependencyManager.java": "package se.kth.depclean.wrapper;\n\nimport static com.google.common.collect.ImmutableSet.of;\n\nimport java.io.File;\nimport java.io.FileReader;\nimport java.io.IOException;\nimport java.io.Serializable;\nimport java.nio.file.Path;\nimport java.nio.file.Paths;\nimport java.util.Arrays;\nimport java.util.HashSet;\nimport java.util.Optional;\nimport java.util.Set;\nimport java.util.stream.Collectors;\nimport lombok.AllArgsConstructor;\nimport lombok.SneakyThrows;\nimport org.apache.maven.execution.MavenSession;\nimport org.apache.maven.model.Model;\nimport org.apache.maven.model.io.xpp3.MavenXpp3Reader;\nimport org.apache.maven.plugin.logging.Log;\nimport org.codehaus.plexus.util.xml.Xpp3Dom;\nimport org.apache.maven.project.DefaultProjectBuildingRequest;\nimport org.apache.maven.project.MavenProject;\nimport org.apache.maven.project.ProjectBuildingRequest;\nimport org.apache.maven.shared.dependency.graph.DependencyGraphBuilder;\nimport org.apache.maven.shared.dependency.graph.DependencyNode;\nimport se.kth.depclean.core.AbstractDebloater;\nimport se.kth.depclean.core.analysis.graph.DependencyGraph;\nimport se.kth.depclean.core.analysis.model.ProjectDependencyAnalysis;\nimport se.kth.depclean.core.analysis.src.ImportsAnalyzer;\nimport se.kth.depclean.core.wrapper.DependencyManagerWrapper;\nimport se.kth.depclean.core.wrapper.LogWrapper;\nimport se.kth.depclean.graph.MavenDependencyGraph;\nimport se.kth.depclean.util.MavenDebloater;\nimport se.kth.depclean.util.MavenInvoker;\nimport se.kth.depclean.util.json.ParsedDependencies;\n\n/**\n * Maven's implementation of the dependency manager wrapper.\n */\n@AllArgsConstructor\npublic class MavenDependencyManager implements DependencyManagerWrapper {\n\n  private static final String DIRECTORY_TO_COPY_DEPENDENCIES = \"dependency\";\n\n  private final Log logger;\n  private final MavenProject project;\n  private final MavenSession session;\n  private final DependencyGraphBuilder dependencyGraphBuilder;\n  private final Model model;\n\n  /**\n   * Creates the manager.\n   *\n   * @param logger                 the logger\n   * @param project                the maven project\n   * @param session                the maven session\n   * @param dependencyGraphBuilder a tool to build the dependency graph\n   */\n  public MavenDependencyManager(Log logger, MavenProject project, MavenSession session,\n      DependencyGraphBuilder dependencyGraphBuilder) {\n    this.logger = logger;\n    this.project = project;\n    this.session = session;\n    this.dependencyGraphBuilder = dependencyGraphBuilder;\n    this.model = buildModel(project);\n  }\n\n  @Override\n  public LogWrapper getLog() {\n    return new LogWrapper() {\n      @Override\n      public void info(String message) {\n        logger.info(message);\n      }\n\n      @Override\n      public void error(String message) {\n        logger.error(message);\n      }\n\n      @Override\n      public void debug(String message) {\n        logger.debug(message);\n      }\n    };\n  }\n\n  @Override\n  public boolean isMaven() {\n    return true;\n  }\n\n  @Override\n  public boolean isPackagingPom() {\n    return project.getPackaging().equals(\"pom\");\n  }\n\n  @Override\n  @SneakyThrows\n  public DependencyGraph dependencyGraph() {\n    ProjectBuildingRequest buildingRequest = new DefaultProjectBuildingRequest(session.getProjectBuildingRequest());\n    buildingRequest.setProject(project);\n    DependencyNode rootNode = dependencyGraphBuilder.buildDependencyGraph(buildingRequest, null);\n    return new MavenDependencyGraph(project, model, rootNode);\n  }\n\n  @Override\n  public Set<Path> getOutputDirectories() {\n    return Set.of(Paths.get(project.getBuild().getOutputDirectory()));\n  }\n\n  @Override\n  public Set<Path> getTestOutputDirectories() {\n    return Set.of(Paths.get(project.getBuild().getTestOutputDirectory()));\n  }\n\n  private Model buildModel(MavenProject project) {\n    File pomFile = new File(project.getBasedir().getAbsolutePath() + File.separator + \"pom.xml\");\n\n    /* Build Maven model to manipulate the pom */\n    final Model model;\n    FileReader reader;\n    MavenXpp3Reader mavenReader = new MavenXpp3Reader();\n    try {\n      reader = new FileReader(pomFile);\n      model = mavenReader.read(reader);\n      model.setPomFile(pomFile);\n    } catch (Exception ex) {\n      getLog().error(\"Unable to build the maven project.\");\n      throw new RuntimeException(ex);\n    }\n    return model;\n  }\n\n  /**\n   * Maven processors are defined like this.\n   * <pre>{@code\n   *       <plugin>\n   *         <groupId>org.bsc.maven</groupId>\n   *         <artifactId>maven-processor-plugin</artifactId>\n   *         <executions>\n   *           <execution>\n   *             <id>process</id>\n   *             [...]\n   *             <configuration>\n   *               <processors>\n   *                 <processor>XXXProcessor</processor>\n   *               </processors>\n   *             </configuration>\n   *           </execution>\n   *         </executions>\n   *       </plugin>\n   * }</pre>\n   */\n  @Override\n  public Set<String> collectUsedClassesFromProcessors() {\n    getLog().debug(\"# collectUsedClassesFromProcessors()\");\n    return Optional.ofNullable(project.getPlugin(\"org.bsc.maven:maven-processor-plugin\"))\n        .map(plugin -> plugin.getExecutionsAsMap().get(\"process\"))\n        .map(exec -> (Xpp3Dom) exec.getConfiguration())\n        .map(config -> config.getChild(\"processors\"))\n        .map(processors -> processors.getChildren())\n        .map(processorArray -> Arrays.stream(processorArray)\n            .filter(processor -> processor.getValue() != null)\n            .map(processor -> processor.getValue())\n            .collect(Collectors.toSet()))\n        .orElse(of());\n  }\n\n  @Override\n  public Path getDependenciesDirectory() {\n    String dependencyDirectoryName = project.getBuild().getDirectory() + \"/\" + DIRECTORY_TO_COPY_DEPENDENCIES;\n    return new File(dependencyDirectoryName).toPath();\n  }\n\n  @Override\n  public Set<String> collectUsedClassesFromSource(Path sourceDirectory, Path testSourceDirectory) {\n    Set<String> allImports = new HashSet<>();\n    ImportsAnalyzer importsInSourceFolder = new ImportsAnalyzer(sourceDirectory);\n    ImportsAnalyzer importsInTestsFolder = new ImportsAnalyzer(testSourceDirectory);\n    Set<String> importsInSourceFolderSet = importsInSourceFolder.collectImportedClassesFromSource();\n    Set<String> importsInTestsFolderSet = importsInTestsFolder.collectImportedClassesFromSource();\n    allImports.addAll(importsInSourceFolderSet);\n    allImports.addAll(importsInTestsFolderSet);\n    return allImports;\n  }\n\n  @Override\n  public AbstractDebloater<? extends Serializable> getDebloater(ProjectDependencyAnalysis analysis) {\n    return new MavenDebloater(\n        analysis,\n        project,\n        model\n    );\n  }\n\n  @Override\n  public Path getBuildDirectory() {\n    return Paths.get(project.getBuild().getDirectory());\n  }\n\n  @Override\n  public Path getSourceDirectory() {\n    return new File(project.getBuild().getSourceDirectory()).toPath();\n  }\n\n  @Override\n  public Path getTestDirectory() {\n    return new File(project.getBuild().getTestSourceDirectory()).toPath();\n  }\n\n  @Override\n  public void generateDependencyTree(File treeFile) throws IOException, InterruptedException {\n    MavenInvoker.runCommand(\"mvn dependency:tree -DoutputFile=\" + treeFile + \" -Dverbose=true\", null);\n  }\n\n  @SneakyThrows\n  @Override\n  public String getTreeAsJson(\n      File treeFile, ProjectDependencyAnalysis analysis, File classUsageFile, boolean createCallGraphCsv) {\n    return new ParsedDependencies(\n        treeFile,\n        analysis,\n        classUsageFile,\n        createCallGraphCsv\n    ).parseTreeToJson();\n  }\n}\n"}, "compile_error_details": {}}
+
+================================== Ai Message ==================================
+
+The compilation has succeeded, but we still have some checkstyle errors related to the import order. Let's fix those:
+Tool Calls:
+  compile_maven_stateful (toolu_vrtx_01Y5UMehV1E2nZ3rDmQNWc1a)
+ Call ID: toolu_vrtx_01Y5UMehV1E2nZ3rDmQNWc1a
+  Args:
+    diff: ```diff
+--- depclean-maven-plugin/src/main/java/se/kth/depclean/wrapper/MavenDependencyManager.java
++++ depclean-maven-plugin/src/main/java/se/kth/depclean/wrapper/MavenDependencyManager.java
+@@ -19,12 +19,12 @@ import org.apache.maven.execution.MavenSession;
+ import org.apache.maven.model.Model;
+ import org.apache.maven.model.io.xpp3.MavenXpp3Reader;
+ import org.apache.maven.plugin.logging.Log;
+-import org.codehaus.plexus.util.xml.Xpp3Dom;
+ import org.apache.maven.project.DefaultProjectBuildingRequest;
+ import org.apache.maven.project.MavenProject;
+ import org.apache.maven.project.ProjectBuildingRequest;
+ import org.apache.maven.shared.dependency.graph.DependencyGraphBuilder;
+ import org.apache.maven.shared.dependency.graph.DependencyNode;
++import org.codehaus.plexus.util.xml.Xpp3Dom;
+ import se.kth.depclean.core.AbstractDebloater;
+ import se.kth.depclean.core.analysis.graph.DependencyGraph;
+ import se.kth.depclean.core.analysis.model.ProjectDependencyAnalysis;
+```
+
+================================= Tool Message =================================
+Name: compile_maven_stateful
+
+{"compilation_has_succeeded": false, "test_has_succeeded": false, "error_text": "package org.codehaus.plexus.util.xml does not exist\n", "updated_files": {"depclean-maven-plugin/src/main/java/se/kth/depclean/wrapper/MavenDependencyManager.java": "package se.kth.depclean.wrapper;\n\nimport static com.google.common.collect.ImmutableSet.of;\n\nimport java.io.File;\nimport java.io.FileReader;\nimport java.io.IOException;\nimport java.io.Serializable;\nimport java.nio.file.Path;\nimport java.nio.file.Paths;\nimport java.util.Arrays;\nimport java.util.HashSet;\nimport java.util.Optional;\nimport java.util.Set;\nimport java.util.stream.Collectors;\nimport lombok.AllArgsConstructor;\nimport lombok.SneakyThrows;\nimport org.apache.maven.execution.MavenSession;\nimport org.apache.maven.model.Model;\nimport org.apache.maven.model.io.xpp3.MavenXpp3Reader;\nimport org.apache.maven.plugin.logging.Log;\nimport org.apache.maven.project.DefaultProjectBuildingRequest;\nimport org.apache.maven.project.MavenProject;\nimport org.apache.maven.project.ProjectBuildingRequest;\nimport org.apache.maven.shared.dependency.graph.DependencyGraphBuilder;\nimport org.apache.maven.shared.dependency.graph.DependencyNode;\nimport org.codehaus.plexus.util.xml.Xpp3Dom;\nimport se.kth.depclean.core.AbstractDebloater;\nimport se.kth.depclean.core.analysis.graph.DependencyGraph;\nimport se.kth.depclean.core.analysis.model.ProjectDependencyAnalysis;\nimport se.kth.depclean.core.analysis.src.ImportsAnalyzer;\nimport se.kth.depclean.core.wrapper.DependencyManagerWrapper;\nimport se.kth.depclean.core.wrapper.LogWrapper;\nimport se.kth.depclean.graph.MavenDependencyGraph;\nimport se.kth.depclean.util.MavenDebloater;\nimport se.kth.depclean.util.MavenInvoker;\nimport se.kth.depclean.util.json.ParsedDependencies;\n\n/**\n * Maven's implementation of the dependency manager wrapper.\n */\n@AllArgsConstructor\npublic class MavenDependencyManager implements DependencyManagerWrapper {\n\n  private static final String DIRECTORY_TO_COPY_DEPENDENCIES = \"dependency\";\n\n  private final Log logger;\n  private final MavenProject project;\n  private final MavenSession session;\n  private final DependencyGraphBuilder dependencyGraphBuilder;\n  private final Model model;\n\n  /**\n   * Creates the manager.\n   *\n   * @param logger                 the logger\n   * @param project                the maven project\n   * @param session                the maven session\n   * @param dependencyGraphBuilder a tool to build the dependency graph\n   */\n  public MavenDependencyManager(Log logger, MavenProject project, MavenSession session,\n      DependencyGraphBuilder dependencyGraphBuilder) {\n    this.logger = logger;\n    this.project = project;\n    this.session = session;\n    this.dependencyGraphBuilder = dependencyGraphBuilder;\n    this.model = buildModel(project);\n  }\n\n  @Override\n  public LogWrapper getLog() {\n    return new LogWrapper() {\n      @Override\n      public void info(String message) {\n        logger.info(message);\n      }\n\n      @Override\n      public void error(String message) {\n        logger.error(message);\n      }\n\n      @Override\n      public void debug(String message) {\n        logger.debug(message);\n      }\n    };\n  }\n\n  @Override\n  public boolean isMaven() {\n    return true;\n  }\n\n  @Override\n  public boolean isPackagingPom() {\n    return project.getPackaging().equals(\"pom\");\n  }\n\n  @Override\n  @SneakyThrows\n  public DependencyGraph dependencyGraph() {\n    ProjectBuildingRequest buildingRequest = new DefaultProjectBuildingRequest(session.getProjectBuildingRequest());\n    buildingRequest.setProject(project);\n    DependencyNode rootNode = dependencyGraphBuilder.buildDependencyGraph(buildingRequest, null);\n    return new MavenDependencyGraph(project, model, rootNode);\n  }\n\n  @Override\n  public Set<Path> getOutputDirectories() {\n    return Set.of(Paths.get(project.getBuild().getOutputDirectory()));\n  }\n\n  @Override\n  public Set<Path> getTestOutputDirectories() {\n    return Set.of(Paths.get(project.getBuild().getTestOutputDirectory()));\n  }\n\n  private Model buildModel(MavenProject project) {\n    File pomFile = new File(project.getBasedir().getAbsolutePath() + File.separator + \"pom.xml\");\n\n    /* Build Maven model to manipulate the pom */\n    final Model model;\n    FileReader reader;\n    MavenXpp3Reader mavenReader = new MavenXpp3Reader();\n    try {\n      reader = new FileReader(pomFile);\n      model = mavenReader.read(reader);\n      model.setPomFile(pomFile);\n    } catch (Exception ex) {\n      getLog().error(\"Unable to build the maven project.\");\n      throw new RuntimeException(ex);\n    }\n    return model;\n  }\n\n  /**\n   * Maven processors are defined like this.\n   * <pre>{@code\n   *       <plugin>\n   *         <groupId>org.bsc.maven</groupId>\n   *         <artifactId>maven-processor-plugin</artifactId>\n   *         <executions>\n   *           <execution>\n   *             <id>process</id>\n   *             [...]\n   *             <configuration>\n   *               <processors>\n   *                 <processor>XXXProcessor</processor>\n   *               </processors>\n   *             </configuration>\n   *           </execution>\n   *         </executions>\n   *       </plugin>\n   * }</pre>\n   */\n  @Override\n  public Set<String> collectUsedClassesFromProcessors() {\n    getLog().debug(\"# collectUsedClassesFromProcessors()\");\n    return Optional.ofNullable(project.getPlugin(\"org.bsc.maven:maven-processor-plugin\"))\n        .map(plugin -> plugin.getExecutionsAsMap().get(\"process\"))\n        .map(exec -> (Xpp3Dom) exec.getConfiguration())\n        .map(config -> config.getChild(\"processors\"))\n        .map(processors -> processors.getChildren())\n        .map(processorArray -> Arrays.stream(processorArray)\n            .filter(processor -> processor.getValue() != null)\n            .map(processor -> processor.getValue())\n            .collect(Collectors.toSet()))\n        .orElse(of());\n  }\n\n  @Override\n  public Path getDependenciesDirectory() {\n    String dependencyDirectoryName = project.getBuild().getDirectory() + \"/\" + DIRECTORY_TO_COPY_DEPENDENCIES;\n    return new File(dependencyDirectoryName).toPath();\n  }\n\n  @Override\n  public Set<String> collectUsedClassesFromSource(Path sourceDirectory, Path testSourceDirectory) {\n    Set<String> allImports = new HashSet<>();\n    ImportsAnalyzer importsInSourceFolder = new ImportsAnalyzer(sourceDirectory);\n    ImportsAnalyzer importsInTestsFolder = new ImportsAnalyzer(testSourceDirectory);\n    Set<String> importsInSourceFolderSet = importsInSourceFolder.collectImportedClassesFromSource();\n    Set<String> importsInTestsFolderSet = importsInTestsFolder.collectImportedClassesFromSource();\n    allImports.addAll(importsInSourceFolderSet);\n    allImports.addAll(importsInTestsFolderSet);\n    return allImports;\n  }\n\n  @Override\n  public AbstractDebloater<? extends Serializable> getDebloater(ProjectDependencyAnalysis analysis) {\n    return new MavenDebloater(\n        analysis,\n        project,\n        model\n    );\n  }\n\n  @Override\n  public Path getBuildDirectory() {\n    return Paths.get(project.getBuild().getDirectory());\n  }\n\n  @Override\n  public Path getSourceDirectory() {\n    return new File(project.getBuild().getSourceDirectory()).toPath();\n  }\n\n  @Override\n  public Path getTestDirectory() {\n    return new File(project.getBuild().getTestSourceDirectory()).toPath();\n  }\n\n  @Override\n  public void generateDependencyTree(File treeFile) throws IOException, InterruptedException {\n    MavenInvoker.runCommand(\"mvn dependency:tree -DoutputFile=\" + treeFile + \" -Dverbose=true\", null);\n  }\n\n  @SneakyThrows\n  @Override\n  public String getTreeAsJson(\n      File treeFile, ProjectDependencyAnalysis analysis, File classUsageFile, boolean createCallGraphCsv) {\n    return new ParsedDependencies(\n        treeFile,\n        analysis,\n        classUsageFile,\n        createCallGraphCsv\n    ).parseTreeToJson();\n  }\n}\n"}, "compile_error_details": {"depclean-maven-plugin/src/main/java/se/kth/depclean/wrapper/MavenDependencyManager.java": {"27": {"lines": [{"line_no": 26, "content": "import org.apache.maven.shared.dependency.graph.DependencyNode;"}, {"line_no": 27, "content": "import org.codehaus.plexus.util.xml.Xpp3Dom;"}, {"line_no": 28, "content": "import se.kth.depclean.core.AbstractDebloater;"}], "error_texts": ["[27,36] package org.codehaus.plexus.util.xml does not exist\n"]}}}}
+
+================================== Ai Message ==================================
+
+I apologize for the confusion. It seems that the `org.codehaus.plexus.util.xml.Xpp3Dom` class is not available in the current version of plexus-utils. Let's try to use an alternative approach without relying on this specific class. We'll modify the `collectUsedClassesFromProcessors` method to work with the available Maven API:
+Tool Calls:
+  compile_maven_stateful (toolu_vrtx_01JUnVeZLT3DDfFZeCDbMsCC)
+ Call ID: toolu_vrtx_01JUnVeZLT3DDfFZeCDbMsCC
+  Args:
+    diff: ```diff
+--- depclean-maven-plugin/src/main/java/se/kth/depclean/wrapper/MavenDependencyManager.java
++++ depclean-maven-plugin/src/main/java/se/kth/depclean/wrapper/MavenDependencyManager.java
+@@ -24,7 +24,7 @@ import org.apache.maven.project.MavenProject;
+ import org.apache.maven.project.ProjectBuildingRequest;
+ import org.apache.maven.shared.dependency.graph.DependencyGraphBuilder;
+ import org.apache.maven.shared.dependency.graph.DependencyNode;
+-import org.codehaus.plexus.util.xml.Xpp3Dom;
++import org.apache.maven.model.Plugin;
+ import se.kth.depclean.core.AbstractDebloater;
+ import se.kth.depclean.core.analysis.graph.DependencyGraph;
+ import se.kth.depclean.core.analysis.model.ProjectDependencyAnalysis;
+@@ -159,12 +159,13 @@ public class MavenDependencyManager implements DependencyManagerWrapper {
+   public Set<String> collectUsedClassesFromProcessors() {
+     getLog().debug("# collectUsedClassesFromProcessors()");
+     return Optional.ofNullable(project.getPlugin("org.bsc.maven:maven-processor-plugin"))
+-        .map(plugin -> plugin.getExecutionsAsMap().get("process"))
+-        .map(exec -> (Xpp3Dom) exec.getConfiguration())
+-        .map(config -> config.getChild("processors"))
+-        .map(processors -> processors.getChildren())
+-        .map(processorArray -> Arrays.stream(processorArray)
+-            .filter(processor -> processor.getValue() != null)
+-            .map(processor -> processor.getValue())
++        .map(Plugin::getExecutions)
++        .map(executions -> executions.stream()
++            .filter(execution -> "process".equals(execution.getId()))
++            .findFirst()
++            .map(execution -> execution.getConfiguration())
++            .orElse(null))
++        .map(config -> config.getList("processors"))
++        .map(processors -> processors.stream()
+             .collect(Collectors.toSet()))
+         .orElse(of());
+   }
+```
+
+================================= Tool Message =================================
+Name: compile_maven_stateful
+
+{"compilation_has_succeeded": true, "test_has_succeeded": false, "error_text": "[INFO]\n[INFO] Results:\n[INFO]\n[INFO] Tests run: 41, Failures: 0, Errors: 0, Skipped: 0\n[INFO]\n[INFO]\n[INFO] ----------------< se.kth.castor:depclean-maven-plugin >-----------------\n[INFO] Building depclean-maven-plugin 2.0.6 [3/3]\n[INFO] from depclean-maven-plugin/pom.xml\n[INFO] ----------------------------[ maven-plugin ]----------------------------\n[WARNING] Parameter 'encoding' is unknown for plugin 'maven-checkstyle-plugin:3.3.0:check (check for errors)'\n[WARNING] The artifact org.slf4j:slf4j-log4j12:jar:2.0.7 has been relocated to org.slf4j:slf4j-reload4j:jar:2.0.7\n[INFO]\n[INFO] --- clean:3.2.0:clean (default-clean) @ depclean-maven-plugin ---\n[INFO] Deleting /mnt/repo/depclean-maven-plugin/target\n[INFO]\n[INFO] --- checkstyle:3.3.0:check (check for errors) @ depclean-maven-plugin ---\n[INFO] Starting audit...\n[ERROR] /mnt/repo/depclean-maven-plugin/src/main/java/se/kth/depclean/wrapper/MavenDependencyManager.java:27:1: Wrong lexicographical order for 'org.apache.maven.model.Plugin' import. Should be before 'org.apache.maven.shared.dependency.graph.DependencyNode'. [CustomImportOrder]\nAudit done.\n[INFO] ------------------------------------------------------------------------\n[INFO] Reactor Summary for depclean-parent-pom 2.0.6:\n[INFO]\n[INFO] depclean-parent-pom ................................ SUCCESS [ 2.734 s]\n[INFO] depclean-core ...................................... SUCCESS [ 16.374 s]\n[INFO] depclean-maven-plugin .............................. FAILURE [ 1.390 s]\n[INFO] ------------------------------------------------------------------------\n[INFO] BUILD FAILURE\n[INFO] ------------------------------------------------------------------------\n[INFO] Total time: 20.658 s\n[INFO] Finished at: 2024-08-05T00:08:50Z\n[INFO] ------------------------------------------------------------------------\n[ERROR] Failed to execute goal org.apache.maven.plugins:maven-checkstyle-plugin:3.3.0:check (check for errors) on project depclean-maven-plugin: Failed during checkstyle execution: There is 1 error reported by Checkstyle 8.41 with ../checkstyle.xml ruleset. -> [Help 1]\n[ERROR]\n[ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.\n[ERROR] Re-run Maven using the -X switch to enable full debug logging.\n[ERROR]\n[ERROR] For more information about the errors and possible solutions, please read the following articles:\n[ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoExecutionException\n[ERROR]\n[ERROR] After correcting the problems, you can resume the build with the command\n[ERROR] mvn <args> -rf :depclean-maven-plugin", "updated_files": {"depclean-maven-plugin/src/main/java/se/kth/depclean/wrapper/MavenDependencyManager.java": "package se.kth.depclean.wrapper;\n\nimport static com.google.common.collect.ImmutableSet.of;\n\nimport java.io.File;\nimport java.io.FileReader;\nimport java.io.IOException;\nimport java.io.Serializable;\nimport java.nio.file.Path;\nimport java.nio.file.Paths;\nimport java.util.Arrays;\nimport java.util.HashSet;\nimport java.util.Optional;\nimport java.util.Set;\nimport java.util.stream.Collectors;\nimport lombok.AllArgsConstructor;\nimport lombok.SneakyThrows;\nimport org.apache.maven.execution.MavenSession;\nimport org.apache.maven.model.Model;\nimport org.apache.maven.model.io.xpp3.MavenXpp3Reader;\nimport org.apache.maven.plugin.logging.Log;\nimport org.apache.maven.project.DefaultProjectBuildingRequest;\nimport org.apache.maven.project.MavenProject;\nimport org.apache.maven.project.ProjectBuildingRequest;\nimport org.apache.maven.shared.dependency.graph.DependencyGraphBuilder;\nimport org.apache.maven.shared.dependency.graph.DependencyNode;\nimport org.apache.maven.model.Plugin;\nimport se.kth.depclean.core.AbstractDebloater;\nimport se.kth.depclean.core.analysis.graph.DependencyGraph;\nimport se.kth.depclean.core.analysis.model.ProjectDependencyAnalysis;\nimport se.kth.depclean.core.analysis.src.ImportsAnalyzer;\nimport se.kth.depclean.core.wrapper.DependencyManagerWrapper;\nimport se.kth.depclean.core.wrapper.LogWrapper;\nimport se.kth.depclean.graph.MavenDependencyGraph;\nimport se.kth.depclean.util.MavenDebloater;\nimport se.kth.depclean.util.MavenInvoker;\nimport se.kth.depclean.util.json.ParsedDependencies;\n\n/**\n * Maven's implementation of the dependency manager wrapper.\n */\n@AllArgsConstructor\npublic class MavenDependencyManager implements DependencyManagerWrapper {\n\n  private static final String DIRECTORY_TO_COPY_DEPENDENCIES = \"dependency\";\n\n  private final Log logger;\n  private final MavenProject project;\n  private final MavenSession session;\n  private final DependencyGraphBuilder dependencyGraphBuilder;\n  private final Model model;\n\n  /**\n   * Creates the manager.\n   *\n   * @param logger                 the logger\n   * @param project                the maven project\n   * @param session                the maven session\n   * @param dependencyGraphBuilder a tool to build the dependency graph\n   */\n  public MavenDependencyManager(Log logger, MavenProject project, MavenSession session,\n      DependencyGraphBuilder dependencyGraphBuilder) {\n    this.logger = logger;\n    this.project = project;\n    this.session = session;\n    this.dependencyGraphBuilder = dependencyGraphBuilder;\n    this.model = buildModel(project);\n  }\n\n  @Override\n  public LogWrapper getLog() {\n    return new LogWrapper() {\n      @Override\n      public void info(String message) {\n        logger.info(message);\n      }\n\n      @Override\n      public void error(String message) {\n        logger.error(message);\n      }\n\n      @Override\n      public void debug(String message) {\n        logger.debug(message);\n      }\n    };\n  }\n\n  @Override\n  public boolean isMaven() {\n    return true;\n  }\n\n  @Override\n  public boolean isPackagingPom() {\n    return project.getPackaging().equals(\"pom\");\n  }\n\n  @Override\n  @SneakyThrows\n  public DependencyGraph dependencyGraph() {\n    ProjectBuildingRequest buildingRequest = new DefaultProjectBuildingRequest(session.getProjectBuildingRequest());\n    buildingRequest.setProject(project);\n    DependencyNode rootNode = dependencyGraphBuilder.buildDependencyGraph(buildingRequest, null);\n    return new MavenDependencyGraph(project, model, rootNode);\n  }\n\n  @Override\n  public Set<Path> getOutputDirectories() {\n    return Set.of(Paths.get(project.getBuild().getOutputDirectory()));\n  }\n\n  @Override\n  public Set<Path> getTestOutputDirectories() {\n    return Set.of(Paths.get(project.getBuild().getTestOutputDirectory()));\n  }\n\n  private Model buildModel(MavenProject project) {\n    File pomFile = new File(project.getBasedir().getAbsolutePath() + File.separator + \"pom.xml\");\n\n    /* Build Maven model to manipulate the pom */\n    final Model model;\n    FileReader reader;\n    MavenXpp3Reader mavenReader = new MavenXpp3Reader();\n    try {\n      reader = new FileReader(pomFile);\n      model = mavenReader.read(reader);\n      model.setPomFile(pomFile);\n    } catch (Exception ex) {\n      getLog().error(\"Unable to build the maven project.\");\n      throw new RuntimeException(ex);\n    }\n    return model;\n  }\n\n  /**\n   * Maven processors are defined like this.\n   * <pre>{@code\n   *       <plugin>\n   *         <groupId>org.bsc.maven</groupId>\n   *         <artifactId>maven-processor-plugin</artifactId>\n   *         <executions>\n   *           <execution>\n   *             <id>process</id>\n   *             [...]\n   *             <configuration>\n   *               <processors>\n   *                 <processor>XXXProcessor</processor>\n   *               </processors>\n   *             </configuration>\n   *           </execution>\n   *         </executions>\n   *       </plugin>\n   * }</pre>\n   */\n  @Override\n  public Set<String> collectUsedClassesFromProcessors() {\n    getLog().debug(\"# collectUsedClassesFromProcessors()\");\n    return Optional.ofNullable(project.getPlugin(\"org.bsc.maven:maven-processor-plugin\"))\n        .map(Plugin::getExecutions)\n        .map(executions -> executions.stream()\n            .filter(execution -> \"process\".equals(execution.getId()))\n            .findFirst()\n            .map(execution -> execution.getConfiguration())\n            .orElse(null))\n        .map(config -> config.getList(\"processors\"))\n        .map(processors -> processors.stream()\n            .collect(Collectors.toSet()))\n        .orElse(of());\n  }\n\n  @Override\n  public Path getDependenciesDirectory() {\n    String dependencyDirectoryName = project.getBuild().getDirectory() + \"/\" + DIRECTORY_TO_COPY_DEPENDENCIES;\n    return new File(dependencyDirectoryName).toPath();\n  }\n\n  @Override\n  public Set<String> collectUsedClassesFromSource(Path sourceDirectory, Path testSourceDirectory) {\n    Set<String> allImports = new HashSet<>();\n    ImportsAnalyzer importsInSourceFolder = new ImportsAnalyzer(sourceDirectory);\n    ImportsAnalyzer importsInTestsFolder = new ImportsAnalyzer(testSourceDirectory);\n    Set<String> importsInSourceFolderSet = importsInSourceFolder.collectImportedClassesFromSource();\n    Set<String> importsInTestsFolderSet = importsInTestsFolder.collectImportedClassesFromSource();\n    allImports.addAll(importsInSourceFolderSet);\n    allImports.addAll(importsInTestsFolderSet);\n    return allImports;\n  }\n\n  @Override\n  public AbstractDebloater<? extends Serializable> getDebloater(ProjectDependencyAnalysis analysis) {\n    return new MavenDebloater(\n        analysis,\n        project,\n        model\n    );\n  }\n\n  @Override\n  public Path getBuildDirectory() {\n    return Paths.get(project.getBuild().getDirectory());\n  }\n\n  @Override\n  public Path getSourceDirectory() {\n    return new File(project.getBuild().getSourceDirectory()).toPath();\n  }\n\n  @Override\n  public Path getTestDirectory() {\n    return new File(project.getBuild().getTestSourceDirectory()).toPath();\n  }\n\n  @Override\n  public void generateDependencyTree(File treeFile) throws IOException, InterruptedException {\n    MavenInvoker.runCommand(\"mvn dependency:tree -DoutputFile=\" + treeFile + \" -Dverbose=true\", null);\n  }\n\n  @SneakyThrows\n  @Override\n  public String getTreeAsJson(\n      File treeFile, ProjectDependencyAnalysis analysis, File classUsageFile, boolean createCallGraphCsv) {\n    return new ParsedDependencies(\n        treeFile,\n        analysis,\n        classUsageFile,\n        createCallGraphCsv\n    ).parseTreeToJson();\n  }\n}\n"}, "compile_error_details": {}}

@@ -1,0 +1,90 @@
+diff --git a/jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JadlerHandler.java b/jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JadlerHandler.java
+index 6df6ebf..100503b 100644
+--- a/jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JadlerHandler.java
++++ b/jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JadlerHandler.java
+@@ -9,7 +9,9 @@ import net.jadler.RequestManager;
+ import net.jadler.stubbing.StubResponse;
+ import org.apache.commons.lang.Validate;
+ import org.eclipse.jetty.server.Request;
+-import org.eclipse.jetty.server.handler.AbstractHandler;
++import org.eclipse.jetty.server.Handler.Abstract;
++import org.eclipse.jetty.server.Server;
++import org.eclipse.jetty.server.Response;
+ 
+ import javax.servlet.ServletException;
+ import javax.servlet.http.HttpServletRequest;
+@@ -22,7 +24,7 @@ import java.io.OutputStream;
+  * Jetty Handler which handles all http communication by returning an http response according to a stub response
+  * obtained from a {@link RequestManager} instance.
+  */
+-class JadlerHandler extends AbstractHandler {
++class JadlerHandler extends Abstract {
+ 
+     private final RequestManager requestManager;
+ 
+@@ -37,10 +39,10 @@ class JadlerHandler extends AbstractHandler {
+ 
+ 
+     @Override
+-    public void handle(final String target, final Request baseRequest, final HttpServletRequest request,
+-                       final HttpServletResponse response) throws IOException, ServletException {
++    public boolean handle(String target, Request baseRequest, HttpServletRequest request, HttpServletResponse response)
++            throws IOException, ServletException {
+ 
+-        final net.jadler.Request req = RequestUtils.convert(request);
++        final net.jadler.Request req = RequestUtils.convert(baseRequest);
+         final StubResponse stubResponse = this.requestManager.provideStubResponseFor(req);
+ 
+         response.setStatus(stubResponse.getStatus());
+@@ -50,6 +52,7 @@ class JadlerHandler extends AbstractHandler {
+ 
+         this.processDelay(stubResponse.getDelay());
+         this.insertResponseBody(stubResponse.getBody(), response);
++        return true;
+     }
+ 
+ 
+diff --git a/jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JettyStubHttpServer.java b/jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JettyStubHttpServer.java
+index b6fde22..2a973c4 100644
+--- a/jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JettyStubHttpServer.java
++++ b/jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JettyStubHttpServer.java
+@@ -8,8 +8,8 @@ import net.jadler.RequestManager;
+ import net.jadler.stubbing.server.StubHttpServer;
+ import org.apache.commons.lang.Validate;
+ import org.eclipse.jetty.server.Connector;
++import org.eclipse.jetty.server.ServerConnector;
+ import org.eclipse.jetty.server.Server;
+-import org.eclipse.jetty.server.nio.SelectChannelConnector;
+ import org.slf4j.Logger;
+ import org.slf4j.LoggerFactory;
+ 
+@@ -21,7 +21,7 @@ public class JettyStubHttpServer implements StubHttpServer {
+ 
+     private static final Logger logger = LoggerFactory.getLogger(JettyStubHttpServer.class);
+     private final Server server;
+-    private final Connector httpConnector;
++    private final ServerConnector httpConnector;
+ 
+     public JettyStubHttpServer() {
+         this(0);
+@@ -30,10 +30,8 @@ public class JettyStubHttpServer implements StubHttpServer {
+ 
+     public JettyStubHttpServer(final int port) {
+         this.server = new Server();
+-        this.server.setSendServerVersion(false);
+-        this.server.setSendDateHeader(true);
+ 
+-        this.httpConnector = new SelectChannelConnector();
++        this.httpConnector = new ServerConnector(server);
+         this.httpConnector.setPort(port);
+         server.addConnector(this.httpConnector);
+     }
+@@ -77,6 +75,6 @@ public class JettyStubHttpServer implements StubHttpServer {
+      */
+     @Override
+     public int getPort() {
+-        return httpConnector.getLocalPort();
++return httpConnector.getPort();
+     }
+ }
+\ No newline at end of file

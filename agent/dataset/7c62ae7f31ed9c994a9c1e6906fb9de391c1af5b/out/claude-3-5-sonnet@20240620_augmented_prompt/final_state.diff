@@ -1,0 +1,101 @@
+diff --git a/onebusaway-gtfs-hibernate/src/main/java/org/onebusaway/gtfs/impl/ServiceDateUserType.java b/onebusaway-gtfs-hibernate/src/main/java/org/onebusaway/gtfs/impl/ServiceDateUserType.java
+index fb6b882c..956bf832 100644
+--- a/onebusaway-gtfs-hibernate/src/main/java/org/onebusaway/gtfs/impl/ServiceDateUserType.java
++++ b/onebusaway-gtfs-hibernate/src/main/java/org/onebusaway/gtfs/impl/ServiceDateUserType.java
+@@ -23,8 +23,8 @@ import java.sql.SQLException;
+ import java.sql.Types;
+ import java.text.ParseException;
+ 
++import org.hibernate.engine.spi.SharedSessionContractImplementor;
+ import org.hibernate.HibernateException;
+-import org.hibernate.engine.spi.SessionImplementor;
+ import org.hibernate.usertype.UserType;
+ import org.onebusaway.gtfs.model.calendar.ServiceDate;
+ 
+@@ -66,7 +66,7 @@ public class ServiceDateUserType implements UserType {
+   }
+ 
+   @Override
+-  public Object nullSafeGet(ResultSet rs, String[] names, SessionImplementor sessionImplementor, Object owner)
++  public Object nullSafeGet(ResultSet rs, String[] names, SharedSessionContractImplementor session, Object owner)
+       throws HibernateException, SQLException {
+ 
+     String value = rs.getString(names[0]);
+@@ -82,7 +82,7 @@ public class ServiceDateUserType implements UserType {
+   }
+ 
+   @Override
+-  public void nullSafeSet(PreparedStatement st, Object value, int index, SessionImplementor sessionImplementor)
++  public void nullSafeSet(PreparedStatement st, Object value, int index, SharedSessionContractImplementor session)
+       throws HibernateException, SQLException {
+ 
+     if (value == null) {
+diff --git a/onebusaway-gtfs-hibernate/src/test/java/org/onebusaway/gtfs/impl/LongRouteDescriptionTest.java b/onebusaway-gtfs-hibernate/src/test/java/org/onebusaway/gtfs/impl/LongRouteDescriptionTest.java
+index 0470c417..14d0f045 100644
+--- a/onebusaway-gtfs-hibernate/src/test/java/org/onebusaway/gtfs/impl/LongRouteDescriptionTest.java
++++ b/onebusaway-gtfs-hibernate/src/test/java/org/onebusaway/gtfs/impl/LongRouteDescriptionTest.java
+@@ -23,8 +23,10 @@ import java.util.List;
+ 
+ import org.hibernate.SessionFactory;
+ import org.hibernate.cfg.Configuration;
++import org.hibernate.boot.registry.StandardServiceRegistryBuilder;
++import org.hibernate.boot.MetadataSources;
+ import org.hibernate.service.ServiceRegistry;
+-import org.hibernate.service.ServiceRegistryBuilder;
++import org.hibernate.boot.Metadata;
+ import org.junit.AfterClass;
+ import org.junit.BeforeClass;
+ import org.junit.Test;
+@@ -44,13 +46,18 @@ public class LongRouteDescriptionTest {
+   @BeforeClass
+   public static void setup() throws IOException {
+ 
+-    Configuration config = new Configuration();
+-    config = config.configure("org/onebusaway/gtfs/hibernate-configuration.xml");
+-    ServiceRegistry serviceRegistry
+-            = new ServiceRegistryBuilder().applySettings(
+-                    config.getProperties()
+-    ).buildServiceRegistry();
+-    _sessionFactory = config.buildSessionFactory(serviceRegistry);
++    Configuration configuration = new Configuration();
++    configuration.configure("org/onebusaway/gtfs/hibernate-configuration.xml");
++
++    ServiceRegistry serviceRegistry = new StandardServiceRegistryBuilder()
++        .applySettings(configuration.getProperties())
++        .build();
++
++    configuration.addAnnotatedClass(Agency.class);
++
++    Metadata metadata = new MetadataSources(serviceRegistry).buildMetadata();
++    metadata.getEntityBindings().forEach(binding -> System.out.println("Entity: " + binding.getEntityName()));
++    _sessionFactory = metadata.getSessionFactoryBuilder().build();
+ 
+     _dao = new HibernateGtfsRelationalDaoImpl(_sessionFactory);
+ 
+@@ -61,7 +68,6 @@ public class LongRouteDescriptionTest {
+     reader.setDefaultAgencyId(_agencyId);
+ 
+     List<Class<?>> entityClasses = reader.getEntityClasses();
+-    entityClasses.clear();
+     entityClasses.add(Agency.class);
+     entityClasses.add(Route.class);
+ 
+@@ -98,4 +104,4 @@ public class LongRouteDescriptionTest {
+   private AgencyAndId aid(String id) {
+     return new AgencyAndId(_agencyId, id);
+   }
+-}
++}
+\ No newline at end of file
+diff --git a/onebusaway-gtfs-hibernate/src/test/resources/org/onebusaway/gtfs/hibernate-configuration.xml b/onebusaway-gtfs-hibernate/src/test/resources/org/onebusaway/gtfs/hibernate-configuration.xml
+index 3ff3a701..970b0d6c 100644
+--- a/onebusaway-gtfs-hibernate/src/test/resources/org/onebusaway/gtfs/hibernate-configuration.xml
++++ b/onebusaway-gtfs-hibernate/src/test/resources/org/onebusaway/gtfs/hibernate-configuration.xml
+@@ -48,6 +48,7 @@
+         <!-- Drop and re-create the database schema on startup -->
+         <property name="hbm2ddl.auto">create</property>
+ 
++        <mapping class="org.onebusaway.gtfs.model.Agency"/>
+         <mapping resource="org/onebusaway/gtfs/model/GtfsMapping.hibernate.xml" />
+         <mapping resource="org/onebusaway/gtfs/impl/HibernateGtfsRelationalDaoImpl.hibernate.xml" />
+ 

@@ -1,0 +1,590 @@
+{
+    "validate_diffs": [
+        {
+            "input": "```diff\ndiff --git a/src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java b/src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java\nindex 4d4d4d1..d4d4d4d 100644\n--- a/src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java\n+++ b/src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java\n@@ -17,7 +17,7 @@ import com.google.api.core.ApiFuture;\n import com.google.api.core.ApiFutures;\n import com.google.cloud.pubsublite.AdminClient;\n import com.google.cloud.pubsublite.MessageMetadata;\n-import com.google.cloud.pubsublite.PublishMetadata;\n+import com.google.cloud.pubsublite.proto.PublishMetadata;\n import com.google.cloud.pubsublite.internal.wire.PubsubContext;\n import com.google.cloud.pubsublite.internal.wire.SinglePartitionPublisherBuilder;\n import com.google.common.util.concurrent.MoreExecutors;\n@@ -30,27 +30,30 @@ import java.util.concurrent.Executor;\n \n public class PublisherFactoryImpl implements PublisherFactory {\n \n-  private final AdminClient adminClient;\n-  private final PubsubContext pubsubContext;\n+  private static final Framework FRAMEWORK = Framework.of(\"KAFKA_CONNECT\");\n \n-  public PublisherFactoryImpl(AdminClient adminClient, PubsubContext pubsubContext) {\n-    this.adminClient = adminClient;\n-    this.pubsubContext = pubsubContext;\n-  }\n-\n-  @Override\n-  public SinglePartitionPublisherBuilder.Builder newPublisher(String topicPath, int partition) {\n-    return SinglePartitionPublisherBuilder.newBuilder()\n-        .setAdminClient(adminClient)\n-        .setTopic(topicPath)\n-        .setPartition(partition)\n-        .setContext(pubsubContext)\n-        .build();\n+  @Override\n+  public Publisher<PublishMetadata> newPublisher(Map<String, String> params) {\n+    Map<String, ConfigValue> config = ConfigDefs.config().validateAll(params);\n+    RoutingPublisherBuilder.Builder builder = RoutingPublisherBuilder.newBuilder();\n+    TopicPath topic =\n+        TopicPath.newBuilder()\n+            .setProject(\n+                ProjectPath.parse(\"projects/\" + config.get(ConfigDefs.PROJECT_FLAG).value())\n+                    .project())\n+            .setLocation(CloudZone.parse(config.get(ConfigDefs.LOCATION_FLAG).value().toString()))\n+            .setName(TopicName.of(config.get(ConfigDefs.TOPIC_NAME_FLAG).value().toString()))\n+            .build();\n+    builder.setTopic(topic);\n+    builder.setPublisherFactory(\n+        partition ->\n+            SinglePartitionPublisherBuilder.newBuilder()\n+                .setTopic(topic)\n+                .setPartition(partition)\n+                .setContext(PubsubContext.of(FRAMEWORK))\n+                .build());\n+    return builder.build();\n   }\n }\n ```",
+            "output": "Diff Error: UnifiedDiffNoMatch: hunk failed to apply!\n\nsrc/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java does not contain lines that match the diff you provided!\nTry again.\nDO NOT, NEVER, skip blank lines, comments, docstrings, etc!\nThe diff needs to apply cleanly to the lines in src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java!\nMake extra sure the indentation is correct.\n\nsrc/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java does not contain these 21 exact lines in a row:\n```\n\npublic class PublisherFactoryImpl implements PublisherFactory {\n\n  private final AdminClient adminClient;\n  private final PubsubContext pubsubContext;\n\n  public PublisherFactoryImpl(AdminClient adminClient, PubsubContext pubsubContext) {\n    this.adminClient = adminClient;\n    this.pubsubContext = pubsubContext;\n  }\n\n  @Override\n  public SinglePartitionPublisherBuilder.Builder newPublisher(String topicPath, int partition) {\n    return SinglePartitionPublisherBuilder.newBuilder()\n        .setAdminClient(adminClient)\n        .setTopic(topicPath)\n        .setPartition(partition)\n        .setContext(pubsubContext)\n        .build();\n  }\n}\n```\n",
+            "error": "UnifiedDiffNoMatch: hunk failed to apply!\n\nsrc/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java does not contain lines that match the diff you provided!\nTry again.\nDO NOT, NEVER, skip blank lines, comments, docstrings, etc!\nThe diff needs to apply cleanly to the lines in src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java!\nMake extra sure the indentation is correct.\n\nsrc/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java does not contain these 21 exact lines in a row:\n```\n\npublic class PublisherFactoryImpl implements PublisherFactory {\n\n  private final AdminClient adminClient;\n  private final PubsubContext pubsubContext;\n\n  public PublisherFactoryImpl(AdminClient adminClient, PubsubContext pubsubContext) {\n    this.adminClient = adminClient;\n    this.pubsubContext = pubsubContext;\n  }\n\n  @Override\n  public SinglePartitionPublisherBuilder.Builder newPublisher(String topicPath, int partition) {\n    return SinglePartitionPublisherBuilder.newBuilder()\n        .setAdminClient(adminClient)\n        .setTopic(topicPath)\n        .setPartition(partition)\n        .setContext(pubsubContext)\n        .build();\n  }\n}\n```\n",
+            "span_id": 9680613610688252985
+        }
+    ],
+    "compile_maven": [
+        {
+            "input": "```diff\ndiff --git a/src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java b/src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java\nindex 4d4d4d1..d4d4d4d 100644\n--- a/src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java\n+++ b/src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java\n@@ -17,7 +17,7 @@ import com.google.api.core.ApiFuture;\n import com.google.api.core.ApiFutures;\n import com.google.cloud.pubsublite.AdminClient;\n import com.google.cloud.pubsublite.MessageMetadata;\n-import com.google.cloud.pubsublite.PublishMetadata;\n+import com.google.cloud.pubsublite.proto.PublishMetadata;\n import com.google.cloud.pubsublite.internal.wire.PubsubContext;\n import com.google.cloud.pubsublite.internal.wire.SinglePartitionPublisherBuilder;\n import com.google.common.util.concurrent.MoreExecutors;\n@@ -33,7 +33,7 @@ public class PublisherFactoryImpl implements PublisherFactory {\n   private final AdminClient adminClient;\n   private final PubsubContext pubsubContext;\n \n-  public PublisherFactoryImpl(AdminClient adminClient, PubsubContext pubsubContext) {\n+  public PublisherFactoryImpl(AdminClient adminClient, com.google.cloud.pubsublite.internal.wire.PubsubContext pubsubContext) {\n     this.adminClient = adminClient;\n     this.pubsubContext = pubsubContext;\n   }\n@@ -50,7 +50,7 @@ public class PublisherFactoryImpl implements PublisherFactory {\n         .setAdminClient(adminClient)\n         .setTopic(topicPath)\n         .setPartition(partition)\n-        .setContext(pubsubContext)\n+        .setContext((com.google.cloud.pubsublite.internal.wire.PubsubContext) pubsubContext)\n         .build();\n   }\n }\ndiff --git a/src/main/java/com/google/pubsublite/kafka/sink/PublisherFactory.java b/src/main/java/com/google/pubsublite/kafka/sink/PublisherFactory.java\nindex 4d4d4d1..d4d4d4d 100644\n--- a/src/main/java/com/google/pubsublite/kafka/sink/PublisherFactory.java\n+++ b/src/main/java/com/google/pubsublite/kafka/sink/PublisherFactory.java\n@@ -15,7 +15,7 @@ package com.google.pubsublite.kafka.sink;\n \n import com.google.api.core.ApiFuture;\n import com.google.cloud.pubsublite.MessageMetadata;\n-import com.google.cloud.pubsublite.PublishMetadata;\n+import com.google.cloud.pubsublite.proto.PublishMetadata;\n import com.google.cloud.pubsublite.internal.wire.PubsubContext;\n import com.google.cloud.pubsublite.internal.wire.SinglePartitionPublisherBuilder;\n \n@@ -21,7 +21,7 @@ public interface PublisherFactory {\n   /**\n    * Creates a new publisher for the given topic and partition.\n    */\n-  SinglePartitionPublisherBuilder.Builder newPublisher(String topicPath, int partition);\n+  SinglePartitionPublisherBuilder.Builder newPublisher(String topicPath, int partition);\n }\n```\n\nThe changes in this diff address the compilation errors by:\n\n1. Updating the import statements to use the correct `PublishMetadata` class from the `com.google.cloud.pubsublite.",
+            "output": {
+                "compilation_has_succeeded": false,
+                "test_has_succeeded": false,
+                "error_text": "Failed to prepare diffs: Diff is not valid, UnifiedDiffNoMatch: hunk failed to apply!\nsrc/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java does not contain lines that match the diff you provided!\nTry again.\nDO NOT, NEVER, skip blank lines, comments, docstrings, etc!\nThe diff needs to apply cleanly to the lines in src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java!\nMake extra sure the indentation is correct.\nsrc/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java does not contain these 7 exact lines in a row:\n```\nprivate final AdminClient adminClient;\nprivate final PubsubContext pubsubContext;\npublic PublisherFactoryImpl(AdminClient adminClient, PubsubContext pubsubContext) {\nthis.adminClient = adminClient;\nthis.pubsubContext = pubsubContext;\n}\n```\nUnifiedDiffNoMatch: hunk failed to apply!\nsrc/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java does not contain lines that match the diff you provided!\nTry again.\nDO NOT, NEVER, skip blank lines, comments, docstrings, etc!\nThe diff needs to apply cleanly to the lines in src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java!\nMake extra sure the indentation is correct.\nsrc/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java does not contain these 7 exact lines in a row:\n```\n.setAdminClient(adminClient)\n.setTopic(topicPath)\n.setPartition(partition)\n.setContext(pubsubContext)\n.build();\n}\n}\n```",
+                "updated_files": {},
+                "compile_error_details": {}
+            },
+            "error": "Failed to prepare diffs: Diff is not valid, UnifiedDiffNoMatch: hunk failed to apply!\nsrc/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java does not contain lines that match the diff you provided!\nTry again.\nDO NOT, NEVER, skip blank lines, comments, docstrings, etc!\nThe diff needs to apply cleanly to the lines in src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java!\nMake extra sure the indentation is correct.\nsrc/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java does not contain these 7 exact lines in a row:\n```\nprivate final AdminClient adminClient;\nprivate final PubsubContext pubsubContext;\npublic PublisherFactoryImpl(AdminClient adminClient, PubsubContext pubsubContext) {\nthis.adminClient = adminClient;\nthis.pubsubContext = pubsubContext;\n}\n```\nUnifiedDiffNoMatch: hunk failed to apply!\nsrc/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java does not contain lines that match the diff you provided!\nTry again.\nDO NOT, NEVER, skip blank lines, comments, docstrings, etc!\nThe diff needs to apply cleanly to the lines in src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java!\nMake extra sure the indentation is correct.\nsrc/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java does not contain these 7 exact lines in a row:\n```\n.setAdminClient(adminClient)\n.setTopic(topicPath)\n.setPartition(partition)\n.setContext(pubsubContext)\n.build();\n}\n}\n```",
+            "span_id": 15338282201100460831
+        },
+        {
+            "input": "The diff I provided earlier does not apply cleanly to the source file. Let me try again with a more comprehensive fix.\n\n```diff\ndiff --git a/src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java b/src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java\nindex 4d4d4d1..d4d4d4d 100644\n--- a/src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java\n+++ b/src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java\n@@ -17,7 +17,7 @@ import com.google.api.core.ApiFuture;\n import com.google.api.core.ApiFutures;\n import com.google.cloud.pubsublite.AdminClient;\n import com.google.cloud.pubsublite.MessageMetadata;\n-import com.google.cloud.pubsublite.PublishMetadata;\n+import com.google.cloud.pubsublite.proto.PublishMetadata;\n import com.google.cloud.pubsublite.internal.wire.PubsubContext;\n import com.google.cloud.pubsublite.internal.wire.SinglePartitionPublisherBuilder;\n import com.google.common.util.concurrent.MoreExecutors;\n@@ -33,7 +33,7 @@ public class PublisherFactoryImpl implements PublisherFactory {\n   private final AdminClient adminClient;\n   private final PubsubContext pubsubContext;\n \n-  public PublisherFactoryImpl(AdminClient adminClient, PubsubContext pubsubContext) {\n+  public PublisherFactoryImpl(AdminClient adminClient, com.google.cloud.pubsublite.internal.wire.PubsubContext pubsubContext) {\n     this.adminClient = adminClient;\n     this.pubsubContext = pubsubContext;\n   }\n@@ -50,7 +50,7 @@ public class PublisherFactoryImpl implements PublisherFactory {\n         .setAdminClient(adminClient)\n         .setTopic(topicPath)\n         .setPartition(partition)\n-        .setContext(pubsubContext)\n+        .setContext((com.google.cloud.pubsublite.internal.wire.PubsubContext) pubsubContext)\n         .build();\n   }\n }\ndiff --git a/src/main/java/com/google/pubsublite/kafka/sink/PublisherFactory.java b/src/main/java/com/google/pubsublite/kafka/sink/PublisherFactory.java\nindex 4d4d4d1..d4d4d4d 100644\n--- a/src/main/java/com/google/pubsublite/kafka/sink/PublisherFactory.java\n+++ b/src/main/java/com/google/pubsublite/kafka/sink/PublisherFactory.java\n@@ -15,7 +15,7 @@ package com.google.pubsublite.kafka.sink;\n \n import com.google.api.core.ApiFuture;\n import com.google.cloud.pubsublite.MessageMetadata;\n-import com.google.cloud.pubsublite.PublishMetadata;\n+import com.google.cloud.pubsublite.proto.PublishMetadata;\n import com.google.cloud.pubsublite.internal.wire.PubsubContext;\n import com.google.cloud.pubsublite.internal.wire.SinglePartitionPublisherBuilder;\n \n@@ -21,7 +21,7 @@ public interface PublisherFactory {\n   /**\n    * Creates a new publisher for the given topic and partition.\n    */\n-  SinglePartitionPublisherBuilder.Builder newPublisher(String topicPath, int partition);\n+  SinglePartitionPublisherBuilder.Builder newPublisher(String topicPath, int partition);\n }\n```",
+            "output": {
+                "compilation_has_succeeded": false,
+                "test_has_succeeded": false,
+                "error_text": "Failed to prepare diffs: Diff is not valid, UnifiedDiffNoMatch: hunk failed to apply!\nsrc/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java does not contain lines that match the diff you provided!\nTry again.\nDO NOT, NEVER, skip blank lines, comments, docstrings, etc!\nThe diff needs to apply cleanly to the lines in src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java!\nMake extra sure the indentation is correct.\nsrc/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java does not contain these 7 exact lines in a row:\n```\nprivate final AdminClient adminClient;\nprivate final PubsubContext pubsubContext;\npublic PublisherFactoryImpl(AdminClient adminClient, PubsubContext pubsubContext) {\nthis.adminClient = adminClient;\nthis.pubsubContext = pubsubContext;\n}\n```\nUnifiedDiffNoMatch: hunk failed to apply!\nsrc/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java does not contain lines that match the diff you provided!\nTry again.\nDO NOT, NEVER, skip blank lines, comments, docstrings, etc!\nThe diff needs to apply cleanly to the lines in src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java!\nMake extra sure the indentation is correct.\nsrc/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java does not contain these 7 exact lines in a row:\n```\n.setAdminClient(adminClient)\n.setTopic(topicPath)\n.setPartition(partition)\n.setContext(pubsubContext)\n.build();\n}\n}\n```",
+                "updated_files": {},
+                "compile_error_details": {}
+            },
+            "error": "Failed to prepare diffs: Diff is not valid, UnifiedDiffNoMatch: hunk failed to apply!\nsrc/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java does not contain lines that match the diff you provided!\nTry again.\nDO NOT, NEVER, skip blank lines, comments, docstrings, etc!\nThe diff needs to apply cleanly to the lines in src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java!\nMake extra sure the indentation is correct.\nsrc/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java does not contain these 7 exact lines in a row:\n```\nprivate final AdminClient adminClient;\nprivate final PubsubContext pubsubContext;\npublic PublisherFactoryImpl(AdminClient adminClient, PubsubContext pubsubContext) {\nthis.adminClient = adminClient;\nthis.pubsubContext = pubsubContext;\n}\n```\nUnifiedDiffNoMatch: hunk failed to apply!\nsrc/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java does not contain lines that match the diff you provided!\nTry again.\nDO NOT, NEVER, skip blank lines, comments, docstrings, etc!\nThe diff needs to apply cleanly to the lines in src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java!\nMake extra sure the indentation is correct.\nsrc/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java does not contain these 7 exact lines in a row:\n```\n.setAdminClient(adminClient)\n.setTopic(topicPath)\n.setPartition(partition)\n.setContext(pubsubContext)\n.build();\n}\n}\n```",
+            "span_id": 8411344573028086513
+        },
+        {
+            "input": "Okay, the existing code is quite different from what the diff was trying to change. Let me take a step back and try to understand the changes needed.\n\nThe key issues seem to be:\n\n1. The `PublishMetadata` class has moved from `com.google.cloud.pubsublite` to `com.google.cloud.pubsublite.proto`.\n2. The `PubsubContext` parameter type has changed from `com.google.cloud.pubsublite.internal.wire.PubsubContext` to `com.google.cloud.pubsublite.internal.wire.PubsubContext`.\n\nTo fix these issues, I'll need to update the imports and constructor parameter types accordingly.\n\n```diff\ndiff --git a/src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java b/src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java\nindex 4d4d4d1..d4d4d4d 100644\n--- a/src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java\n+++ b/src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java\n@@ -17,7 +17,7 @@ import com.google.api.core.ApiFuture;\n import com.google.api.core.ApiFutures;\n import com.google.cloud.pubsublite.AdminClient;\n import com.google.cloud.pubsublite.MessageMetadata;\n-import com.google.cloud.pubsublite.PublishMetadata;\n+import com.google.cloud.pubsublite.proto.PublishMetadata;\n import com.google.cloud.pubsublite.internal.wire.PubsubContext;\n import com.google.cloud.pubsublite.internal.wire.SinglePartitionPublisherBuilder;\n import com.google.common.util.concurrent.MoreExecutors;\n@@ -33,7 +33,7 @@ public class PublisherFactoryImpl implements PublisherFactory {\n   private final AdminClient adminClient;\n   private final PubsubContext pubsubContext;\n \n-  public PublisherFactoryImpl(AdminClient adminClient, PubsubContext pubsubContext) {\n+  public PublisherFactoryImpl(AdminClient adminClient, com.google.cloud.pubsublite.internal.wire.PubsubContext pubsubContext) {\n     this.adminClient = adminClient;\n     this.pubsubContext = pubsubContext;\n   }\n@@ -50,7 +50,7 @@ public class PublisherFactoryImpl implements PublisherFactory {\n         .setAdminClient(adminClient)\n         .setTopic(topicPath)\n         .setPartition(partition)\n-        .setContext(pubsubContext)\n+        .setContext((com.google.cloud.pubsublite.internal.wire.PubsubContext) pubsubContext)\n         .build();\n   }\n }\ndiff --git a/src/main/java/com/google/pubsublite/kafka/sink/PublisherFactory.java b/src/main/java/com/google/pubsublite/kafka/sink/PublisherFactory.java\nindex 4d4d4d1..d4d4d4d 100644\n--- a/src/main/java/com/google/pubsublite/kafka/sink/PublisherFactory.java\n+++ b/src/main/java/com/google/pubsublite/kafka/sink/PublisherFactory.java\n@@ -15,7 +15,7 @@ package com.google.pubsublite.kafka.sink;\n \n import com.google.api.core.ApiFuture;\n import com.google.cloud.pubsublite.MessageMetadata;\n-import com.google.cloud.pubsublite.PublishMetadata;\n+import com.google.cloud.pubsublite.proto.PublishMetadata;\n import com.google.cloud.pubsublite.internal.wire.PubsubContext;\n import com.google.clou",
+            "output": {
+                "compilation_has_succeeded": false,
+                "test_has_succeeded": false,
+                "error_text": "Failed to prepare diffs: Diff is not valid, UnifiedDiffNoMatch: hunk failed to apply!\nsrc/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java does not contain lines that match the diff you provided!\nTry again.\nDO NOT, NEVER, skip blank lines, comments, docstrings, etc!\nThe diff needs to apply cleanly to the lines in src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java!\nMake extra sure the indentation is correct.\nsrc/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java does not contain these 7 exact lines in a row:\n```\nprivate final AdminClient adminClient;\nprivate final PubsubContext pubsubContext;\npublic PublisherFactoryImpl(AdminClient adminClient, PubsubContext pubsubContext) {\nthis.adminClient = adminClient;\nthis.pubsubContext = pubsubContext;\n}\n```\nUnifiedDiffNoMatch: hunk failed to apply!\nsrc/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java does not contain lines that match the diff you provided!\nTry again.\nDO NOT, NEVER, skip blank lines, comments, docstrings, etc!\nThe diff needs to apply cleanly to the lines in src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java!\nMake extra sure the indentation is correct.\nsrc/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java does not contain these 7 exact lines in a row:\n```\n.setAdminClient(adminClient)\n.setTopic(topicPath)\n.setPartition(partition)\n.setContext(pubsubContext)\n.build();\n}\n}\n```",
+                "updated_files": {},
+                "compile_error_details": {}
+            },
+            "error": "Failed to prepare diffs: Diff is not valid, UnifiedDiffNoMatch: hunk failed to apply!\nsrc/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java does not contain lines that match the diff you provided!\nTry again.\nDO NOT, NEVER, skip blank lines, comments, docstrings, etc!\nThe diff needs to apply cleanly to the lines in src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java!\nMake extra sure the indentation is correct.\nsrc/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java does not contain these 7 exact lines in a row:\n```\nprivate final AdminClient adminClient;\nprivate final PubsubContext pubsubContext;\npublic PublisherFactoryImpl(AdminClient adminClient, PubsubContext pubsubContext) {\nthis.adminClient = adminClient;\nthis.pubsubContext = pubsubContext;\n}\n```\nUnifiedDiffNoMatch: hunk failed to apply!\nsrc/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java does not contain lines that match the diff you provided!\nTry again.\nDO NOT, NEVER, skip blank lines, comments, docstrings, etc!\nThe diff needs to apply cleanly to the lines in src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java!\nMake extra sure the indentation is correct.\nsrc/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java does not contain these 7 exact lines in a row:\n```\n.setAdminClient(adminClient)\n.setTopic(topicPath)\n.setPartition(partition)\n.setContext(pubsubContext)\n.build();\n}\n}\n```",
+            "span_id": 18147467498674801322
+        },
+        {
+            "input": "The existing code is quite different from what the diff was trying to change. It looks like the `PublisherFactoryImpl` class has been completely rewritten.\n\nThe key changes seem to be:\n\n1. The `PublishMetadata` class is now imported from `com.google.cloud.pubsublite.proto` instead of `com.google.cloud.pubsublite`.\n2. The `PubsubContext` parameter type is now `com.google.cloud.pubsublite.internal.wire.PubsubContext`.\n3. The `newPublisher` method now takes a `Map<String, String>` parameter instead of `String topicPath` and `int partition`.\n\nTo fix the issues, I'll need to update the `PublisherFactoryImpl` class to match the new implementation.\n\n```diff\ndiff --git a/src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java b/src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java\nindex 4d4d4d1..d4d4d4d 100644\n--- a/src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java\n+++ b/src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java\n@@ -17,7 +17,7 @@ import com.google.api.core.ApiFuture;\n import com.google.api.core.ApiFutures;\n import com.google.cloud.pubsublite.AdminClient;\n import com.google.cloud.pubsublite.MessageMetadata;\n-import com.google.cloud.pubsublite.PublishMetadata;\n+import com.google.cloud.pubsublite.proto.PublishMetadata;\n import com.google.cloud.pubsublite.internal.wire.PubsubContext;\n import com.google.cloud.pubsublite.internal.wire.SinglePartitionPublisherBuilder;\n import com.google.common.util.concurrent.MoreExecutors;\n@@ -30,27 +30,30 @@ import java.util.concurrent.Executor;\n \n public class PublisherFactoryImpl implements PublisherFactory {\n \n-  private final AdminClient adminClient;\n-  private final PubsubContext pubsubContext;\n+  private static final Framework FRAMEWORK = Framework.of(\"KAFKA_CONNECT\");\n \n-  public PublisherFactoryImpl(AdminClient adminClient, PubsubContext pubsubContext) {\n-    this.adminClient = adminClient;\n-    this.pubsubContext = pubsubContext;\n-  }\n-\n-  @Override\n-  public SinglePartitionPublisherBuilder.Builder newPublisher(String topicPath, int partition) {\n-    return SinglePartitionPublisherBuilder.newBuilder()\n-        .setAdminClient(adminClient)\n-        .setTopic(topicPath)\n-        .setPartition(partition)\n-        .setContext(pubsubContext)\n-        .build();\n+  @Override\n+  public Publisher<PublishMetadata> newPublisher(Map<String, String> params) {\n+    Map<String, ConfigValue> config = ConfigDefs.config().validateAll(params);\n+    RoutingPublisherBuilder.Builder builder = RoutingPublisherBuilder.newBuilder();\n+    TopicPath topic =\n+        TopicPath.newBuilder()\n+            .setProject(\n+                ProjectPath.parse(\"projects/\" + config.get(ConfigDefs.PROJECT_FLAG).value())\n+                    .project())\n+            .setLocation(CloudZone.parse(config.get(ConfigDefs.LOCATION_FLAG).value().toString()))\n+            .setName(TopicName.of(config.get(ConfigDefs.TOPIC_NAME_FLAG).value().toString()))\n+            .build();\n+    builder.setTopic(topic);\n+    builder.setPublisherFactory(\n+        partition ->\n+            SinglePartitionPublisherBuilder.newBuilder()\n+                .setTopic(topic)\n+                .setPartition(partition)",
+            "output": {
+                "compilation_has_succeeded": false,
+                "test_has_succeeded": false,
+                "error_text": "illegal start of expression\n",
+                "updated_files": {
+                    "src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java": "/*\n * Copyright 2020 Google LLC\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n *       http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\npackage com.google.pubsublite.kafka.sink;\n\nimport com.google.cloud.pubsublite.CloudZone;\nimport com.google.cloud.pubsublite.ProjectPath;\nimport com.google.cloud.pubsublite.proto.PublishMetadata;\nimport com.google.cloud.pubsublite.TopicName;\nimport com.google.cloud.pubsublite.TopicPath;\nimport com.google.cloud.pubsublite.internal.Publisher;\nimport com.google.cloud.pubsublite.internal.wire.PubsubContext;\nimport com.google.cloud.pubsublite.internal.wire.PubsubContext.Framework;\nimport com.google.cloud.pubsublite.internal.wire.RoutingPublisherBuilder;\nimport com.google.cloud.pubsublite.internal.wire.SinglePartitionPublisherBuilder;\nimport java.util.Map;\nimport org.apache.kafka.common.config.ConfigValue;\n\nclass PublisherFactoryImpl implements PublisherFactory {\n\n-  private final AdminClient adminClient;\n-  private final PubsubContext pubsubContext;\n-\n-  public PublisherFactoryImpl(AdminClient adminClient, PubsubContext pubsubContext) {\n-    this.adminClient = adminClient;\n-    this.pubsubContext = pubsubContext;\n-  }\n+  private static final Framework FRAMEWORK = Framework.of(\"KAFKA_CONNECT\");\n-  public SinglePartitionPublisherBuilder.Builder newPublisher(String topicPath, int partition) {\n-    return SinglePartitionPublisherBuilder.newBuilder()\n-        .setAdminClient(adminClient)\n-        .setTopic(topicPath)\n-        .setPartition(partition)\n-        .setContext(pubsubContext)\n-        .build();\n+  public Publisher<PublishMetadata> newPublisher(Map<String, String> params) {\n+    Map<String, ConfigValue> config = ConfigDefs.config().validateAll(params);\n+    RoutingPublisherBuilder.Builder builder = RoutingPublisherBuilder.newBuilder();\n+    TopicPath topic =\n+        TopicPath.newBuilder()\n+            .setProject(\n+                ProjectPath.parse(\"projects/\" + config.get(ConfigDefs.PROJECT_FLAG).value())\n+                    .project())\n+            .setLocation(CloudZone.parse(config.get(ConfigDefs.LOCATION_FLAG).value().toString()))\n+            .setName(TopicName.of(config.get(ConfigDefs.TOPIC_NAME_FLAG).value().toString()))\n+            .build();\n+    builder.setTopic(topic);\n+    builder.setPublisherFactory(\n+        partition ->\n+            SinglePartitionPublisherBuilder.newBuilder()\n+                .setTopic(topic)\n  public Publisher<PublishMetadata> newPublisher(Map<String, String> params) {\n    Map<String, ConfigValue> config = ConfigDefs.config().validateAll(params);\n    RoutingPublisherBuilder.Builder builder = RoutingPublisherBuilder.newBuilder();\n    TopicPath topic =\n        TopicPath.newBuilder()\n            .setProject(\n                ProjectPath.parse(\"projects/\" + config.get(ConfigDefs.PROJECT_FLAG).value())\n                    .project())\n            .setLocation(CloudZone.parse(config.get(ConfigDefs.LOCATION_FLAG).value().toString()))\n            .setName(TopicName.of(config.get(ConfigDefs.TOPIC_NAME_FLAG).value().toString()))\n            .build();\n    builder.setTopic(topic);\n    builder.setPublisherFactory(\n        partition ->\n            SinglePartitionPublisherBuilder.newBuilder()\n                .setTopic(topic)\n                .setPartition(partition)\n                .setContext(PubsubContext.of(FRAMEWORK))\n                .build());\n    return builder.build();\n  }\n}\n"
+                },
+                "compile_error_details": {
+                    "src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java": {
+                        "33": {
+                            "lines": [
+                                {
+                                    "line_no": 32,
+                                    "content": ""
+                                },
+                                {
+                                    "line_no": 33,
+                                    "content": "-  private final AdminClient adminClient;"
+                                },
+                                {
+                                    "line_no": 34,
+                                    "content": "-  private final PubsubContext pubsubContext;"
+                                }
+                            ],
+                            "error_texts": [
+                                "[33,1] illegal start of type\n"
+                            ]
+                        },
+                        "34": {
+                            "lines": [
+                                {
+                                    "line_no": 33,
+                                    "content": "-  private final AdminClient adminClient;"
+                                },
+                                {
+                                    "line_no": 34,
+                                    "content": "-  private final PubsubContext pubsubContext;"
+                                },
+                                {
+                                    "line_no": 35,
+                                    "content": "-"
+                                }
+                            ],
+                            "error_texts": [
+                                "[34,1] illegal start of type\n"
+                            ]
+                        },
+                        "35": {
+                            "lines": [
+                                {
+                                    "line_no": 34,
+                                    "content": "-  private final PubsubContext pubsubContext;"
+                                },
+                                {
+                                    "line_no": 35,
+                                    "content": "-"
+                                },
+                                {
+                                    "line_no": 36,
+                                    "content": "-  public PublisherFactoryImpl(AdminClient adminClient, PubsubContext pubsubContext) {"
+                                }
+                            ],
+                            "error_texts": [
+                                "[35,1] illegal start of type\n"
+                            ]
+                        },
+                        "39": {
+                            "lines": [
+                                {
+                                    "line_no": 38,
+                                    "content": "-    this.pubsubContext = pubsubContext;"
+                                },
+                                {
+                                    "line_no": 39,
+                                    "content": "-  }"
+                                },
+                                {
+                                    "line_no": 40,
+                                    "content": "+  private static final Framework FRAMEWORK = Framework.of(\"KAFKA_CONNECT\");"
+                                }
+                            ],
+                            "error_texts": [
+                                "[39,4] illegal start of expression\n",
+                                "[39,1] not a statement\n"
+                            ]
+                        },
+                        "40": {
+                            "lines": [
+                                {
+                                    "line_no": 39,
+                                    "content": "-  }"
+                                },
+                                {
+                                    "line_no": 40,
+                                    "content": "+  private static final Framework FRAMEWORK = Framework.of(\"KAFKA_CONNECT\");"
+                                },
+                                {
+                                    "line_no": 41,
+                                    "content": "-  public SinglePartitionPublisherBuilder.Builder newPublisher(String topicPath, int partition) {"
+                                }
+                            ],
+                            "error_texts": [
+                                "[40,1] illegal start of type\n"
+                            ]
+                        },
+                        "41": {
+                            "lines": [
+                                {
+                                    "line_no": 40,
+                                    "content": "+  private static final Framework FRAMEWORK = Framework.of(\"KAFKA_CONNECT\");"
+                                },
+                                {
+                                    "line_no": 41,
+                                    "content": "-  public SinglePartitionPublisherBuilder.Builder newPublisher(String topicPath, int partition) {"
+                                },
+                                {
+                                    "line_no": 42,
+                                    "content": "-    return SinglePartitionPublisherBuilder.newBuilder()"
+                                }
+                            ],
+                            "error_texts": [
+                                "[41,1] illegal start of type\n"
+                            ]
+                        },
+                        "42": {
+                            "lines": [
+                                {
+                                    "line_no": 41,
+                                    "content": "-  public SinglePartitionPublisherBuilder.Builder newPublisher(String topicPath, int partition) {"
+                                },
+                                {
+                                    "line_no": 42,
+                                    "content": "-    return SinglePartitionPublisherBuilder.newBuilder()"
+                                },
+                                {
+                                    "line_no": 43,
+                                    "content": "-        .setAdminClient(adminClient)"
+                                }
+                            ],
+                            "error_texts": [
+                                "[42,1] not a statement\n",
+                                "[42,6] illegal start of expression\n"
+                            ]
+                        },
+                        "43": {
+                            "lines": [
+                                {
+                                    "line_no": 42,
+                                    "content": "-    return SinglePartitionPublisherBuilder.newBuilder()"
+                                },
+                                {
+                                    "line_no": 43,
+                                    "content": "-        .setAdminClient(adminClient)"
+                                },
+                                {
+                                    "line_no": 44,
+                                    "content": "-        .setTopic(topicPath)"
+                                }
+                            ],
+                            "error_texts": [
+                                "[43,10] illegal start of expression\n"
+                            ]
+                        },
+                        "44": {
+                            "lines": [
+                                {
+                                    "line_no": 43,
+                                    "content": "-        .setAdminClient(adminClient)"
+                                },
+                                {
+                                    "line_no": 44,
+                                    "content": "-        .setTopic(topicPath)"
+                                },
+                                {
+                                    "line_no": 45,
+                                    "content": "-        .setPartition(partition)"
+                                }
+                            ],
+                            "error_texts": [
+                                "[44,1] not a statement\n",
+                                "[44,10] illegal start of expression\n"
+                            ]
+                        },
+                        "45": {
+                            "lines": [
+                                {
+                                    "line_no": 44,
+                                    "content": "-        .setTopic(topicPath)"
+                                },
+                                {
+                                    "line_no": 45,
+                                    "content": "-        .setPartition(partition)"
+                                },
+                                {
+                                    "line_no": 46,
+                                    "content": "-        .setContext(pubsubContext)"
+                                }
+                            ],
+                            "error_texts": [
+                                "[45,10] illegal start of expression\n",
+                                "[45,1] not a statement\n"
+                            ]
+                        },
+                        "46": {
+                            "lines": [
+                                {
+                                    "line_no": 45,
+                                    "content": "-        .setPartition(partition)"
+                                },
+                                {
+                                    "line_no": 46,
+                                    "content": "-        .setContext(pubsubContext)"
+                                },
+                                {
+                                    "line_no": 47,
+                                    "content": "-        .build();"
+                                }
+                            ],
+                            "error_texts": [
+                                "[46,1] not a statement\n",
+                                "[46,10] illegal start of expression\n"
+                            ]
+                        },
+                        "47": {
+                            "lines": [
+                                {
+                                    "line_no": 46,
+                                    "content": "-        .setContext(pubsubContext)"
+                                },
+                                {
+                                    "line_no": 47,
+                                    "content": "-        .build();"
+                                },
+                                {
+                                    "line_no": 48,
+                                    "content": "+  public Publisher<PublishMetadata> newPublisher(Map<String, String> params) {"
+                                }
+                            ],
+                            "error_texts": [
+                                "[47,1] not a statement\n",
+                                "[47,10] illegal start of expression\n"
+                            ]
+                        },
+                        "48": {
+                            "lines": [
+                                {
+                                    "line_no": 47,
+                                    "content": "-        .build();"
+                                },
+                                {
+                                    "line_no": 48,
+                                    "content": "+  public Publisher<PublishMetadata> newPublisher(Map<String, String> params) {"
+                                },
+                                {
+                                    "line_no": 49,
+                                    "content": "+    Map<String, ConfigValue> config = ConfigDefs.config().validateAll(params);"
+                                }
+                            ],
+                            "error_texts": [
+                                "[48,4] illegal start of expression\n",
+                                "[48,1] not a statement\n"
+                            ]
+                        },
+                        "49": {
+                            "lines": [
+                                {
+                                    "line_no": 48,
+                                    "content": "+  public Publisher<PublishMetadata> newPublisher(Map<String, String> params) {"
+                                },
+                                {
+                                    "line_no": 49,
+                                    "content": "+    Map<String, ConfigValue> config = ConfigDefs.config().validateAll(params);"
+                                },
+                                {
+                                    "line_no": 50,
+                                    "content": "+    RoutingPublisherBuilder.Builder builder = RoutingPublisherBuilder.newBuilder();"
+                                }
+                            ],
+                            "error_texts": [
+                                "[49,16] ';' expected\n",
+                                "[49,9] not a statement\n"
+                            ]
+                        },
+                        "50": {
+                            "lines": [
+                                {
+                                    "line_no": 49,
+                                    "content": "+    Map<String, ConfigValue> config = ConfigDefs.config().validateAll(params);"
+                                },
+                                {
+                                    "line_no": 50,
+                                    "content": "+    RoutingPublisherBuilder.Builder builder = RoutingPublisherBuilder.newBuilder();"
+                                },
+                                {
+                                    "line_no": 51,
+                                    "content": "+    TopicPath topic ="
+                                }
+                            ],
+                            "error_texts": [
+                                "[50,1] not a statement\n",
+                                "[50,37] ';' expected\n"
+                            ]
+                        },
+                        "51": {
+                            "lines": [
+                                {
+                                    "line_no": 50,
+                                    "content": "+    RoutingPublisherBuilder.Builder builder = RoutingPublisherBuilder.newBuilder();"
+                                },
+                                {
+                                    "line_no": 51,
+                                    "content": "+    TopicPath topic ="
+                                },
+                                {
+                                    "line_no": 52,
+                                    "content": "+        TopicPath.newBuilder()"
+                                }
+                            ],
+                            "error_texts": [
+                                "[51,1] not a statement\n",
+                                "[51,15] ';' expected\n"
+                            ]
+                        },
+                        "53": {
+                            "lines": [
+                                {
+                                    "line_no": 52,
+                                    "content": "+        TopicPath.newBuilder()"
+                                },
+                                {
+                                    "line_no": 53,
+                                    "content": "+            .setProject("
+                                },
+                                {
+                                    "line_no": 54,
+                                    "content": "+                ProjectPath.parse(\"projects/\" + config.get(ConfigDefs.PROJECT_FLAG).value())"
+                                }
+                            ],
+                            "error_texts": [
+                                "[53,14] illegal start of expression\n"
+                            ]
+                        },
+                        "55": {
+                            "lines": [
+                                {
+                                    "line_no": 54,
+                                    "content": "+                ProjectPath.parse(\"projects/\" + config.get(ConfigDefs.PROJECT_FLAG).value())"
+                                },
+                                {
+                                    "line_no": 55,
+                                    "content": "+                    .project())"
+                                },
+                                {
+                                    "line_no": 56,
+                                    "content": "+            .setLocation(CloudZone.parse(config.get(ConfigDefs.LOCATION_FLAG).value().toString()))"
+                                }
+                            ],
+                            "error_texts": [
+                                "[55,22] illegal start of expression\n",
+                                "[55,32] ';' expected\n"
+                            ]
+                        },
+                        "57": {
+                            "lines": [
+                                {
+                                    "line_no": 56,
+                                    "content": "+            .setLocation(CloudZone.parse(config.get(ConfigDefs.LOCATION_FLAG).value().toString()))"
+                                },
+                                {
+                                    "line_no": 57,
+                                    "content": "+            .setName(TopicName.of(config.get(ConfigDefs.TOPIC_NAME_FLAG).value().toString()))"
+                                },
+                                {
+                                    "line_no": 58,
+                                    "content": "+            .build();"
+                                }
+                            ],
+                            "error_texts": [
+                                "[57,1] not a statement\n",
+                                "[57,14] illegal start of expression\n"
+                            ]
+                        },
+                        "58": {
+                            "lines": [
+                                {
+                                    "line_no": 57,
+                                    "content": "+            .setName(TopicName.of(config.get(ConfigDefs.TOPIC_NAME_FLAG).value().toString()))"
+                                },
+                                {
+                                    "line_no": 58,
+                                    "content": "+            .build();"
+                                },
+                                {
+                                    "line_no": 59,
+                                    "content": "+    builder.setTopic(topic);"
+                                }
+                            ],
+                            "error_texts": [
+                                "[58,1] not a statement\n",
+                                "[58,14] illegal start of expression\n"
+                            ]
+                        },
+                        "59": {
+                            "lines": [
+                                {
+                                    "line_no": 58,
+                                    "content": "+            .build();"
+                                },
+                                {
+                                    "line_no": 59,
+                                    "content": "+    builder.setTopic(topic);"
+                                },
+                                {
+                                    "line_no": 60,
+                                    "content": "+    builder.setPublisherFactory("
+                                }
+                            ],
+                            "error_texts": [
+                                "[59,1] not a statement\n"
+                            ]
+                        },
+                        "63": {
+                            "lines": [
+                                {
+                                    "line_no": 62,
+                                    "content": "+            SinglePartitionPublisherBuilder.newBuilder()"
+                                },
+                                {
+                                    "line_no": 63,
+                                    "content": "+                .setTopic(topic)"
+                                },
+                                {
+                                    "line_no": 64,
+                                    "content": "  public Publisher<PublishMetadata> newPublisher(Map<String, String> params) {"
+                                }
+                            ],
+                            "error_texts": [
+                                "[63,18] illegal start of expression\n",
+                                "[63,34] ')' expected\n"
+                            ]
+                        },
+                        "60": {
+                            "lines": [
+                                {
+                                    "line_no": 59,
+                                    "content": "+    builder.setTopic(topic);"
+                                },
+                                {
+                                    "line_no": 60,
+                                    "content": "+    builder.setPublisherFactory("
+                                },
+                                {
+                                    "line_no": 61,
+                                    "content": "+        partition ->"
+                                }
+                            ],
+                            "error_texts": [
+                                "[60,1] not a statement\n"
+                            ]
+                        },
+                        "64": {
+                            "lines": [
+                                {
+                                    "line_no": 63,
+                                    "content": "+                .setTopic(topic)"
+                                },
+                                {
+                                    "line_no": 64,
+                                    "content": "  public Publisher<PublishMetadata> newPublisher(Map<String, String> params) {"
+                                },
+                                {
+                                    "line_no": 65,
+                                    "content": "    Map<String, ConfigValue> config = ConfigDefs.config().validateAll(params);"
+                                }
+                            ],
+                            "error_texts": [
+                                "[64,3] illegal start of expression\n"
+                            ]
+                        }
+                    }
+                }
+            },
+            "error": "illegal start of expression\n",
+            "span_id": 9659085160581423451
+        },
+        {
+            "input": "```diff\ndiff --git a/src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java b/src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java\nindex 4d4d4d1..d4d4d4d 100644\n--- a/src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java\n+++ b/src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java\n@@ -17,7 +17,7 @@ import com.google.api.core.ApiFuture;\n import com.google.api.core.ApiFutures;\n import com.google.cloud.pubsublite.AdminClient;\n import com.google.cloud.pubsublite.MessageMetadata;\n-import com.google.cloud.pubsublite.PublishMetadata;\n+import com.google.cloud.pubsublite.proto.PublishMetadata;\n import com.google.cloud.pubsublite.internal.wire.PubsubContext;\n import com.google.cloud.pubsublite.internal.wire.SinglePartitionPublisherBuilder;\n import com.google.common.util.concurrent.MoreExecutors;\n@@ -30,27 +30,30 @@ import java.util.concurrent.Executor;\n \n public class PublisherFactoryImpl implements PublisherFactory {\n \n-  private final AdminClient adminClient;\n-  private final PubsubContext pubsubContext;\n+  private static final Framework FRAMEWORK = Framework.of(\"KAFKA_CONNECT\");\n \n-  public PublisherFactoryImpl(AdminClient adminClient, PubsubContext pubsubContext) {\n-    this.adminClient = adminClient;\n-    this.pubsubContext = pubsubContext;\n-  }\n-\n-  @Override\n-  public SinglePartitionPublisherBuilder.Builder newPublisher(String topicPath, int partition) {\n-    return SinglePartitionPublisherBuilder.newBuilder()\n-        .setAdminClient(adminClient)\n-        .setTopic(topicPath)\n-        .setPartition(partition)\n-        .setContext(pubsubContext)\n-        .build();\n+  @Override\n+  public Publisher<PublishMetadata> newPublisher(Map<String, String> params) {\n+    Map<String, ConfigValue> config = ConfigDefs.config().validateAll(params);\n+    RoutingPublisherBuilder.Builder builder = RoutingPublisherBuilder.newBuilder();\n+    TopicPath topic =\n+        TopicPath.newBuilder()\n+            .setProject(\n+                ProjectPath.parse(\"projects/\" + config.get(ConfigDefs.PROJECT_FLAG).value())\n+                    .project())\n+            .setLocation(CloudZone.parse(config.get(ConfigDefs.LOCATION_FLAG).value().toString()))\n+            .setName(TopicName.of(config.get(ConfigDefs.TOPIC_NAME_FLAG).value().toString()))\n+            .build();\n+    builder.setTopic(topic);\n+    builder.setPublisherFactory(\n+        partition ->\n+            SinglePartitionPublisherBuilder.newBuilder()\n+                .setTopic(topic)\n+                .setPartition(partition)\n+                .setContext(PubsubContext.of(FRAMEWORK))\n+                .build());\n+    return builder.build();\n   }\n }\n ```",
+            "output": {
+                "compilation_has_succeeded": false,
+                "test_has_succeeded": false,
+                "error_text": "Failed to prepare diffs: Diff is not valid, UnifiedDiffNoMatch: hunk failed to apply!\nsrc/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java does not contain lines that match the diff you provided!\nTry again.\nDO NOT, NEVER, skip blank lines, comments, docstrings, etc!\nThe diff needs to apply cleanly to the lines in src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java!\nMake extra sure the indentation is correct.\nsrc/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java does not contain these 7 exact lines in a row:\n```\nimport com.google.api.core.ApiFutures;\nimport com.google.cloud.pubsublite.AdminClient;\nimport com.google.cloud.pubsublite.MessageMetadata;\nimport com.google.cloud.pubsublite.PublishMetadata;\nimport com.google.cloud.pubsublite.internal.wire.PubsubContext;\nimport com.google.cloud.pubsublite.internal.wire.SinglePartitionPublisherBuilder;\nimport com.google.common.util.concurrent.MoreExecutors;\n```\nUnifiedDiffNoMatch: hunk failed to apply!\nsrc/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java does not contain lines that match the diff you provided!\nTry again.\nDO NOT, NEVER, skip blank lines, comments, docstrings, etc!\nThe diff needs to apply cleanly to the lines in src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java!\nMake extra sure the indentation is correct.\nsrc/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java does not contain these 21 exact lines in a row:\n```\npublic class PublisherFactoryImpl implements PublisherFactory {\nprivate final AdminClient adminClient;\nprivate final PubsubContext pubsubContext;\npublic PublisherFactoryImpl(AdminClient adminClient, PubsubContext pubsubContext) {\nthis.adminClient = adminClient;\nthis.pubsubContext = pubsubContext;\n}\n@Override\npublic SinglePartitionPublisherBuilder.Builder newPublisher(String topicPath, int partition) {\nreturn SinglePartitionPublisherBuilder.newBuilder()\n.setAdminClient(adminClient)\n.setTopic(topicPath)\n.setPartition(partition)\n.setContext(pubsubContext)\n.build();\n}\n}\n```",
+                "updated_files": {},
+                "compile_error_details": {}
+            },
+            "error": "Failed to prepare diffs: Diff is not valid, UnifiedDiffNoMatch: hunk failed to apply!\nsrc/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java does not contain lines that match the diff you provided!\nTry again.\nDO NOT, NEVER, skip blank lines, comments, docstrings, etc!\nThe diff needs to apply cleanly to the lines in src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java!\nMake extra sure the indentation is correct.\nsrc/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java does not contain these 7 exact lines in a row:\n```\nimport com.google.api.core.ApiFutures;\nimport com.google.cloud.pubsublite.AdminClient;\nimport com.google.cloud.pubsublite.MessageMetadata;\nimport com.google.cloud.pubsublite.PublishMetadata;\nimport com.google.cloud.pubsublite.internal.wire.PubsubContext;\nimport com.google.cloud.pubsublite.internal.wire.SinglePartitionPublisherBuilder;\nimport com.google.common.util.concurrent.MoreExecutors;\n```\nUnifiedDiffNoMatch: hunk failed to apply!\nsrc/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java does not contain lines that match the diff you provided!\nTry again.\nDO NOT, NEVER, skip blank lines, comments, docstrings, etc!\nThe diff needs to apply cleanly to the lines in src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java!\nMake extra sure the indentation is correct.\nsrc/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java does not contain these 21 exact lines in a row:\n```\npublic class PublisherFactoryImpl implements PublisherFactory {\nprivate final AdminClient adminClient;\nprivate final PubsubContext pubsubContext;\npublic PublisherFactoryImpl(AdminClient adminClient, PubsubContext pubsubContext) {\nthis.adminClient = adminClient;\nthis.pubsubContext = pubsubContext;\n}\n@Override\npublic SinglePartitionPublisherBuilder.Builder newPublisher(String topicPath, int partition) {\nreturn SinglePartitionPublisherBuilder.newBuilder()\n.setAdminClient(adminClient)\n.setTopic(topicPath)\n.setPartition(partition)\n.setContext(pubsubContext)\n.build();\n}\n}\n```",
+            "span_id": 15694434684571174053
+        },
+        {
+            "input": "```diff\ndiff --git a/src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java b/src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java\nindex 4d4d4d1..d4d4d4d 100644\n--- a/src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java\n+++ b/src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java\n@@ -17,7 +17,7 @@ import com.google.api.core.ApiFuture;\n import com.google.api.core.ApiFutures;\n import com.google.cloud.pubsublite.AdminClient;\n import com.google.cloud.pubsublite.MessageMetadata;\n-import com.google.cloud.pubsublite.PublishMetadata;\n+import com.google.cloud.pubsublite.proto.PublishMetadata;\n import com.google.cloud.pubsublite.internal.wire.PubsubContext;\n import com.google.cloud.pubsublite.internal.wire.SinglePartitionPublisherBuilder;\n import com.google.common.util.concurrent.MoreExecutors;\n@@ -30,27 +30,30 @@ import java.util.concurrent.Executor;\n \n public class PublisherFactoryImpl implements PublisherFactory {\n \n-  private final AdminClient adminClient;\n-  private final PubsubContext pubsubContext;\n+  private static final Framework FRAMEWORK = Framework.of(\"KAFKA_CONNECT\");\n \n-  public PublisherFactoryImpl(AdminClient adminClient, PubsubContext pubsubContext) {\n-    this.adminClient = adminClient;\n-    this.pubsubContext = pubsubContext;\n-  }\n-\n-  @Override\n-  public SinglePartitionPublisherBuilder.Builder newPublisher(String topicPath, int partition) {\n-    return SinglePartitionPublisherBuilder.newBuilder()\n-        .setAdminClient(adminClient)\n-        .setTopic(topicPath)\n-        .setPartition(partition)\n-        .setContext(pubsubContext)\n-        .build();\n+  @Override\n+  public Publisher<PublishMetadata> newPublisher(Map<String, String> params) {\n+    Map<String, ConfigValue> config = ConfigDefs.config().validateAll(params);\n+    RoutingPublisherBuilder.Builder builder = RoutingPublisherBuilder.newBuilder();\n+    TopicPath topic =\n+        TopicPath.newBuilder()\n+            .setProject(\n+                ProjectPath.parse(\"projects/\" + config.get(ConfigDefs.PROJECT_FLAG).value())\n+                    .project())\n+            .setLocation(CloudZone.parse(config.get(ConfigDefs.LOCATION_FLAG).value().toString()))\n+            .setName(TopicName.of(config.get(ConfigDefs.TOPIC_NAME_FLAG).value().toString()))\n+            .build();\n+    builder.setTopic(topic);\n+    builder.setPublisherFactory(\n+        partition ->\n+            SinglePartitionPublisherBuilder.newBuilder()\n+                .setTopic(topic)\n+                .setPartition(partition)\n+                .setContext(PubsubContext.of(FRAMEWORK))\n+                .build());\n+    return builder.build();\n   }\n }\n ```",
+            "output": {
+                "compilation_has_succeeded": false,
+                "test_has_succeeded": false,
+                "error_text": "Failed to prepare diffs: Diff is not valid, UnifiedDiffNoMatch: hunk failed to apply!\nsrc/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java does not contain lines that match the diff you provided!\nTry again.\nDO NOT, NEVER, skip blank lines, comments, docstrings, etc!\nThe diff needs to apply cleanly to the lines in src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java!\nMake extra sure the indentation is correct.\nsrc/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java does not contain these 21 exact lines in a row:\n```\npublic class PublisherFactoryImpl implements PublisherFactory {\nprivate final AdminClient adminClient;\nprivate final PubsubContext pubsubContext;\npublic PublisherFactoryImpl(AdminClient adminClient, PubsubContext pubsubContext) {\nthis.adminClient = adminClient;\nthis.pubsubContext = pubsubContext;\n}\n@Override\npublic SinglePartitionPublisherBuilder.Builder newPublisher(String topicPath, int partition) {\nreturn SinglePartitionPublisherBuilder.newBuilder()\n.setAdminClient(adminClient)\n.setTopic(topicPath)\n.setPartition(partition)\n.setContext(pubsubContext)\n.build();\n}\n}\n```",
+                "updated_files": {},
+                "compile_error_details": {}
+            },
+            "error": "Failed to prepare diffs: Diff is not valid, UnifiedDiffNoMatch: hunk failed to apply!\nsrc/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java does not contain lines that match the diff you provided!\nTry again.\nDO NOT, NEVER, skip blank lines, comments, docstrings, etc!\nThe diff needs to apply cleanly to the lines in src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java!\nMake extra sure the indentation is correct.\nsrc/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java does not contain these 21 exact lines in a row:\n```\npublic class PublisherFactoryImpl implements PublisherFactory {\nprivate final AdminClient adminClient;\nprivate final PubsubContext pubsubContext;\npublic PublisherFactoryImpl(AdminClient adminClient, PubsubContext pubsubContext) {\nthis.adminClient = adminClient;\nthis.pubsubContext = pubsubContext;\n}\n@Override\npublic SinglePartitionPublisherBuilder.Builder newPublisher(String topicPath, int partition) {\nreturn SinglePartitionPublisherBuilder.newBuilder()\n.setAdminClient(adminClient)\n.setTopic(topicPath)\n.setPartition(partition)\n.setContext(pubsubContext)\n.build();\n}\n}\n```",
+            "span_id": 14000445229798791698
+        }
+    ],
+    "read_file": [
+        {
+            "input": "src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java",
+            "output": "/*\n * Copyright 2020 Google LLC\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n *       http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\npackage com.google.pubsublite.kafka.sink;\n\nimport com.google.cloud.pubsublite.CloudZone;\nimport com.google.cloud.pubsublite.ProjectPath;\nimport com.google.cloud.pubsublite.PublishMetadata;\nimport com.google.cloud.pubsublite.TopicName;\nimport com.google.cloud.pubsublite.TopicPath;\nimport com.google.cloud.pubsublite.internal.Publisher;\nimport com.google.cloud.pubsublite.internal.wire.PubsubContext;\nimport com.google.cloud.pubsublite.internal.wire.PubsubContext.Framework;\nimport com.google.cloud.pubsublite.internal.wire.RoutingPublisherBuilder;\nimport com.google.cloud.pubsublite.internal.wire.SinglePartitionPublisherBuilder;\nimport java.util.Map;\nimport org.apache.kafka.common.config.ConfigValue;\n\nclass PublisherFactoryImpl implements PublisherFactory {\n\n  private static final Framework FRAMEWORK = Framework.of(\"KAFKA_CONNECT\");\n\n  @Override\n  public Publisher<PublishMetadata> newPublisher(Map<String, String> params) {\n    Map<String, ConfigValue> config = ConfigDefs.config().validateAll(params);\n    RoutingPublisherBuilder.Builder builder = RoutingPublisherBuilder.newBuilder();\n    TopicPath topic =\n        TopicPath.newBuilder()\n            .setProject(\n                ProjectPath.parse(\"projects/\" + config.get(ConfigDefs.PROJECT_FLAG).value())\n                    .project())\n            .setLocation(CloudZone.parse(config.get(ConfigDefs.LOCATION_FLAG).value().toString()))\n            .setName(TopicName.of(config.get(ConfigDefs.TOPIC_NAME_FLAG).value().toString()))\n            .build();\n    builder.setTopic(topic);\n    builder.setPublisherFactory(\n        partition ->\n            SinglePartitionPublisherBuilder.newBuilder()\n                .setTopic(topic)\n                .setPartition(partition)\n                .setContext(PubsubContext.of(FRAMEWORK))\n                .build());\n    return builder.build();\n  }\n}\n",
+            "error": "",
+            "span_id": 6043781655160984770
+        },
+        {
+            "input": "src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java",
+            "output": "/*\n * Copyright 2020 Google LLC\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n *       http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\npackage com.google.pubsublite.kafka.sink;\n\nimport com.google.cloud.pubsublite.CloudZone;\nimport com.google.cloud.pubsublite.ProjectPath;\nimport com.google.cloud.pubsublite.PublishMetadata;\nimport com.google.cloud.pubsublite.TopicName;\nimport com.google.cloud.pubsublite.TopicPath;\nimport com.google.cloud.pubsublite.internal.Publisher;\nimport com.google.cloud.pubsublite.internal.wire.PubsubContext;\nimport com.google.cloud.pubsublite.internal.wire.PubsubContext.Framework;\nimport com.google.cloud.pubsublite.internal.wire.RoutingPublisherBuilder;\nimport com.google.cloud.pubsublite.internal.wire.SinglePartitionPublisherBuilder;\nimport java.util.Map;\nimport org.apache.kafka.common.config.ConfigValue;\n\nclass PublisherFactoryImpl implements PublisherFactory {\n\n  private static final Framework FRAMEWORK = Framework.of(\"KAFKA_CONNECT\");\n\n  @Override\n  public Publisher<PublishMetadata> newPublisher(Map<String, String> params) {\n    Map<String, ConfigValue> config = ConfigDefs.config().validateAll(params);\n    RoutingPublisherBuilder.Builder builder = RoutingPublisherBuilder.newBuilder();\n    TopicPath topic =\n        TopicPath.newBuilder()\n            .setProject(\n                ProjectPath.parse(\"projects/\" + config.get(ConfigDefs.PROJECT_FLAG).value())\n                    .project())\n            .setLocation(CloudZone.parse(config.get(ConfigDefs.LOCATION_FLAG).value().toString()))\n            .setName(TopicName.of(config.get(ConfigDefs.TOPIC_NAME_FLAG).value().toString()))\n            .build();\n    builder.setTopic(topic);\n    builder.setPublisherFactory(\n        partition ->\n            SinglePartitionPublisherBuilder.newBuilder()\n                .setTopic(topic)\n                .setPartition(partition)\n                .setContext(PubsubContext.of(FRAMEWORK))\n                .build());\n    return builder.build();\n  }\n}\n",
+            "error": "",
+            "span_id": 17118183146814505071
+        }
+    ],
+    "get_directory_tree": [
+        {
+            "input": "src/main/java/com/google/pubsublite/kafka/sink",
+            "output": "[\n    {\n        \"name\": \"Constants.java\",\n        \"type\": \"file\"\n    },\n    {\n        \"name\": \"ConfigDefs.java\",\n        \"type\": \"file\"\n    },\n    {\n        \"name\": \"PublisherFactory.java\",\n        \"type\": \"file\"\n    },\n    {\n        \"name\": \"PubSubLiteSinkConnector.java\",\n        \"type\": \"file\"\n    },\n    {\n        \"name\": \"PublisherFactoryImpl.java\",\n        \"type\": \"file\"\n    },\n    {\n        \"name\": \"Schemas.java\",\n        \"type\": \"file\"\n    },\n    {\n        \"name\": \"PubSubLiteSinkTask.java\",\n        \"type\": \"file\"\n    }\n]",
+            "error": "",
+            "span_id": 3044344115049931339
+        }
+    ],
+    "get_language_server_suggestions": [],
+    "reset_repo": [
+        {
+            "input": "",
+            "output": "Successful reset of repository",
+            "error": "",
+            "span_id": 391822601886225671
+        }
+    ]
+}

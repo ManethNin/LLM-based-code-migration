@@ -1,0 +1,232 @@
+{
+    "validate_diffs": [],
+    "compile_maven": [
+        {
+            "input": "```diff\nthrift-logger/src/main/java/com/pinterest/singer/client/logback/AppenderUtils.java\n@@\n-import org.apache.thrift.transport.TFastFramedTransport;\n+import org.apache.thrift.transport.TFramedTransport;\n@@\n    private TTransport framedTransport;\n@@\n      framedTransport = new TFastFramedTransport(new TIOStreamTransport(os),\n+      framedTransport = new TFramedTransport(new TIOStreamTransport(os),\n```",
+            "output": {
+                "compilation_has_succeeded": false,
+                "test_has_succeeded": false,
+                "error_text": "')' expected\n",
+                "updated_files": {
+                    "thrift-logger/src/main/java/com/pinterest/singer/client/logback/AppenderUtils.java": "/**\n * Copyright 2019 Pinterest, Inc.\n * \n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n * \n *    http://www.apache.org/licenses/LICENSE-2.0\n * \n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\npackage com.pinterest.singer.client.logback;\n\nimport com.pinterest.singer.thrift.LogMessage;\n\nimport ch.qos.logback.core.Appender;\nimport ch.qos.logback.core.Context;\nimport ch.qos.logback.core.encoder.EncoderBase;\nimport ch.qos.logback.core.rolling.RollingFileAppender;\nimport ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP;\nimport ch.qos.logback.core.rolling.TimeBasedRollingPolicy;\nimport ch.qos.logback.core.util.FileSize;\nimport org.apache.thrift.TException;\nimport org.apache.thrift.protocol.TBinaryProtocol;\nimport org.apache.thrift.protocol.TProtocol;\nimport org.apache.thrift.transport.TFramedTransport;\nimport org.apache.thrift.transport.TIOStreamTransport;\nimport org.apache.thrift.transport.TTransport;\n\nimport java.io.File;\nimport java.io.IOException;\nimport java.io.OutputStream;\n\n/**\n * Utils to create logback appenders\n */\npublic class AppenderUtils {\n\n  public static final String PATH_SEP = \"/\";\n\n  private AppenderUtils() {\n  }\n\n  /**\n   * Encoder for LogMessage objects.\n   */\n  public static class LogMessageEncoder extends EncoderBase<LogMessage> {\n\n    private TTransport framedTransport;\n    private TProtocol protocol;\n    private OutputStream os;\n\n    @Override\n    public void init(OutputStream os) {\n      this.os = os;\n      // Use the TFlushingFastFramedTransport to be compatible with singer_thrift\n      // log.\n      final int bufferCapacity = 10;\n      framedTransport = new TFastFramedTransport(new TIOStreamTransport(os),\n      framedTransport = new TFramedTransport(new TIOStreamTransport(os),\n          bufferCapacity);\n      protocol = new TBinaryProtocol(framedTransport);\n    }\n\n    @Override\n    public void doEncode(LogMessage logMessage) throws IOException {\n      try {\n        logMessage.write(protocol);\n        framedTransport.flush();\n      } catch (TException e) {\n        throw new IOException(e);\n      }\n    }\n\n    @Override\n    public void close() throws IOException {\n      framedTransport.close();\n    }\n  }\n\n  /**\n   * Create the basic thrift appender which logs to a file\n   * and rolls the file when it exceeds a certain size.\n   *\n   * @param basePath base directory the files are under.\n   * @param topic the topic name for the current appender.\n   * @param rotateThresholdKBytes threshold in kilobytes to rotate after.\n   * @param context the logback context.\n   */\n  public static Appender<LogMessage> createFileRollingThriftAppender(\n      File basePath,\n      String topic,\n      long rotateThresholdKBytes,\n      Context context,\n      int maxRetentionHours) {\n    RollingFileAppender<LogMessage> appender = new RollingFileAppender<LogMessage>();\n    appender.setContext(context);\n    appender.setAppend(true);\n    appender.setPrudent(false);\n\n    LogMessageEncoder encoder = new LogMessageEncoder();\n    appender.setEncoder(encoder);\n    appender.setFile(basePath + PATH_SEP + topic);\n\n    TimeBasedRollingPolicy policy = new TimeBasedRollingPolicy();\n    policy.setMaxHistory(maxRetentionHours);\n    policy.setFileNamePattern(basePath + PATH_SEP + topic + \".%d{yyyy-MM-dd-HH}.%i\");\n    policy.setCleanHistoryOnStart(false);\n    policy.setContext(context);\n    policy.setParent(appender);\n\n    // Also impose a max size per file policy.\n    SizeAndTimeBasedFNATP fnatp = new SizeAndTimeBasedFNATP();\n    fnatp.setContext(context);\n    fnatp.setTimeBasedRollingPolicy(policy);\n    fnatp.setMaxFileSize(FileSize.valueOf(String.format(\"%sKB\", rotateThresholdKBytes)));\n\n    policy.setTimeBasedFileNamingAndTriggeringPolicy(fnatp);\n    appender.setRollingPolicy(policy);\n    appender.setTriggeringPolicy(policy);\n\n    policy.start();\n    appender.start();\n\n    return appender;\n  }\n}\n"
+                },
+                "compile_error_details": {
+                    "thrift-logger/src/main/java/com/pinterest/singer/client/logback/AppenderUtils.java": {
+                        "65": {
+                            "lines": [
+                                {
+                                    "line_no": 64,
+                                    "content": "      framedTransport = new TFramedTransport(new TIOStreamTransport(os),"
+                                },
+                                {
+                                    "line_no": 65,
+                                    "content": "          bufferCapacity);"
+                                },
+                                {
+                                    "line_no": 66,
+                                    "content": "      protocol = new TBinaryProtocol(framedTransport);"
+                                }
+                            ],
+                            "error_texts": [
+                                "[65,26] ')' expected\n"
+                            ]
+                        }
+                    }
+                }
+            },
+            "error": "')' expected\n",
+            "span_id": 3082490499826688088
+        },
+        {
+            "input": "```diff\nthrift-logger/src/main/java/com/pinterest/singer/client/logback/AppenderUtils.java\n@@\n      framedTransport = new TFastFramedTransport(new TIOStreamTransport(os),\n-      framedTransport = new TFramedTransport(new TIOStreamTransport(os),\n-          bufferCapacity);\n+      framedTransport = new TFramedTransport(new TIOStreamTransport(os));\n```",
+            "output": {
+                "compilation_has_succeeded": false,
+                "test_has_succeeded": false,
+                "error_text": "')' expected\n",
+                "updated_files": {
+                    "thrift-logger/src/main/java/com/pinterest/singer/client/logback/AppenderUtils.java": "/**\n * Copyright 2019 Pinterest, Inc.\n * \n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n * \n *    http://www.apache.org/licenses/LICENSE-2.0\n * \n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\npackage com.pinterest.singer.client.logback;\n\nimport com.pinterest.singer.thrift.LogMessage;\n\nimport ch.qos.logback.core.Appender;\nimport ch.qos.logback.core.Context;\nimport ch.qos.logback.core.encoder.EncoderBase;\nimport ch.qos.logback.core.rolling.RollingFileAppender;\nimport ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP;\nimport ch.qos.logback.core.rolling.TimeBasedRollingPolicy;\nimport ch.qos.logback.core.util.FileSize;\nimport org.apache.thrift.TException;\nimport org.apache.thrift.protocol.TBinaryProtocol;\nimport org.apache.thrift.protocol.TProtocol;\nimport org.apache.thrift.transport.TFramedTransport;\nimport org.apache.thrift.transport.TIOStreamTransport;\nimport org.apache.thrift.transport.TTransport;\n\nimport java.io.File;\nimport java.io.IOException;\nimport java.io.OutputStream;\n\n/**\n * Utils to create logback appenders\n */\npublic class AppenderUtils {\n\n  public static final String PATH_SEP = \"/\";\n\n  private AppenderUtils() {\n  }\n\n  /**\n   * Encoder for LogMessage objects.\n   */\n  public static class LogMessageEncoder extends EncoderBase<LogMessage> {\n\n    private TTransport framedTransport;\n    private TProtocol protocol;\n    private OutputStream os;\n\n    @Override\n    public void init(OutputStream os) {\n      this.os = os;\n      // Use the TFlushingFastFramedTransport to be compatible with singer_thrift\n      // log.\n      final int bufferCapacity = 10;\n      framedTransport = new TFastFramedTransport(new TIOStreamTransport(os),\n      framedTransport = new TFramedTransport(new TIOStreamTransport(os));\n      protocol = new TBinaryProtocol(framedTransport);\n    }\n\n    @Override\n    public void doEncode(LogMessage logMessage) throws IOException {\n      try {\n        logMessage.write(protocol);\n        framedTransport.flush();\n      } catch (TException e) {\n        throw new IOException(e);\n      }\n    }\n\n    @Override\n    public void close() throws IOException {\n      framedTransport.close();\n    }\n  }\n\n  /**\n   * Create the basic thrift appender which logs to a file\n   * and rolls the file when it exceeds a certain size.\n   *\n   * @param basePath base directory the files are under.\n   * @param topic the topic name for the current appender.\n   * @param rotateThresholdKBytes threshold in kilobytes to rotate after.\n   * @param context the logback context.\n   */\n  public static Appender<LogMessage> createFileRollingThriftAppender(\n      File basePath,\n      String topic,\n      long rotateThresholdKBytes,\n      Context context,\n      int maxRetentionHours) {\n    RollingFileAppender<LogMessage> appender = new RollingFileAppender<LogMessage>();\n    appender.setContext(context);\n    appender.setAppend(true);\n    appender.setPrudent(false);\n\n    LogMessageEncoder encoder = new LogMessageEncoder();\n    appender.setEncoder(encoder);\n    appender.setFile(basePath + PATH_SEP + topic);\n\n    TimeBasedRollingPolicy policy = new TimeBasedRollingPolicy();\n    policy.setMaxHistory(maxRetentionHours);\n    policy.setFileNamePattern(basePath + PATH_SEP + topic + \".%d{yyyy-MM-dd-HH}.%i\");\n    policy.setCleanHistoryOnStart(false);\n    policy.setContext(context);\n    policy.setParent(appender);\n\n    // Also impose a max size per file policy.\n    SizeAndTimeBasedFNATP fnatp = new SizeAndTimeBasedFNATP();\n    fnatp.setContext(context);\n    fnatp.setTimeBasedRollingPolicy(policy);\n    fnatp.setMaxFileSize(FileSize.valueOf(String.format(\"%sKB\", rotateThresholdKBytes)));\n\n    policy.setTimeBasedFileNamingAndTriggeringPolicy(fnatp);\n    appender.setRollingPolicy(policy);\n    appender.setTriggeringPolicy(policy);\n\n    policy.start();\n    appender.start();\n\n    return appender;\n  }\n}\n"
+                },
+                "compile_error_details": {
+                    "thrift-logger/src/main/java/com/pinterest/singer/client/logback/AppenderUtils.java": {
+                        "64": {
+                            "lines": [
+                                {
+                                    "line_no": 63,
+                                    "content": "      framedTransport = new TFastFramedTransport(new TIOStreamTransport(os),"
+                                },
+                                {
+                                    "line_no": 64,
+                                    "content": "      framedTransport = new TFramedTransport(new TIOStreamTransport(os));"
+                                },
+                                {
+                                    "line_no": 65,
+                                    "content": "      protocol = new TBinaryProtocol(framedTransport);"
+                                }
+                            ],
+                            "error_texts": [
+                                "[64,73] ')' expected\n"
+                            ]
+                        }
+                    }
+                }
+            },
+            "error": "')' expected\n",
+            "span_id": 9203833344101282577
+        },
+        {
+            "input": "```diff\nthrift-logger/src/main/java/com/pinterest/singer/client/logback/AppenderUtils.java\n@@\n      framedTransport = new TFastFramedTransport(new TIOStreamTransport(os),\n-      framedTransport = new TFramedTransport(new TIOStreamTransport(os));\n+      framedTransport = new TFramedTransport(new TIOStreamTransport(os));\n```",
+            "output": {
+                "compilation_has_succeeded": false,
+                "test_has_succeeded": false,
+                "error_text": "Failed to prepare diffs: Diff is not valid, UnifiedDiffNoEdits: no applicable hunks found!\nThe provided diff does not contain any hunks that can be applied to the files in the repository.\nEnsure that your diff correctly specifies the changes and try again.\nThe diff needs to apply to the existing lines in the files.",
+                "updated_files": {},
+                "compile_error_details": {}
+            },
+            "error": "Failed to prepare diffs: Diff is not valid, UnifiedDiffNoEdits: no applicable hunks found!\nThe provided diff does not contain any hunks that can be applied to the files in the repository.\nEnsure that your diff correctly specifies the changes and try again.\nThe diff needs to apply to the existing lines in the files.",
+            "span_id": 1353448312911719688
+        },
+        {
+            "input": "```diff\nthrift-logger/src/main/java/com/pinterest/singer/client/logback/AppenderUtils.java\n@@\n      framedTransport = new TFastFramedTransport(new TIOStreamTransport(os),\n-      framedTransport = new TFramedTransport(new TIOStreamTransport(os));\n+      framedTransport = new TFramedTransport(new TIOStreamTransport(os));\n```",
+            "output": {
+                "compilation_has_succeeded": false,
+                "test_has_succeeded": false,
+                "error_text": "Failed to prepare diffs: Diff is not valid, UnifiedDiffNoEdits: no applicable hunks found!\nThe provided diff does not contain any hunks that can be applied to the files in the repository.\nEnsure that your diff correctly specifies the changes and try again.\nThe diff needs to apply to the existing lines in the files.",
+                "updated_files": {},
+                "compile_error_details": {}
+            },
+            "error": "Failed to prepare diffs: Diff is not valid, UnifiedDiffNoEdits: no applicable hunks found!\nThe provided diff does not contain any hunks that can be applied to the files in the repository.\nEnsure that your diff correctly specifies the changes and try again.\nThe diff needs to apply to the existing lines in the files.",
+            "span_id": 4976629631526067097
+        },
+        {
+            "input": "```diff\nthrift-logger/src/main/java/com/pinterest/singer/client/logback/AppenderUtils.java\n@@\n      framedTransport = new TFastFramedTransport(new TIOStreamTransport(os),\n-      framedTransport = new TFramedTransport(new TIOStreamTransport(os));\n+      framedTransport = new TFramedTransport(new TIOStreamTransport(os));\n```",
+            "output": {
+                "compilation_has_succeeded": false,
+                "test_has_succeeded": false,
+                "error_text": "Failed to prepare diffs: Diff is not valid, UnifiedDiffNoEdits: no applicable hunks found!\nThe provided diff does not contain any hunks that can be applied to the files in the repository.\nEnsure that your diff correctly specifies the changes and try again.\nThe diff needs to apply to the existing lines in the files.",
+                "updated_files": {},
+                "compile_error_details": {}
+            },
+            "error": "Failed to prepare diffs: Diff is not valid, UnifiedDiffNoEdits: no applicable hunks found!\nThe provided diff does not contain any hunks that can be applied to the files in the repository.\nEnsure that your diff correctly specifies the changes and try again.\nThe diff needs to apply to the existing lines in the files.",
+            "span_id": 15702740070455667189
+        },
+        {
+            "input": "```diff\nthrift-logger/src/main/java/com/pinterest/singer/client/logback/AppenderUtils.java\n@@\n      framedTransport = new TFastFramedTransport(new TIOStreamTransport(os),\n-      framedTransport = new TFramedTransport(new TIOStreamTransport(os));\n+      framedTransport = new TFramedTransport(new TIOStreamTransport(os));\n```",
+            "output": {
+                "compilation_has_succeeded": false,
+                "test_has_succeeded": false,
+                "error_text": "Failed to prepare diffs: Diff is not valid, UnifiedDiffNoEdits: no applicable hunks found!\nThe provided diff does not contain any hunks that can be applied to the files in the repository.\nEnsure that your diff correctly specifies the changes and try again.\nThe diff needs to apply to the existing lines in the files.",
+                "updated_files": {},
+                "compile_error_details": {}
+            },
+            "error": "Failed to prepare diffs: Diff is not valid, UnifiedDiffNoEdits: no applicable hunks found!\nThe provided diff does not contain any hunks that can be applied to the files in the repository.\nEnsure that your diff correctly specifies the changes and try again.\nThe diff needs to apply to the existing lines in the files.",
+            "span_id": 8047723079219891683
+        },
+        {
+            "input": "```diff\nthrift-logger/src/main/java/com/pinterest/singer/client/logback/AppenderUtils.java\n@@\n      framedTransport = new TFastFramedTransport(new TIOStreamTransport(os),\n-      framedTransport = new TFramedTransport(new TIOStreamTransport(os));\n+      framedTransport = new TFramedTransport(new TIOStreamTransport(os));\n```",
+            "output": {
+                "compilation_has_succeeded": false,
+                "test_has_succeeded": false,
+                "error_text": "Failed to prepare diffs: Diff is not valid, UnifiedDiffNoEdits: no applicable hunks found!\nThe provided diff does not contain any hunks that can be applied to the files in the repository.\nEnsure that your diff correctly specifies the changes and try again.\nThe diff needs to apply to the existing lines in the files.",
+                "updated_files": {},
+                "compile_error_details": {}
+            },
+            "error": "Failed to prepare diffs: Diff is not valid, UnifiedDiffNoEdits: no applicable hunks found!\nThe provided diff does not contain any hunks that can be applied to the files in the repository.\nEnsure that your diff correctly specifies the changes and try again.\nThe diff needs to apply to the existing lines in the files.",
+            "span_id": 16632571396101882580
+        },
+        {
+            "input": "```diff\nthrift-logger/src/main/java/com/pinterest/singer/client/logback/AppenderUtils.java\n@@\n      framedTransport = new TFastFramedTransport(new TIOStreamTransport(os),\n-      framedTransport = new TFramedTransport(new TIOStreamTransport(os));\n+      framedTransport = new TFramedTransport(new TIOStreamTransport(os));\n```",
+            "output": {
+                "compilation_has_succeeded": false,
+                "test_has_succeeded": false,
+                "error_text": "Failed to prepare diffs: Diff is not valid, UnifiedDiffNoEdits: no applicable hunks found!\nThe provided diff does not contain any hunks that can be applied to the files in the repository.\nEnsure that your diff correctly specifies the changes and try again.\nThe diff needs to apply to the existing lines in the files.",
+                "updated_files": {},
+                "compile_error_details": {}
+            },
+            "error": "Failed to prepare diffs: Diff is not valid, UnifiedDiffNoEdits: no applicable hunks found!\nThe provided diff does not contain any hunks that can be applied to the files in the repository.\nEnsure that your diff correctly specifies the changes and try again.\nThe diff needs to apply to the existing lines in the files.",
+            "span_id": 4948955134906195164
+        },
+        {
+            "input": "```diff\nthrift-logger/src/main/java/com/pinterest/singer/client/logback/AppenderUtils.java\n@@\n      framedTransport = new TFastFramedTransport(new TIOStreamTransport(os),\n-      framedTransport = new TFramedTransport(new TIOStreamTransport(os));\n+      framedTransport = new TFramedTransport(new TIOStreamTransport(os));\n```",
+            "output": {
+                "compilation_has_succeeded": false,
+                "test_has_succeeded": false,
+                "error_text": "Failed to prepare diffs: Diff is not valid, UnifiedDiffNoEdits: no applicable hunks found!\nThe provided diff does not contain any hunks that can be applied to the files in the repository.\nEnsure that your diff correctly specifies the changes and try again.\nThe diff needs to apply to the existing lines in the files.",
+                "updated_files": {},
+                "compile_error_details": {}
+            },
+            "error": "Failed to prepare diffs: Diff is not valid, UnifiedDiffNoEdits: no applicable hunks found!\nThe provided diff does not contain any hunks that can be applied to the files in the repository.\nEnsure that your diff correctly specifies the changes and try again.\nThe diff needs to apply to the existing lines in the files.",
+            "span_id": 1198192133208724195
+        },
+        {
+            "input": "```diff\nthrift-logger/src/main/java/com/pinterest/singer/client/logback/AppenderUtils.java\n@@\n      framedTransport = new TFastFramedTransport(new TIOStreamTransport(os),\n-      framedTransport = new TFramedTransport(new TIOStreamTransport(os));\n+      framedTransport = new TFramedTransport(new TIOStreamTransport(os));\n```",
+            "output": {
+                "compilation_has_succeeded": false,
+                "test_has_succeeded": false,
+                "error_text": "Failed to prepare diffs: Diff is not valid, UnifiedDiffNoEdits: no applicable hunks found!\nThe provided diff does not contain any hunks that can be applied to the files in the repository.\nEnsure that your diff correctly specifies the changes and try again.\nThe diff needs to apply to the existing lines in the files.",
+                "updated_files": {},
+                "compile_error_details": {}
+            },
+            "error": "Failed to prepare diffs: Diff is not valid, UnifiedDiffNoEdits: no applicable hunks found!\nThe provided diff does not contain any hunks that can be applied to the files in the repository.\nEnsure that your diff correctly specifies the changes and try again.\nThe diff needs to apply to the existing lines in the files.",
+            "span_id": 13820402379796183853
+        },
+        {
+            "input": "```diff\nthrift-logger/src/main/java/com/pinterest/singer/client/logback/AppenderUtils.java\n@@\n      framedTransport = new TFastFramedTransport(new TIOStreamTransport(os),\n-      framedTransport = new TFramedTransport(new TIOStreamTransport(os));\n+      framedTransport = new TFramedTransport(new TIOStreamTransport(os));\n```",
+            "output": {
+                "compilation_has_succeeded": false,
+                "test_has_succeeded": false,
+                "error_text": "Failed to prepare diffs: Diff is not valid, UnifiedDiffNoEdits: no applicable hunks found!\nThe provided diff does not contain any hunks that can be applied to the files in the repository.\nEnsure that your diff correctly specifies the changes and try again.\nThe diff needs to apply to the existing lines in the files.",
+                "updated_files": {},
+                "compile_error_details": {}
+            },
+            "error": "Failed to prepare diffs: Diff is not valid, UnifiedDiffNoEdits: no applicable hunks found!\nThe provided diff does not contain any hunks that can be applied to the files in the repository.\nEnsure that your diff correctly specifies the changes and try again.\nThe diff needs to apply to the existing lines in the files.",
+            "span_id": 13178125295957571998
+        },
+        {
+            "input": "```diff\nthrift-logger/src/main/java/com/pinterest/singer/client/logback/AppenderUtils.java\n@@\n      framedTransport = new TFastFramedTransport(new TIOStreamTransport(os),\n-      framedTransport = new TFramedTransport(new TIOStreamTransport(os));\n+      framedTransport = new TFramedTransport(new TIOStreamTransport(os));\n```",
+            "output": {
+                "compilation_has_succeeded": false,
+                "test_has_succeeded": false,
+                "error_text": "Failed to prepare diffs: Diff is not valid, UnifiedDiffNoEdits: no applicable hunks found!\nThe provided diff does not contain any hunks that can be applied to the files in the repository.\nEnsure that your diff correctly specifies the changes and try again.\nThe diff needs to apply to the existing lines in the files.",
+                "updated_files": {},
+                "compile_error_details": {}
+            },
+            "error": "Failed to prepare diffs: Diff is not valid, UnifiedDiffNoEdits: no applicable hunks found!\nThe provided diff does not contain any hunks that can be applied to the files in the repository.\nEnsure that your diff correctly specifies the changes and try again.\nThe diff needs to apply to the existing lines in the files.",
+            "span_id": 6432939709241720272
+        },
+        {
+            "input": "```diff\nthrift-logger/src/main/java/com/pinterest/singer/client/logback/AppenderUtils.java\n@@\n      framedTransport = new TFastFramedTransport(new TIOStreamTransport(os),\n-      framedTransport = new TFramedTransport(new TIOStreamTransport(os));\n+      framedTransport = new TFramedTransport(new TIOStreamTransport(os));\n```",
+            "output": {
+                "compilation_has_succeeded": false,
+                "test_has_succeeded": false,
+                "error_text": "Failed to prepare diffs: Diff is not valid, UnifiedDiffNoEdits: no applicable hunks found!\nThe provided diff does not contain any hunks that can be applied to the files in the repository.\nEnsure that your diff correctly specifies the changes and try again.\nThe diff needs to apply to the existing lines in the files.",
+                "updated_files": {},
+                "compile_error_details": {}
+            },
+            "error": "Failed to prepare diffs: Diff is not valid, UnifiedDiffNoEdits: no applicable hunks found!\nThe provided diff does not contain any hunks that can be applied to the files in the repository.\nEnsure that your diff correctly specifies the changes and try again.\nThe diff needs to apply to the existing lines in the files.",
+            "span_id": 10644864743004934194
+        },
+        {
+            "input": "```diff\nthrift-logger/src/main/java/com/pinterest/singer/client/logback/AppenderUtils.java\n@@\n      framedTransport = new TFastFramedTransport(new TIOStreamTransport(os),\n-      framedTransport = new TFramedTransport(new TIOStreamTransport(os));\n+      framedTransport = new TFramedTransport(new TIOStreamTransport(os));\n```",
+            "output": {
+                "compilation_has_succeeded": false,
+                "test_has_succeeded": false,
+                "error_text": "Failed to prepare diffs: Diff is not valid, UnifiedDiffNoEdits: no applicable hunks found!\nThe provided diff does not contain any hunks that can be applied to the files in the repository.\nEnsure that your diff correctly specifies the changes and try again.\nThe diff needs to apply to the existing lines in the files.",
+                "updated_files": {},
+                "compile_error_details": {}
+            },
+            "error": "Failed to prepare diffs: Diff is not valid, UnifiedDiffNoEdits: no applicable hunks found!\nThe provided diff does not contain any hunks that can be applied to the files in the repository.\nEnsure that your diff correctly specifies the changes and try again.\nThe diff needs to apply to the existing lines in the files.",
+            "span_id": 2124414499623945168
+        }
+    ],
+    "read_file": [
+        {
+            "input": "thrift-logger/src/main/java/com/pinterest/singer/client/logback/AppenderUtils.java",
+            "output": "/**\n * Copyright 2019 Pinterest, Inc.\n * \n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n * \n *    http://www.apache.org/licenses/LICENSE-2.0\n * \n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\npackage com.pinterest.singer.client.logback;\n\nimport com.pinterest.singer.thrift.LogMessage;\n\nimport ch.qos.logback.core.Appender;\nimport ch.qos.logback.core.Context;\nimport ch.qos.logback.core.encoder.EncoderBase;\nimport ch.qos.logback.core.rolling.RollingFileAppender;\nimport ch.qos.logback.core.rolling.SizeAndTimeBasedFNATP;\nimport ch.qos.logback.core.rolling.TimeBasedRollingPolicy;\nimport ch.qos.logback.core.util.FileSize;\nimport org.apache.thrift.TException;\nimport org.apache.thrift.protocol.TBinaryProtocol;\nimport org.apache.thrift.protocol.TProtocol;\nimport org.apache.thrift.transport.TFastFramedTransport;\nimport org.apache.thrift.transport.TIOStreamTransport;\nimport org.apache.thrift.transport.TTransport;\n\nimport java.io.File;\nimport java.io.IOException;\nimport java.io.OutputStream;\n\n/**\n * Utils to create logback appenders\n */\npublic class AppenderUtils {\n\n  public static final String PATH_SEP = \"/\";\n\n  private AppenderUtils() {\n  }\n\n  /**\n   * Encoder for LogMessage objects.\n   */\n  public static class LogMessageEncoder extends EncoderBase<LogMessage> {\n\n    private TTransport framedTransport;\n    private TProtocol protocol;\n    private OutputStream os;\n\n    @Override\n    public void init(OutputStream os) {\n      this.os = os;\n      // Use the TFlushingFastFramedTransport to be compatible with singer_thrift\n      // log.\n      final int bufferCapacity = 10;\n      framedTransport = new TFastFramedTransport(new TIOStreamTransport(os),\n          bufferCapacity);\n      protocol = new TBinaryProtocol(framedTransport);\n    }\n\n    @Override\n    public void doEncode(LogMessage logMessage) throws IOException {\n      try {\n        logMessage.write(protocol);\n        framedTransport.flush();\n      } catch (TException e) {\n        throw new IOException(e);\n      }\n    }\n\n    @Override\n    public void close() throws IOException {\n      framedTransport.close();\n    }\n  }\n\n  /**\n   * Create the basic thrift appender which logs to a file\n   * and rolls the file when it exceeds a certain size.\n   *\n   * @param basePath base directory the files are under.\n   * @param topic the topic name for the current appender.\n   * @param rotateThresholdKBytes threshold in kilobytes to rotate after.\n   * @param context the logback context.\n   */\n  public static Appender<LogMessage> createFileRollingThriftAppender(\n      File basePath,\n      String topic,\n      long rotateThresholdKBytes,\n      Context context,\n      int maxRetentionHours) {\n    RollingFileAppender<LogMessage> appender = new RollingFileAppender<LogMessage>();\n    appender.setContext(context);\n    appender.setAppend(true);\n    appender.setPrudent(false);\n\n    LogMessageEncoder encoder = new LogMessageEncoder();\n    appender.setEncoder(encoder);\n    appender.setFile(basePath + PATH_SEP + topic);\n\n    TimeBasedRollingPolicy policy = new TimeBasedRollingPolicy();\n    policy.setMaxHistory(maxRetentionHours);\n    policy.setFileNamePattern(basePath + PATH_SEP + topic + \".%d{yyyy-MM-dd-HH}.%i\");\n    policy.setCleanHistoryOnStart(false);\n    policy.setContext(context);\n    policy.setParent(appender);\n\n    // Also impose a max size per file policy.\n    SizeAndTimeBasedFNATP fnatp = new SizeAndTimeBasedFNATP();\n    fnatp.setContext(context);\n    fnatp.setTimeBasedRollingPolicy(policy);\n    fnatp.setMaxFileSize(FileSize.valueOf(String.format(\"%sKB\", rotateThresholdKBytes)));\n\n    policy.setTimeBasedFileNamingAndTriggeringPolicy(fnatp);\n    appender.setRollingPolicy(policy);\n    appender.setTriggeringPolicy(policy);\n\n    policy.start();\n    appender.start();\n\n    return appender;\n  }\n}\n",
+            "error": "",
+            "span_id": 498884747767998128
+        }
+    ],
+    "get_directory_tree": [],
+    "get_language_server_suggestions": [],
+    "reset_repo": []
+}

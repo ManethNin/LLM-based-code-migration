@@ -1,0 +1,125 @@
+diff --git a/jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JadlerHandler.java b/jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JadlerHandler.java
+index 6df6ebf..012ea3d 100644
+--- a/jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JadlerHandler.java
++++ b/jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JadlerHandler.java
+@@ -33,7 +33,10 @@ class JadlerHandler extends AbstractHandler {
+     JadlerHandler(final RequestManager requestManager) {
+         Validate.notNull(requestManager, "requestManager cannot be null");
+         this.requestManager = requestManager;
+-    }
+++    @Override
+++    public void handle(String target, Request baseRequest, HttpServletRequest request, HttpServletResponse response) throws IOException, ServletException {
+++        // Implementation here
+++    }
+ 
+ 
+     @Override
+@@ -50,7 +53,11 @@ class JadlerHandler extends AbstractHandler {
+ 
+         this.processDelay(stubResponse.getDelay());
+         this.insertResponseBody(stubResponse.getBody(), response);
+-    }
+++
+++    @Override
+++    public void handle(String target, Request baseRequest, HttpServletRequest request, HttpServletResponse response) throws IOException, ServletException {
+++        // Implementation here
+++    }
+ 
+ 
+     private void insertResponseBody(final byte[] body, final HttpServletResponse response) throws IOException {
+@@ -58,7 +65,20 @@ class JadlerHandler extends AbstractHandler {
+             final OutputStream os = response.getOutputStream();
+             os.write(body);
+         }
+-    }
+++
+++    @Override
+++    public void handle(String target, Request baseRequest, HttpServletRequest request, HttpServletResponse response) throws IOException, ServletException {
+++        final net.jadler.Request req = RequestUtils.convert(request);
+++        final StubResponse stubResponse = this.requestManager.provideStubResponseFor(req);
+++
+++        response.setStatus(stubResponse.getStatus());
+++        this.insertResponseHeaders(stubResponse.getHeaders(), response);
+++
+++        baseRequest.setHandled(true);
+++
+++        this.processDelay(stubResponse.getDelay());
+++        this.insertResponseBody(stubResponse.getBody(), response);
+++    }
+ 
+ 
+     private void insertResponseHeaders(final KeyValues headers, final HttpServletResponse response) {
+@@ -68,7 +88,20 @@ class JadlerHandler extends AbstractHandler {
+                 response.addHeader(key, value);
+             }
+         }
+-    }
+++
+++    @Override
+++    public void handle(String target, Request baseRequest, HttpServletRequest request, HttpServletResponse response) throws IOException, ServletException {
+++        final net.jadler.Request req = RequestUtils.convert(request);
+++        final StubResponse stubResponse = this.requestManager.provideStubResponseFor(req);
+++
+++        response.setStatus(stubResponse.getStatus());
+++        this.insertResponseHeaders(stubResponse.getHeaders(), response);
+++
+++        baseRequest.setHandled(true);
+++
+++        this.processDelay(stubResponse.getDelay());
+++        this.insertResponseBody(stubResponse.getBody(), response);
+++    }
+ 
+ 
+     private void processDelay(final long delay) {
+@@ -79,5 +112,22 @@ class JadlerHandler extends AbstractHandler {
+                 Thread.currentThread().interrupt();
+             }
+         }
+++
+++    @Override
+++    public void handle(String target, Request baseRequest, HttpServletRequest request, HttpServletResponse response) throws IOException, ServletException {
+++        final net.jadler.Request req = RequestUtils.convert(request);
+++        final StubResponse stubResponse = this.requestManager.provideStubResponseFor(req);
+++
+++        response.setStatus(stubResponse.getStatus());
+++        this.insertResponseHeaders(stubResponse.getHeaders(), response);
+++
+++        baseRequest.setHandled(true);
+++
+++        this.processDelay(stubResponse.getDelay());
+++        this.insertResponseBody(stubResponse.getBody(), response);
+++    }
++}
++    @Override
++    public void handle(String target, Request baseRequest, HttpServletRequest request, HttpServletResponse response) throws IOException, ServletException {
++        // Implementation here
+     }
+-}
+\ No newline at end of file
+diff --git a/jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JettyStubHttpServer.java b/jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JettyStubHttpServer.java
+index b6fde22..c84cd64 100644
+--- a/jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JettyStubHttpServer.java
++++ b/jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JettyStubHttpServer.java
+@@ -9,7 +9,7 @@ import net.jadler.stubbing.server.StubHttpServer;
+ import org.apache.commons.lang.Validate;
+ import org.eclipse.jetty.server.Connector;
+ import org.eclipse.jetty.server.Server;
+-import org.eclipse.jetty.server.nio.SelectChannelConnector;
++import org.eclipse.jetty.server.ServerConnector;
+ import org.slf4j.Logger;
+ import org.slf4j.LoggerFactory;
+ 
+@@ -33,9 +33,10 @@ public class JettyStubHttpServer implements StubHttpServer {
+         this.server.setSendServerVersion(false);
+         this.server.setSendDateHeader(true);
+ 
+-        this.httpConnector = new SelectChannelConnector();
+-        this.httpConnector.setPort(port);
+-        server.addConnector(this.httpConnector);
++        ServerConnector httpConnector = new ServerConnector(this.server);
++        httpConnector.setPort(port);
++        this.server.addConnector(httpConnector);
++        this.httpConnector = httpConnector;
+     }
+ 
+ 

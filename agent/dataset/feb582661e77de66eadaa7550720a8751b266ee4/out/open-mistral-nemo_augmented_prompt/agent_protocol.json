@@ -1,0 +1,452 @@
+{
+    "validate_diffs": [
+        {
+            "input": "```diff\nsrc/java/liquibase/ext/mssql/database/MSSQLDatabase.java\nsrc/java/liquibase/ext/mssql/sqlgenerator/CreateIndexGeneratorMSSQL.java\n--- src/java/liquibase/ext/mssql/database/MSSQLDatabase.java\n+++ src/java/liquibase/ext/mssql/database/MSSQLDatabase.java\n@@ -1,5 +1,5 @@\n import liquibase.CatalogAndSchema;\n import liquibase.exception.LiquibaseException;\n import liquibase.executor.ExecutorService;\n-import liquibase.ext.mssql.statement.DropStoredProcedureStatement;\n+import liquibase.ext.mssql.statement.DropStoredProcedureStatement;\n \n public class MSSQLDatabase extends liquibase.database.core.MSSQLDatabase {\n     \n@@ -18,3 +18,4 @@\n         super.dropDatabaseObjects(schemaToDrop);\n         ExecutorService.getInstance().getExecutor(this).execute(new DropStoredProcedureStatement(this.getLiquibaseCatalogName(), this.getLiquibaseSchemaName()));\n+        ExecutorService.getInstance().getExecutor(this).execute(new DropStoredProcedureStatement(this.getLiquibaseCatalogName(), this.getLiquibaseSchemaName()));\n     }\n \n--- src/java/liquibase/ext/mssql/sqlgenerator/CreateIndexGeneratorMSSQL.java\n+++ src/java/liquibase/ext/mssql/sqlgenerator/CreateIndexGeneratorMSSQL.java\n@@ -1,7 +1,7 @@\n-package liquibase.ext.mssql.sqlgenerator;\n+\n \n import liquibase.change.AddColumnConfig;\n import liquibase.database.Database;\n import liquibase.ext.mssql.database.MSSQLDatabase;\n import liquibase.ext.mssql.statement.CreateIndexStatementMSSQL;\n import liquibase.sql.Sql;\n@@ -15,6 +16,10 @@\n     return 15;\n   }\n\n+  @Override\n+  public Sql[] generateSql(CreateIndexStatement statement, Database database, SqlGeneratorChain sqlGeneratorChain) {\n+    if (statement instanceof CreateIndexStatementMSSQL) {\n+      return generateMSSQLSql((CreateIndexStatementMSSQL)statement, database, sqlGeneratorChain);\n+    }\n+\n     return super.generateSql(statement, database, sqlGeneratorChain);\n   }\n```",
+            "output": "{'src/java/liquibase/ext/mssql/database/MSSQLDatabase.java': 'package liquibase.ext.mssql.database;\\n\\nimport liquibase.CatalogAndSchema;\\nimport liquibase.exception.LiquibaseException;\\nimport liquibase.executor.ExecutorService;\\nimport liquibase.ext.mssql.statement.DropStoredProcedureStatement;\\n\\npublic class MSSQLDatabase extends liquibase.database.core.MSSQLDatabase {\\n    \\n    @Override\\n    public int getPriority() {\\n        return PRIORITY_DATABASE;\\n    }\\n    \\n    @Override\\n    public void dropDatabaseObjects(CatalogAndSchema schemaToDrop) throws LiquibaseException {\\n        super.dropDatabaseObjects(schemaToDrop);\\n        ExecutorService.getInstance().getExecutor(this).execute(new DropStoredProcedureStatement(this.getLiquibaseCatalogName(), this.getLiquibaseSchemaName()));\\n        ExecutorService.getInstance().getExecutor(this).execute(new DropStoredProcedureStatement(this.getLiquibaseCatalogName(), this.getLiquibaseSchemaName()));\\n}\\n}', 'src/java/liquibase/ext/mssql/sqlgenerator/CreateIndexGeneratorMSSQL.java': '\\n\\nimport liquibase.change.AddColumnConfig;\\nimport liquibase.database.Database;\\nimport liquibase.ext.mssql.database.MSSQLDatabase;\\nimport liquibase.ext.mssql.statement.CreateIndexStatementMSSQL;\\nimport liquibase.sql.Sql;\\nimport liquibase.sql.UnparsedSql;\\nimport liquibase.sqlgenerator.SqlGeneratorChain;\\nimport liquibase.sqlgenerator.core.CreateIndexGenerator;\\nimport liquibase.statement.core.CreateIndexStatement;\\nimport liquibase.util.StringUtils;\\n\\nimport java.util.Arrays;\\nimport java.util.Iterator;\\n\\npublic class CreateIndexGeneratorMSSQL extends CreateIndexGenerator {\\n  @Override\\n  public int getPriority() {\\n    return 15;\\n  }\\n\\n  @Override\\n  public Sql[] generateSql(CreateIndexStatement statement, Database database, SqlGeneratorChain sqlGeneratorChain) {\\n    if (statement instanceof CreateIndexStatementMSSQL) {\\n      return generateMSSQLSql((CreateIndexStatementMSSQL)statement, database, sqlGeneratorChain);\\n    }\\n\\n  @Override\\n  public Sql[] generateSql(CreateIndexStatement statement, Database database, SqlGeneratorChain sqlGeneratorChain) {\\n    if (statement instanceof CreateIndexStatementMSSQL) {\\n      return generateMSSQLSql((CreateIndexStatementMSSQL)statement, database, sqlGeneratorChain);\\n    }\\n\\n    return super.generateSql(statement, database, sqlGeneratorChain);\\n  }\\n\\n  private Sql[] generateMSSQLSql(CreateIndexStatementMSSQL statement, Database database, SqlGeneratorChain sqlGeneratorChain) {\\n    StringBuilder builder = new StringBuilder();\\n\\n    // Basically copied from liquibase.sqlgenerator.core.CreateIndexGenerator\\n    builder.append(\"CREATE \");\\n    if (statement.isUnique() != null && statement.isUnique()) {\\n      builder.append(\"UNIQUE \");\\n    }\\n    \\n    if (statement.isClustered() != null) {\\n        if (statement.isClustered()) {\\n            builder.append(\"CLUSTERED \");\\n        } else {\\n            builder.append(\"NONCLUSTERED \");\\n        }\\n    }\\n    \\n    builder.append(\"INDEX \");\\n\\n    if (statement.getIndexName() != null) {\\n      String indexSchema = statement.getTableSchemaName();\\n      builder.append(database.escapeIndexName(statement.getTableCatalogName(), indexSchema, statement.getIndexName())).append(\" \");\\n    }\\n    builder.append(\"ON \");\\n    builder.append(database.escapeTableName(statement.getTableCatalogName(), statement.getTableSchemaName(), statement.getTableName())).append(\"(\");\\n    Iterator<AddColumnConfig> iterator = Arrays.asList(statement.getColumns()).iterator();\\n    while (iterator.hasNext()) {\\n      AddColumnConfig column = iterator.next();\\n      builder.append(database.escapeColumnName(statement.getTableCatalogName(), statement.getTableSchemaName(), statement.getTableName(), column.getName()));\\n      if (column.getDescending() != null && column.getDescending()) {\\n          builder.append(\" DESC\");\\n      }\\n      if (iterator.hasNext()) {\\n        builder.append(\", \");\\n      }\\n    }\\n    if (statement.getIncludedColumns() != null && ! statement.getIncludedColumns().isEmpty()) {\\n      builder.append(\") INCLUDE (\");\\n      builder.append(database.escapeColumnNameList(statement.getIncludedColumns()));\\n    }\\n    builder.append(\")\");\\n    if (statement.getFillFactor() != null) {\\n      builder.append(\" WITH (FILLFACTOR = \").append(statement.getFillFactor()).append(\")\");\\n    }\\n    // This block simplified, since we know we have MSSQLDatabase\\n    if (StringUtils.trimToNull(statement.getTablespace()) != null) {\\n      builder.append(\" ON \").append(statement.getTablespace());\\n    }\\n\\n    return new Sql[]{new UnparsedSql(builder.toString(), getAffectedIndex(statement))};\\n  }\\n\\n  @Override\\n  public boolean supports(CreateIndexStatement statement, Database database) {\\n    return database instanceof MSSQLDatabase;\\n  }\\n}\\n'}",
+            "error": "",
+            "span_id": 2226751819384162943
+        },
+        {
+            "input": "```diff\nsrc/java/liquibase/ext/mssql/sqlgenerator/AddPrimaryKeyGeneratorMSSQL.java\nsrc/java/liquibase/ext/mssql/sqlgenerator/AddPrimaryKeyGeneratorMSSQL.java\n--- src/java/liquibase/ext/mssql/sqlgenerator/AddPrimaryKeyGeneratorMSSQL.java\n+++ src/java/liquibase/ext/mssql/sqlgenerator/AddPrimaryKeyGeneratorMSSQL.java\n@@ -1,7 +1,7 @@\n-package liquibase.ext.mssql.sqlgenerator;\n+\n \n import liquibase.database.Database;\n import liquibase.ext.mssql.database.MSSQLDatabase;\n import liquibase.ext.mssql.statement.AddPrimaryKeyStatementMSSQL;\n import liquibase.sql.Sql;\n import liquibase.sql.UnparsedSql;\n@@ -14,6 +15,10 @@\n     return 15;\n   }\n\n+  @Override\n+  public Sql[] generateSql(AddPrimaryKeyStatement statement, Database database, SqlGeneratorChain sqlGeneratorChain) {\n+    if (statement instanceof AddPrimaryKeyStatementMSSQL && ((AddPrimaryKeyStatementMSSQL) statement).getFillFactor() != null) {\n+      return generateMSSQLSql((AddPrimaryKeyStatementMSSQL)statement, database, sqlGeneratorChain);\n+    }\n+\n     return super.generateSql(statement, database, sqlGeneratorChain);\n   }\n```",
+            "output": "{'src/java/liquibase/ext/mssql/sqlgenerator/AddPrimaryKeyGeneratorMSSQL.java': '\\n\\nimport liquibase.database.Database;\\nimport liquibase.ext.mssql.database.MSSQLDatabase;\\nimport liquibase.ext.mssql.statement.AddPrimaryKeyStatementMSSQL;\\nimport liquibase.sql.Sql;\\nimport liquibase.sql.UnparsedSql;\\nimport liquibase.sqlgenerator.SqlGeneratorChain;\\nimport liquibase.sqlgenerator.core.AddPrimaryKeyGenerator;\\nimport liquibase.statement.core.AddPrimaryKeyStatement;\\nimport liquibase.structure.core.Index;\\nimport liquibase.util.StringUtils;\\n\\npublic class AddPrimaryKeyGeneratorMSSQL extends AddPrimaryKeyGenerator {\\n  @Override\\n  public int getPriority() {\\n    return 15;\\n  }\\n\\n  /**\\n   * Conditionally executes to extension\\'s custom Primary Key SQL generation process if statement is the\\n   * AddPrimaryKeyStatementMSSQL implementation and the custom attribute (fillFactor) is set.\\n   *\\n   * Otherwise, defers to default liquibase implementation.\\n   *\\n   * @param statement\\n   * @param database\\n   * @param sqlGeneratorChain\\n   * @return\\n   */\\n  @Override\\n  public Sql[] generateSql(AddPrimaryKeyStatement statement, Database database, SqlGeneratorChain sqlGeneratorChain) {\\n    if (statement instanceof AddPrimaryKeyStatementMSSQL && ((AddPrimaryKeyStatementMSSQL) statement).getFillFactor() != null) {\\n      return generateMSSQLSql((AddPrimaryKeyStatementMSSQL)statement, database, sqlGeneratorChain);\\n    }\\n\\n  @Override\\n  public Sql[] generateSql(AddPrimaryKeyStatement statement, Database database, SqlGeneratorChain sqlGeneratorChain) {\\n    if (statement instanceof AddPrimaryKeyStatementMSSQL && ((AddPrimaryKeyStatementMSSQL) statement).getFillFactor() != null) {\\n      return generateMSSQLSql((AddPrimaryKeyStatementMSSQL)statement, database, sqlGeneratorChain);\\n    }\\n\\n    return super.generateSql(statement, database, sqlGeneratorChain);\\n  }\\n\\n  /**\\n   * The extension\\'s implementation is essentially a copy/paste of the default implementation, with the following changes:\\n   *\\n   * 1) Removed other database platform specific logic other than MSSQL (purely to simplify)\\n   *\\n   * 2) Added support for setting fillFactor\\n   *\\n   * @param statement\\n   * @param database\\n   * @param sqlGeneratorChain\\n   * @return\\n   */\\n  private Sql[] generateMSSQLSql(AddPrimaryKeyStatementMSSQL statement, Database database, SqlGeneratorChain sqlGeneratorChain) {\\n    String sql;\\n    if (statement.getConstraintName() == null) {\\n      sql = \"ALTER TABLE \" + database.escapeTableName(statement.getCatalogName(), statement.getSchemaName(), statement.getTableName()) + \" ADD PRIMARY KEY (\" + database.escapeColumnNameList(statement.getColumnNames()) + \")\";\\n    } else {\\n      sql = \"ALTER TABLE \" + database.escapeTableName(statement.getCatalogName(), statement.getSchemaName(), statement.getTableName()) + \" ADD CONSTRAINT \" + database.escapeConstraintName(statement.getConstraintName())+\" PRIMARY KEY\";\\n      if (!statement.isClustered()) {\\n        sql += \" NONCLUSTERED\";\\n      }\\n      sql += \" (\" + database.escapeColumnNameList(statement.getColumnNames()) + \")\";\\n    }\\n\\n    // the only new feature being added is support for fillFactor\\n    sql += \" WITH (FILLFACTOR = \" + statement.getFillFactor() + \")\";\\n\\n    if (StringUtils.trimToNull(statement.getTablespace()) != null && database.supportsTablespaces()) {\\n      sql += \" ON \"+statement.getTablespace();\\n    }\\n\\n    if (statement.getForIndexName() != null) {\\n      sql += \" USING INDEX \"+database.escapeObjectName(statement.getForIndexCatalogName(), statement.getForIndexSchemaName(), statement.getForIndexName(), Index.class);\\n    }\\n\\n    return new Sql[] {\\n        new UnparsedSql(sql, getAffectedPrimaryKey(statement))\\n    };\\n  }\\n\\n  @Override\\n  public boolean supports(AddPrimaryKeyStatement statement, Database database) {\\n    return database instanceof MSSQLDatabase;\\n  }\\n\\n}\\n'}",
+            "error": "",
+            "span_id": 814208775316465378
+        }
+    ],
+    "compile_maven": [
+        {
+            "input": "```diff\nsrc/java/liquibase/ext/mssql/database/MSSQLDatabase.java\nsrc/java/liquibase/ext/mssql/sqlgenerator/CreateIndexGeneratorMSSQL.java\nsrc/java/liquibase/ext/mssql/sqlgenerator/AddPrimaryKeyGeneratorMSSQL.java\n--- src/java/liquibase/ext/mssql/database/MSSQLDatabase.java\n+++ src/java/liquibase/ext/mssql/database/MSSQLDatabase.java\n@@ -1,5 +1,5 @@\n import liquibase.CatalogAndSchema;\n import liquibase.exception.LiquibaseException;\n import liquibase.executor.ExecutorService;\n-import liquibase.ext.mssql.statement.DropStoredProcedureStatement;\n+import liquibase.ext.mssql.statement.DropStoredProcedureStatement;\n \n public class MSSQLDatabase extends liquibase.database.core.MSSQLDatabase {\n     \n@@ -18,3 +18,4 @@\n         super.dropDatabaseObjects(schemaToDrop);\n         ExecutorService.getInstance().getExecutor(this).execute(new DropStoredProcedureStatement(this.getLiquibaseCatalogName(), this.getLiquibaseSchemaName()));\n+        ExecutorService.getInstance().getExecutor(this).execute(new DropStoredProcedureStatement(this.getLiquibaseCatalogName(), this.getLiquibaseSchemaName()));\n     }\n \n--- src/java/liquibase/ext/mssql/sqlgenerator/CreateIndexGeneratorMSSQL.java\n+++ src/java/liquibase/ext/mssql/sqlgenerator/CreateIndexGeneratorMSSQL.java\n@@ -1,7 +1,7 @@\n-package liquibase.ext.mssql.sqlgenerator;\n+\n \n import liquibase.change.AddColumnConfig;\n import liquibase.database.Database;\n import liquibase.ext.mssql.database.MSSQLDatabase;\n import liquibase.ext.mssql.statement.CreateIndexStatementMSSQL;\n import liquibase.sql.Sql;\n@@ -15,6 +16,10 @@\n     return 15;\n   }\n\n+  @Override\n+  public Sql[] generateSql(CreateIndexStatement statement, Database database, SqlGeneratorChain sqlGeneratorChain) {\n+    if (statement instanceof CreateIndexStatementMSSQL) {\n+      return generateMSSQLSql((CreateIndexStatementMSSQL)statement, database, sqlGeneratorChain);\n+    }\n+\n     return super.generateSql(statement, database, sqlGeneratorChain);\n   }\n```\n```diff\nsrc/java/liquibase/ext/mssql/sqlgenerator/AddPrimaryKeyGeneratorMSSQL.java\nsrc/java/liquibase/ext/mssql/sqlgenerator/AddPrimaryKeyGeneratorMSSQL.java\n--- src/java/liquibase/ext/mssql/sqlgenerator/AddPrimaryKeyGeneratorMSSQL.java\n+++ src/java/liquibase/ext/mssql/sqlgenerator/AddPrimaryKeyGeneratorMSSQL.java\n@@ -1,7 +1,7 @@\n-package liquibase.ext.mssql.sqlgenerator;\n+\n \n import liquibase.database.Database;\n import liquibase.ext.mssql.database.MSSQLDatabase;\n import liquibase.ext.mssql.statement.AddPrimaryKeyStatementMSSQL;\n import liquibase.sql.Sql;\n import liquibase.sql.UnparsedSql;\n@@ -14,6 +15,10 @@\n     return 15;\n   }\n\n+  @Override\n+  public Sql[] generateSql(AddPrimaryKeyStatement statement, Database database, SqlGeneratorChain sqlGeneratorChain) {\n+    if (statement instanceof AddPrimaryKeyStatementMSSQL && ((AddPrimaryKeyStatementMSSQL) statement).getFillFactor() != null) {\n+      return generateMSSQLSql((AddPrimaryKeyStatementMSSQL)statement, database, sqlGeneratorChain);\n+    }\n+\n     return super.generateSql(statement, database, sqlGeneratorChain);\n   }\n```",
+            "output": {
+                "compilation_has_succeeded": false,
+                "test_has_succeeded": false,
+                "error_text": "illegal start of expression\n",
+                "updated_files": {
+                    "src/java/liquibase/ext/mssql/database/MSSQLDatabase.java": "package liquibase.ext.mssql.database;\n\nimport liquibase.CatalogAndSchema;\nimport liquibase.exception.LiquibaseException;\nimport liquibase.executor.ExecutorService;\nimport liquibase.ext.mssql.statement.DropStoredProcedureStatement;\n\npublic class MSSQLDatabase extends liquibase.database.core.MSSQLDatabase {\n    \n    @Override\n    public int getPriority() {\n        return PRIORITY_DATABASE;\n    }\n    \n    @Override\n    public void dropDatabaseObjects(CatalogAndSchema schemaToDrop) throws LiquibaseException {\n        super.dropDatabaseObjects(schemaToDrop);\n        ExecutorService.getInstance().getExecutor(this).execute(new DropStoredProcedureStatement(this.getLiquibaseCatalogName(), this.getLiquibaseSchemaName()));\n        ExecutorService.getInstance().getExecutor(this).execute(new DropStoredProcedureStatement(this.getLiquibaseCatalogName(), this.getLiquibaseSchemaName()));\n}\n}",
+                    "src/java/liquibase/ext/mssql/sqlgenerator/CreateIndexGeneratorMSSQL.java": "\n\nimport liquibase.change.AddColumnConfig;\nimport liquibase.database.Database;\nimport liquibase.ext.mssql.database.MSSQLDatabase;\nimport liquibase.ext.mssql.statement.CreateIndexStatementMSSQL;\nimport liquibase.sql.Sql;\nimport liquibase.sql.UnparsedSql;\nimport liquibase.sqlgenerator.SqlGeneratorChain;\nimport liquibase.sqlgenerator.core.CreateIndexGenerator;\nimport liquibase.statement.core.CreateIndexStatement;\nimport liquibase.util.StringUtils;\n\nimport java.util.Arrays;\nimport java.util.Iterator;\n\npublic class CreateIndexGeneratorMSSQL extends CreateIndexGenerator {\n  @Override\n  public int getPriority() {\n    return 15;\n  }\n\n  @Override\n  public Sql[] generateSql(CreateIndexStatement statement, Database database, SqlGeneratorChain sqlGeneratorChain) {\n    if (statement instanceof CreateIndexStatementMSSQL) {\n      return generateMSSQLSql((CreateIndexStatementMSSQL)statement, database, sqlGeneratorChain);\n    }\n\n  @Override\n  public Sql[] generateSql(CreateIndexStatement statement, Database database, SqlGeneratorChain sqlGeneratorChain) {\n    if (statement instanceof CreateIndexStatementMSSQL) {\n      return generateMSSQLSql((CreateIndexStatementMSSQL)statement, database, sqlGeneratorChain);\n    }\n\n    return super.generateSql(statement, database, sqlGeneratorChain);\n  }\n\n  private Sql[] generateMSSQLSql(CreateIndexStatementMSSQL statement, Database database, SqlGeneratorChain sqlGeneratorChain) {\n    StringBuilder builder = new StringBuilder();\n\n    // Basically copied from liquibase.sqlgenerator.core.CreateIndexGenerator\n    builder.append(\"CREATE \");\n    if (statement.isUnique() != null && statement.isUnique()) {\n      builder.append(\"UNIQUE \");\n    }\n    \n    if (statement.isClustered() != null) {\n        if (statement.isClustered()) {\n            builder.append(\"CLUSTERED \");\n        } else {\n            builder.append(\"NONCLUSTERED \");\n        }\n    }\n    \n    builder.append(\"INDEX \");\n\n    if (statement.getIndexName() != null) {\n      String indexSchema = statement.getTableSchemaName();\n      builder.append(database.escapeIndexName(statement.getTableCatalogName(), indexSchema, statement.getIndexName())).append(\" \");\n    }\n    builder.append(\"ON \");\n    builder.append(database.escapeTableName(statement.getTableCatalogName(), statement.getTableSchemaName(), statement.getTableName())).append(\"(\");\n    Iterator<AddColumnConfig> iterator = Arrays.asList(statement.getColumns()).iterator();\n    while (iterator.hasNext()) {\n      AddColumnConfig column = iterator.next();\n      builder.append(database.escapeColumnName(statement.getTableCatalogName(), statement.getTableSchemaName(), statement.getTableName(), column.getName()));\n      if (column.getDescending() != null && column.getDescending()) {\n          builder.append(\" DESC\");\n      }\n      if (iterator.hasNext()) {\n        builder.append(\", \");\n      }\n    }\n    if (statement.getIncludedColumns() != null && ! statement.getIncludedColumns().isEmpty()) {\n      builder.append(\") INCLUDE (\");\n      builder.append(database.escapeColumnNameList(statement.getIncludedColumns()));\n    }\n    builder.append(\")\");\n    if (statement.getFillFactor() != null) {\n      builder.append(\" WITH (FILLFACTOR = \").append(statement.getFillFactor()).append(\")\");\n    }\n    // This block simplified, since we know we have MSSQLDatabase\n    if (StringUtils.trimToNull(statement.getTablespace()) != null) {\n      builder.append(\" ON \").append(statement.getTablespace());\n    }\n\n    return new Sql[]{new UnparsedSql(builder.toString(), getAffectedIndex(statement))};\n  }\n\n  @Override\n  public boolean supports(CreateIndexStatement statement, Database database) {\n    return database instanceof MSSQLDatabase;\n  }\n}\n",
+                    "src/java/liquibase/ext/mssql/sqlgenerator/AddPrimaryKeyGeneratorMSSQL.java": "\n\nimport liquibase.database.Database;\nimport liquibase.ext.mssql.database.MSSQLDatabase;\nimport liquibase.ext.mssql.statement.AddPrimaryKeyStatementMSSQL;\nimport liquibase.sql.Sql;\nimport liquibase.sql.UnparsedSql;\nimport liquibase.sqlgenerator.SqlGeneratorChain;\nimport liquibase.sqlgenerator.core.AddPrimaryKeyGenerator;\nimport liquibase.statement.core.AddPrimaryKeyStatement;\nimport liquibase.structure.core.Index;\nimport liquibase.util.StringUtils;\n\npublic class AddPrimaryKeyGeneratorMSSQL extends AddPrimaryKeyGenerator {\n  @Override\n  public int getPriority() {\n    return 15;\n  }\n\n  /**\n   * Conditionally executes to extension's custom Primary Key SQL generation process if statement is the\n   * AddPrimaryKeyStatementMSSQL implementation and the custom attribute (fillFactor) is set.\n   *\n   * Otherwise, defers to default liquibase implementation.\n   *\n   * @param statement\n   * @param database\n   * @param sqlGeneratorChain\n   * @return\n   */\n  @Override\n  public Sql[] generateSql(AddPrimaryKeyStatement statement, Database database, SqlGeneratorChain sqlGeneratorChain) {\n    if (statement instanceof AddPrimaryKeyStatementMSSQL && ((AddPrimaryKeyStatementMSSQL) statement).getFillFactor() != null) {\n      return generateMSSQLSql((AddPrimaryKeyStatementMSSQL)statement, database, sqlGeneratorChain);\n    }\n\n  @Override\n  public Sql[] generateSql(AddPrimaryKeyStatement statement, Database database, SqlGeneratorChain sqlGeneratorChain) {\n    if (statement instanceof AddPrimaryKeyStatementMSSQL && ((AddPrimaryKeyStatementMSSQL) statement).getFillFactor() != null) {\n      return generateMSSQLSql((AddPrimaryKeyStatementMSSQL)statement, database, sqlGeneratorChain);\n    }\n\n    return super.generateSql(statement, database, sqlGeneratorChain);\n  }\n\n  /**\n   * The extension's implementation is essentially a copy/paste of the default implementation, with the following changes:\n   *\n   * 1) Removed other database platform specific logic other than MSSQL (purely to simplify)\n   *\n   * 2) Added support for setting fillFactor\n   *\n   * @param statement\n   * @param database\n   * @param sqlGeneratorChain\n   * @return\n   */\n  private Sql[] generateMSSQLSql(AddPrimaryKeyStatementMSSQL statement, Database database, SqlGeneratorChain sqlGeneratorChain) {\n    String sql;\n    if (statement.getConstraintName() == null) {\n      sql = \"ALTER TABLE \" + database.escapeTableName(statement.getCatalogName(), statement.getSchemaName(), statement.getTableName()) + \" ADD PRIMARY KEY (\" + database.escapeColumnNameList(statement.getColumnNames()) + \")\";\n    } else {\n      sql = \"ALTER TABLE \" + database.escapeTableName(statement.getCatalogName(), statement.getSchemaName(), statement.getTableName()) + \" ADD CONSTRAINT \" + database.escapeConstraintName(statement.getConstraintName())+\" PRIMARY KEY\";\n      if (!statement.isClustered()) {\n        sql += \" NONCLUSTERED\";\n      }\n      sql += \" (\" + database.escapeColumnNameList(statement.getColumnNames()) + \")\";\n    }\n\n    // the only new feature being added is support for fillFactor\n    sql += \" WITH (FILLFACTOR = \" + statement.getFillFactor() + \")\";\n\n    if (StringUtils.trimToNull(statement.getTablespace()) != null && database.supportsTablespaces()) {\n      sql += \" ON \"+statement.getTablespace();\n    }\n\n    if (statement.getForIndexName() != null) {\n      sql += \" USING INDEX \"+database.escapeObjectName(statement.getForIndexCatalogName(), statement.getForIndexSchemaName(), statement.getForIndexName(), Index.class);\n    }\n\n    return new Sql[] {\n        new UnparsedSql(sql, getAffectedPrimaryKey(statement))\n    };\n  }\n\n  @Override\n  public boolean supports(AddPrimaryKeyStatement statement, Database database) {\n    return database instanceof MSSQLDatabase;\n  }\n\n}\n"
+                },
+                "compile_error_details": {
+                    "src/java/liquibase/ext/mssql/sqlgenerator/AddPrimaryKeyGeneratorMSSQL.java": {
+                        "38": {
+                            "lines": [
+                                {
+                                    "line_no": 37,
+                                    "content": "  @Override"
+                                },
+                                {
+                                    "line_no": 38,
+                                    "content": "  public Sql[] generateSql(AddPrimaryKeyStatement statement, Database database, SqlGeneratorChain sqlGeneratorChain) {"
+                                },
+                                {
+                                    "line_no": 39,
+                                    "content": "    if (statement instanceof AddPrimaryKeyStatementMSSQL && ((AddPrimaryKeyStatementMSSQL) statement).getFillFactor() != null) {"
+                                }
+                            ],
+                            "error_texts": [
+                                "[38,27] ';' expected\n",
+                                "[38,71] not a statement\n",
+                                "[38,79] ';' expected\n",
+                                "[38,116] ';' expected\n",
+                                "[38,70] ';' expected\n"
+                            ]
+                        },
+                        "58": {
+                            "lines": [
+                                {
+                                    "line_no": 57,
+                                    "content": "   */"
+                                },
+                                {
+                                    "line_no": 58,
+                                    "content": "  private Sql[] generateMSSQLSql(AddPrimaryKeyStatementMSSQL statement, Database database, SqlGeneratorChain sqlGeneratorChain) {"
+                                },
+                                {
+                                    "line_no": 59,
+                                    "content": "    String sql;"
+                                }
+                            ],
+                            "error_texts": [
+                                "[58,3] illegal start of expression\n"
+                            ]
+                        }
+                    },
+                    "src/java/liquibase/ext/mssql/sqlgenerator/CreateIndexGeneratorMSSQL.java": {
+                        "30": {
+                            "lines": [
+                                {
+                                    "line_no": 29,
+                                    "content": "  @Override"
+                                },
+                                {
+                                    "line_no": 30,
+                                    "content": "  public Sql[] generateSql(CreateIndexStatement statement, Database database, SqlGeneratorChain sqlGeneratorChain) {"
+                                },
+                                {
+                                    "line_no": 31,
+                                    "content": "    if (statement instanceof CreateIndexStatementMSSQL) {"
+                                }
+                            ],
+                            "error_texts": [
+                                "[30,69] not a statement\n",
+                                "[30,27] ';' expected\n",
+                                "[30,77] ';' expected\n",
+                                "[30,114] ';' expected\n",
+                                "[30,68] ';' expected\n"
+                            ]
+                        },
+                        "38": {
+                            "lines": [
+                                {
+                                    "line_no": 37,
+                                    "content": ""
+                                },
+                                {
+                                    "line_no": 38,
+                                    "content": "  private Sql[] generateMSSQLSql(CreateIndexStatementMSSQL statement, Database database, SqlGeneratorChain sqlGeneratorChain) {"
+                                },
+                                {
+                                    "line_no": 39,
+                                    "content": "    StringBuilder builder = new StringBuilder();"
+                                }
+                            ],
+                            "error_texts": [
+                                "[38,3] illegal start of expression\n"
+                            ]
+                        }
+                    }
+                }
+            },
+            "error": "illegal start of expression\n",
+            "span_id": 11158767805170358052
+        },
+        {
+            "input": "```diff\nsrc/java/liquibase/ext/mssql/database/MSSQLDatabase.java\nsrc/java/liquibase/ext/mssql/sqlgenerator/CreateIndexGeneratorMSSQL.java\nsrc/java/liquibase/ext/mssql/sqlgenerator/AddPrimaryKeyGeneratorMSSQL.java\n--- src/java/liquibase/ext/mssql/database/MSSQLDatabase.java\n+++ src/java/liquibase/ext/mssql/database/MSSQLDatabase.java\n@@ -1,5 +1,5 @@\n import liquibase.CatalogAndSchema;\n import liquibase.exception.LiquibaseException;\n import liquibase.executor.ExecutorService;\n-import liquibase.ext.mssql.statement.DropStoredProcedureStatement;\n+import liquibase.ext.mssql.statement.DropStoredProcedureStatement;\n \n public class MSSQLDatabase extends liquibase.database.core.MSSQLDatabase {\n     \n@@ -18,3 +18,4 @@\n         super.dropDatabaseObjects(schemaToDrop);\n         ExecutorService.getInstance().getExecutor(this).execute(new DropStoredProcedureStatement(this.getLiquibaseCatalogName(), this.getLiquibaseSchemaName()));\n+        ExecutorService.getInstance().getExecutor(this).execute(new DropStoredProcedureStatement(this.getLiquibaseCatalogName(), this.getLiquibaseSchemaName()));\n     }\n \n--- src/java/liquibase/ext/mssql/sqlgenerator/CreateIndexGeneratorMSSQL.java\n+++ src/java/liquibase/ext/mssql/sqlgenerator/CreateIndexGeneratorMSSQL.java\n@@ -1,7 +1,7 @@\n-package liquibase.ext.mssql.sqlgenerator;\n+\n \n import liquibase.change.AddColumnConfig;\n import liquibase.database.Database;\n import liquibase.ext.mssql.database.MSSQLDatabase;\n import liquibase.ext.mssql.statement.CreateIndexStatementMSSQL;\n import liquibase.sql.Sql;\n@@ -15,6 +16,10 @@\n     return 15;\n   }\n\n+  @Override\n+  public Sql[] generateSql(CreateIndexStatement statement, Database database, SqlGeneratorChain sqlGeneratorChain) {\n+    if (statement instanceof CreateIndexStatementMSSQL) {\n+      return generateMSSQLSql((CreateIndexStatementMSSQL)statement, database, sqlGeneratorChain);\n+    }\n+\n     return super.generateSql(statement, database, sqlGeneratorChain);\n   }\n```\n```diff\nsrc/java/liquibase/ext/mssql/sqlgenerator/AddPrimaryKeyGeneratorMSSQL.java\nsrc/java/liquibase/ext/mssql/sqlgenerator/AddPrimaryKeyGeneratorMSSQL.java\n--- src/java/liquibase/ext/mssql/sqlgenerator/AddPrimaryKeyGeneratorMSSQL.java\n+++ src/java/liquibase/ext/mssql/sqlgenerator/AddPrimaryKeyGeneratorMSSQL.java\n@@ -1,7 +1,7 @@\n-package liquibase.ext.mssql.sqlgenerator;\n+\n \n import liquibase.database.Database;\n import liquibase.ext.mssql.database.MSSQLDatabase;\n import liquibase.ext.mssql.statement.AddPrimaryKeyStatementMSSQL;\n import liquibase.sql.Sql;\n import liquibase.sql.UnparsedSql;\n@@ -14,6 +15,10 @@\n     return 15;\n   }\n\n+  @Override\n+  public Sql[] generateSql(AddPrimaryKeyStatement statement, Database database, SqlGeneratorChain sqlGeneratorChain) {\n+    if (statement instanceof AddPrimaryKeyStatementMSSQL && ((AddPrimaryKeyStatementMSSQL) statement).getFillFactor() != null) {\n+      return generateMSSQLSql((AddPrimaryKeyStatementMSSQL)statement, database, sqlGeneratorChain);\n+    }\n+\n     return super.generateSql(statement, database, sqlGeneratorChain);\n   }\n```",
+            "output": {
+                "compilation_has_succeeded": false,
+                "test_has_succeeded": false,
+                "error_text": "illegal start of expression\n",
+                "updated_files": {
+                    "src/java/liquibase/ext/mssql/database/MSSQLDatabase.java": "package liquibase.ext.mssql.database;\n\nimport liquibase.CatalogAndSchema;\nimport liquibase.exception.LiquibaseException;\nimport liquibase.executor.ExecutorService;\nimport liquibase.ext.mssql.statement.DropStoredProcedureStatement;\n\npublic class MSSQLDatabase extends liquibase.database.core.MSSQLDatabase {\n    \n    @Override\n    public int getPriority() {\n        return PRIORITY_DATABASE;\n    }\n    \n    @Override\n    public void dropDatabaseObjects(CatalogAndSchema schemaToDrop) throws LiquibaseException {\n        super.dropDatabaseObjects(schemaToDrop);\n        ExecutorService.getInstance().getExecutor(this).execute(new DropStoredProcedureStatement(this.getLiquibaseCatalogName(), this.getLiquibaseSchemaName()));\n        ExecutorService.getInstance().getExecutor(this).execute(new DropStoredProcedureStatement(this.getLiquibaseCatalogName(), this.getLiquibaseSchemaName()));\n}\n}",
+                    "src/java/liquibase/ext/mssql/sqlgenerator/CreateIndexGeneratorMSSQL.java": "\n\nimport liquibase.change.AddColumnConfig;\nimport liquibase.database.Database;\nimport liquibase.ext.mssql.database.MSSQLDatabase;\nimport liquibase.ext.mssql.statement.CreateIndexStatementMSSQL;\nimport liquibase.sql.Sql;\nimport liquibase.sql.UnparsedSql;\nimport liquibase.sqlgenerator.SqlGeneratorChain;\nimport liquibase.sqlgenerator.core.CreateIndexGenerator;\nimport liquibase.statement.core.CreateIndexStatement;\nimport liquibase.util.StringUtils;\n\nimport java.util.Arrays;\nimport java.util.Iterator;\n\npublic class CreateIndexGeneratorMSSQL extends CreateIndexGenerator {\n  @Override\n  public int getPriority() {\n    return 15;\n  }\n\n  @Override\n  public Sql[] generateSql(CreateIndexStatement statement, Database database, SqlGeneratorChain sqlGeneratorChain) {\n    if (statement instanceof CreateIndexStatementMSSQL) {\n      return generateMSSQLSql((CreateIndexStatementMSSQL)statement, database, sqlGeneratorChain);\n    }\n\n  @Override\n  public Sql[] generateSql(CreateIndexStatement statement, Database database, SqlGeneratorChain sqlGeneratorChain) {\n    if (statement instanceof CreateIndexStatementMSSQL) {\n      return generateMSSQLSql((CreateIndexStatementMSSQL)statement, database, sqlGeneratorChain);\n    }\n\n    return super.generateSql(statement, database, sqlGeneratorChain);\n  }\n\n  private Sql[] generateMSSQLSql(CreateIndexStatementMSSQL statement, Database database, SqlGeneratorChain sqlGeneratorChain) {\n    StringBuilder builder = new StringBuilder();\n\n    // Basically copied from liquibase.sqlgenerator.core.CreateIndexGenerator\n    builder.append(\"CREATE \");\n    if (statement.isUnique() != null && statement.isUnique()) {\n      builder.append(\"UNIQUE \");\n    }\n    \n    if (statement.isClustered() != null) {\n        if (statement.isClustered()) {\n            builder.append(\"CLUSTERED \");\n        } else {\n            builder.append(\"NONCLUSTERED \");\n        }\n    }\n    \n    builder.append(\"INDEX \");\n\n    if (statement.getIndexName() != null) {\n      String indexSchema = statement.getTableSchemaName();\n      builder.append(database.escapeIndexName(statement.getTableCatalogName(), indexSchema, statement.getIndexName())).append(\" \");\n    }\n    builder.append(\"ON \");\n    builder.append(database.escapeTableName(statement.getTableCatalogName(), statement.getTableSchemaName(), statement.getTableName())).append(\"(\");\n    Iterator<AddColumnConfig> iterator = Arrays.asList(statement.getColumns()).iterator();\n    while (iterator.hasNext()) {\n      AddColumnConfig column = iterator.next();\n      builder.append(database.escapeColumnName(statement.getTableCatalogName(), statement.getTableSchemaName(), statement.getTableName(), column.getName()));\n      if (column.getDescending() != null && column.getDescending()) {\n          builder.append(\" DESC\");\n      }\n      if (iterator.hasNext()) {\n        builder.append(\", \");\n      }\n    }\n    if (statement.getIncludedColumns() != null && ! statement.getIncludedColumns().isEmpty()) {\n      builder.append(\") INCLUDE (\");\n      builder.append(database.escapeColumnNameList(statement.getIncludedColumns()));\n    }\n    builder.append(\")\");\n    if (statement.getFillFactor() != null) {\n      builder.append(\" WITH (FILLFACTOR = \").append(statement.getFillFactor()).append(\")\");\n    }\n    // This block simplified, since we know we have MSSQLDatabase\n    if (StringUtils.trimToNull(statement.getTablespace()) != null) {\n      builder.append(\" ON \").append(statement.getTablespace());\n    }\n\n    return new Sql[]{new UnparsedSql(builder.toString(), getAffectedIndex(statement))};\n  }\n\n  @Override\n  public boolean supports(CreateIndexStatement statement, Database database) {\n    return database instanceof MSSQLDatabase;\n  }\n}\n",
+                    "src/java/liquibase/ext/mssql/sqlgenerator/AddPrimaryKeyGeneratorMSSQL.java": "\n\nimport liquibase.database.Database;\nimport liquibase.ext.mssql.database.MSSQLDatabase;\nimport liquibase.ext.mssql.statement.AddPrimaryKeyStatementMSSQL;\nimport liquibase.sql.Sql;\nimport liquibase.sql.UnparsedSql;\nimport liquibase.sqlgenerator.SqlGeneratorChain;\nimport liquibase.sqlgenerator.core.AddPrimaryKeyGenerator;\nimport liquibase.statement.core.AddPrimaryKeyStatement;\nimport liquibase.structure.core.Index;\nimport liquibase.util.StringUtils;\n\npublic class AddPrimaryKeyGeneratorMSSQL extends AddPrimaryKeyGenerator {\n  @Override\n  public int getPriority() {\n    return 15;\n  }\n\n  /**\n   * Conditionally executes to extension's custom Primary Key SQL generation process if statement is the\n   * AddPrimaryKeyStatementMSSQL implementation and the custom attribute (fillFactor) is set.\n   *\n   * Otherwise, defers to default liquibase implementation.\n   *\n   * @param statement\n   * @param database\n   * @param sqlGeneratorChain\n   * @return\n   */\n  @Override\n  public Sql[] generateSql(AddPrimaryKeyStatement statement, Database database, SqlGeneratorChain sqlGeneratorChain) {\n    if (statement instanceof AddPrimaryKeyStatementMSSQL && ((AddPrimaryKeyStatementMSSQL) statement).getFillFactor() != null) {\n      return generateMSSQLSql((AddPrimaryKeyStatementMSSQL)statement, database, sqlGeneratorChain);\n    }\n\n  @Override\n  public Sql[] generateSql(AddPrimaryKeyStatement statement, Database database, SqlGeneratorChain sqlGeneratorChain) {\n    if (statement instanceof AddPrimaryKeyStatementMSSQL && ((AddPrimaryKeyStatementMSSQL) statement).getFillFactor() != null) {\n      return generateMSSQLSql((AddPrimaryKeyStatementMSSQL)statement, database, sqlGeneratorChain);\n    }\n\n    return super.generateSql(statement, database, sqlGeneratorChain);\n  }\n\n  /**\n   * The extension's implementation is essentially a copy/paste of the default implementation, with the following changes:\n   *\n   * 1) Removed other database platform specific logic other than MSSQL (purely to simplify)\n   *\n   * 2) Added support for setting fillFactor\n   *\n   * @param statement\n   * @param database\n   * @param sqlGeneratorChain\n   * @return\n   */\n  private Sql[] generateMSSQLSql(AddPrimaryKeyStatementMSSQL statement, Database database, SqlGeneratorChain sqlGeneratorChain) {\n    String sql;\n    if (statement.getConstraintName() == null) {\n      sql = \"ALTER TABLE \" + database.escapeTableName(statement.getCatalogName(), statement.getSchemaName(), statement.getTableName()) + \" ADD PRIMARY KEY (\" + database.escapeColumnNameList(statement.getColumnNames()) + \")\";\n    } else {\n      sql = \"ALTER TABLE \" + database.escapeTableName(statement.getCatalogName(), statement.getSchemaName(), statement.getTableName()) + \" ADD CONSTRAINT \" + database.escapeConstraintName(statement.getConstraintName())+\" PRIMARY KEY\";\n      if (!statement.isClustered()) {\n        sql += \" NONCLUSTERED\";\n      }\n      sql += \" (\" + database.escapeColumnNameList(statement.getColumnNames()) + \")\";\n    }\n\n    // the only new feature being added is support for fillFactor\n    sql += \" WITH (FILLFACTOR = \" + statement.getFillFactor() + \")\";\n\n    if (StringUtils.trimToNull(statement.getTablespace()) != null && database.supportsTablespaces()) {\n      sql += \" ON \"+statement.getTablespace();\n    }\n\n    if (statement.getForIndexName() != null) {\n      sql += \" USING INDEX \"+database.escapeObjectName(statement.getForIndexCatalogName(), statement.getForIndexSchemaName(), statement.getForIndexName(), Index.class);\n    }\n\n    return new Sql[] {\n        new UnparsedSql(sql, getAffectedPrimaryKey(statement))\n    };\n  }\n\n  @Override\n  public boolean supports(AddPrimaryKeyStatement statement, Database database) {\n    return database instanceof MSSQLDatabase;\n  }\n\n}\n"
+                },
+                "compile_error_details": {
+                    "src/java/liquibase/ext/mssql/sqlgenerator/AddPrimaryKeyGeneratorMSSQL.java": {
+                        "38": {
+                            "lines": [
+                                {
+                                    "line_no": 37,
+                                    "content": "  @Override"
+                                },
+                                {
+                                    "line_no": 38,
+                                    "content": "  public Sql[] generateSql(AddPrimaryKeyStatement statement, Database database, SqlGeneratorChain sqlGeneratorChain) {"
+                                },
+                                {
+                                    "line_no": 39,
+                                    "content": "    if (statement instanceof AddPrimaryKeyStatementMSSQL && ((AddPrimaryKeyStatementMSSQL) statement).getFillFactor() != null) {"
+                                }
+                            ],
+                            "error_texts": [
+                                "[38,27] ';' expected\n",
+                                "[38,71] not a statement\n",
+                                "[38,79] ';' expected\n",
+                                "[38,116] ';' expected\n",
+                                "[38,70] ';' expected\n"
+                            ]
+                        },
+                        "58": {
+                            "lines": [
+                                {
+                                    "line_no": 57,
+                                    "content": "   */"
+                                },
+                                {
+                                    "line_no": 58,
+                                    "content": "  private Sql[] generateMSSQLSql(AddPrimaryKeyStatementMSSQL statement, Database database, SqlGeneratorChain sqlGeneratorChain) {"
+                                },
+                                {
+                                    "line_no": 59,
+                                    "content": "    String sql;"
+                                }
+                            ],
+                            "error_texts": [
+                                "[58,3] illegal start of expression\n"
+                            ]
+                        }
+                    },
+                    "src/java/liquibase/ext/mssql/sqlgenerator/CreateIndexGeneratorMSSQL.java": {
+                        "30": {
+                            "lines": [
+                                {
+                                    "line_no": 29,
+                                    "content": "  @Override"
+                                },
+                                {
+                                    "line_no": 30,
+                                    "content": "  public Sql[] generateSql(CreateIndexStatement statement, Database database, SqlGeneratorChain sqlGeneratorChain) {"
+                                },
+                                {
+                                    "line_no": 31,
+                                    "content": "    if (statement instanceof CreateIndexStatementMSSQL) {"
+                                }
+                            ],
+                            "error_texts": [
+                                "[30,69] not a statement\n",
+                                "[30,27] ';' expected\n",
+                                "[30,77] ';' expected\n",
+                                "[30,114] ';' expected\n",
+                                "[30,68] ';' expected\n"
+                            ]
+                        },
+                        "38": {
+                            "lines": [
+                                {
+                                    "line_no": 37,
+                                    "content": ""
+                                },
+                                {
+                                    "line_no": 38,
+                                    "content": "  private Sql[] generateMSSQLSql(CreateIndexStatementMSSQL statement, Database database, SqlGeneratorChain sqlGeneratorChain) {"
+                                },
+                                {
+                                    "line_no": 39,
+                                    "content": "    StringBuilder builder = new StringBuilder();"
+                                }
+                            ],
+                            "error_texts": [
+                                "[38,3] illegal start of expression\n"
+                            ]
+                        }
+                    }
+                }
+            },
+            "error": "illegal start of expression\n",
+            "span_id": 834687119771830114
+        },
+        {
+            "input": "```diff\nsrc/java/liquibase/ext/mssql/sqlgenerator/AddPrimaryKeyGeneratorMSSQL.java\nsrc/java/liquibase/ext/mssql/sqlgenerator/AddPrimaryKeyGeneratorMSSQL.java\n--- src/java/liquibase/ext/mssql/sqlgenerator/AddPrimaryKeyGeneratorMSSQL.java\n+++ src/java/liquibase/ext/mssql/sqlgenerator/AddPrimaryKeyGeneratorMSSQL.java\n@@ -1,7 +1,7 @@\n-package liquibase.ext.mssql.sqlgenerator;\n+\n \n import liquibase.database.Database;\n import liquibase.ext.mssql.database.MSSQLDatabase;\n import liquibase.ext.mssql.statement.AddPrimaryKeyStatementMSSQL;\n import liquibase.sql.Sql;\n import liquibase.sql.UnparsedSql;\n import liquibase.sqlgenerator.SqlGeneratorChain;\n import liquibase.sqlgenerator.core.AddPrimaryKeyGenerator;\n import liquibase.statement.core.AddPrimaryKeyStatement;\n import liquibase.structure.core.Index;\n import liquibase.util.StringUtils;\n\npublic class AddPrimaryKeyGeneratorMSSQL extends AddPrimaryKeyGenerator {\n  @Override\n  public int getPriority() {\n    return 15;\n  }\n\n  /**\n   * Conditionally executes to extension's custom Primary Key SQL generation process if statement is the\n   * AddPrimaryKeyStatementMSSQL implementation and the custom attribute (fillFactor) is set.\n   *\n   * Otherwise, defers to default liquibase implementation.\n   *\n   * @param statement\n   * @param database\n   * @param sqlGeneratorChain\n   * @return\n   */\n  @Override\n  public Sql[] generateSql(AddPrimaryKeyStatement statement, Database database, SqlGeneratorChain sqlGeneratorChain) {\n    if (statement instanceof AddPrimaryKeyStatementMSSQL && ((AddPrimaryKeyStatementMSSQL) statement).getFillFactor() != null) {\n      return generateMSSQLSql((AddPrimaryKeyStatementMSSQL)statement, database, sqlGeneratorChain);\n    }\n\n  @Override\n  public Sql[] generateSql(AddPrimaryKeyStatement statement, Database database, SqlGeneratorChain sqlGeneratorChain) {\n    if (statement instanceof AddPrimaryKeyStatementMSSQL && ((AddPrimaryKeyStatementMSSQL) statement).getFillFactor() != null) {\n      return generateMSSQLSql((AddPrimaryKeyStatementMSSQL)statement, database, sqlGeneratorChain);\n    }\n\n    return super.generateSql(statement, database, sqlGeneratorChain);\n  }\n\n  /**\n   * The extension's implementation is essentially a copy/paste of the default implementation, with the following changes:\n   *\n   * 1) Removed other database platform specific logic other than MSSQL (purely to simplify)\n   *\n   * 2) Added support for setting fillFactor\n   *\n   * @param statement\n   * @param database\n   * @param sqlGeneratorChain\n   * @return\n   */\n  private Sql[] generateMSSQLSql(AddPrimaryKeyStatementMSSQL statement, Database database, SqlGeneratorChain sqlGeneratorChain) {\n    String sql;\n    if (statement.getConstraintName() == null) {\n      sql = \"ALTER TABLE \" + database.escapeTableName(statement.getCatalogName(), statement.getSchemaName(), statement.getTableName()) + \" ADD PRIMARY KEY (\" + database.escapeColumnNameList(statement.getColumnNames()) + \")\";\n    } else {\n      sql = \"ALTER TABLE \" + database.escapeTableName(statement.getCatalogName(), statement.getSchemaName(), statement.getTableName()) + \" ADD CONSTRAINT \" + database.escapeConstraintName(statement.getConstraintName())+\" PRIMARY KEY\";\n      if (!statement.isClustered()) {\n        sql += \" NONCLUSTERED\";\n      }\n      sql += \" (\" + database.escapeColumnNameList(statement.getColumnNames()) + \")\";\n    }\n\n    // the only new feature being added is support for fillFactor\n    sql += \" WITH (FILLFACTOR = \" + statement.getFillFactor() + \")\";\n\n    if (StringUtils.trimToNull(statement.getTablespace()) != null && database.supportsTablespaces()) {\n      sql += \" ON \"+statement.getTablespace();\n    }\n\n    if (statement.getForIndexName() != null) {\n      sql += \" USING INDEX \"+database.escapeObjectName(statement.getForIndexCatalogName(), statement.getForIndexSchemaName(), statement.getForIndexName(), Index.class);\n    }\n\n    return new Sql[] {\n        new UnparsedSql(sql, getAffectedPrimaryKey(statement))\n    };\n  }\n\n  @Override\n  public boolean supports(AddPrimaryKeyStatement statement, Database database) {\n    return database instanceof MSSQLDatabase;\n  }\n\n}\n```",
+            "output": {
+                "compilation_has_succeeded": false,
+                "test_has_succeeded": false,
+                "error_text": "Failed to prepare diffs: Diff is not valid, UnifiedDiffNoMatch: hunk failed to apply!\nsrc/java/liquibase/ext/mssql/sqlgenerator/AddPrimaryKeyGeneratorMSSQL.java does not contain lines that match the diff you provided!\nTry again.\nDO NOT, NEVER, skip blank lines, comments, docstrings, etc!\nThe diff needs to apply cleanly to the lines in src/java/liquibase/ext/mssql/sqlgenerator/AddPrimaryKeyGeneratorMSSQL.java!\nMake extra sure the indentation is correct.\nsrc/java/liquibase/ext/mssql/sqlgenerator/AddPrimaryKeyGeneratorMSSQL.java does not contain these 89 exact lines in a row:\n```\npackage liquibase.ext.mssql.sqlgenerator;\nimport liquibase.database.Database;\nimport liquibase.ext.mssql.database.MSSQLDatabase;\nimport liquibase.ext.mssql.statement.AddPrimaryKeyStatementMSSQL;\nimport liquibase.sql.Sql;\nimport liquibase.sql.UnparsedSql;\nimport liquibase.sqlgenerator.SqlGeneratorChain;\nimport liquibase.sqlgenerator.core.AddPrimaryKeyGenerator;\nimport liquibase.statement.core.AddPrimaryKeyStatement;\nimport liquibase.structure.core.Index;\nimport liquibase.util.StringUtils;\n@Override\npublic int getPriority() {\nreturn 15;\n}\n/**\n* Conditionally executes to extension's custom Primary Key SQL generation process if statement is the\n* AddPrimaryKeyStatementMSSQL implementation and the custom attribute (fillFactor) is set.\n*\n* Otherwise, defers to default liquibase implementation.\n*\n* @param statement\n* @param database\n* @param sqlGeneratorChain\n* @return\n*/\n@Override\npublic Sql[] generateSql(AddPrimaryKeyStatement statement, Database database, SqlGeneratorChain sqlGeneratorChain) {\nif (statement instanceof AddPrimaryKeyStatementMSSQL && ((AddPrimaryKeyStatementMSSQL) statement).getFillFactor() != null) {\nreturn generateMSSQLSql((AddPrimaryKeyStatementMSSQL)statement, database, sqlGeneratorChain);\n}\n@Override\npublic Sql[] generateSql(AddPrimaryKeyStatement statement, Database database, SqlGeneratorChain sqlGeneratorChain) {\nif (statement instanceof AddPrimaryKeyStatementMSSQL && ((AddPrimaryKeyStatementMSSQL) statement).getFillFactor() != null) {\nreturn generateMSSQLSql((AddPrimaryKeyStatementMSSQL)statement, database, sqlGeneratorChain);\n}\nreturn super.generateSql(statement, database, sqlGeneratorChain);\n}\n/**\n* The extension's implementation is essentially a copy/paste of the default implementation, with the following changes:\n*\n* 1) Removed other database platform specific logic other than MSSQL (purely to simplify)\n*\n* 2) Added support for setting fillFactor\n*\n* @param statement\n* @param database\n* @param sqlGeneratorChain\n* @return\n*/\nprivate Sql[] generateMSSQLSql(AddPrimaryKeyStatementMSSQL statement, Database database, SqlGeneratorChain sqlGeneratorChain) {\nString sql;\nif (statement.getConstraintName() == null) {\nsql = \"ALTER TABLE \" + database.escapeTableName(statement.getCatalogName(), statement.getSchemaName(), statement.getTableName()) + \" ADD PRIMARY KEY (\" + database.escapeColumnNameList(statement.getColumnNames()) + \")\";\n} else {\nsql = \"ALTER TABLE \" + database.escapeTableName(statement.getCatalogName(), statement.getSchemaName(), statement.getTableName()) + \" ADD CONSTRAINT \" + database.escapeConstraintName(statement.getConstraintName())+\" PRIMARY KEY\";\nif (!statement.isClustered()) {\nsql += \" NONCLUSTERED\";\n}\nsql += \" (\" + database.escapeColumnNameList(statement.getColumnNames()) + \")\";\n}\n// the only new feature being added is support for fillFactor\nsql += \" WITH (FILLFACTOR = \" + statement.getFillFactor() + \")\";\nif (StringUtils.trimToNull(statement.getTablespace()) != null && database.supportsTablespaces()) {\nsql += \" ON \"+statement.getTablespace();\n}\nif (statement.getForIndexName() != null) {\nsql += \" USING INDEX \"+database.escapeObjectName(statement.getForIndexCatalogName(), statement.getForIndexSchemaName(), statement.getForIndexName(), Index.class);\n}\nreturn new Sql[] {\nnew UnparsedSql(sql, getAffectedPrimaryKey(statement))\n};\n}\n@Override\npublic boolean supports(AddPrimaryKeyStatement statement, Database database) {\nreturn database instanceof MSSQLDatabase;\n}\n```",
+                "updated_files": {},
+                "compile_error_details": {}
+            },
+            "error": "Failed to prepare diffs: Diff is not valid, UnifiedDiffNoMatch: hunk failed to apply!\nsrc/java/liquibase/ext/mssql/sqlgenerator/AddPrimaryKeyGeneratorMSSQL.java does not contain lines that match the diff you provided!\nTry again.\nDO NOT, NEVER, skip blank lines, comments, docstrings, etc!\nThe diff needs to apply cleanly to the lines in src/java/liquibase/ext/mssql/sqlgenerator/AddPrimaryKeyGeneratorMSSQL.java!\nMake extra sure the indentation is correct.\nsrc/java/liquibase/ext/mssql/sqlgenerator/AddPrimaryKeyGeneratorMSSQL.java does not contain these 89 exact lines in a row:\n```\npackage liquibase.ext.mssql.sqlgenerator;\nimport liquibase.database.Database;\nimport liquibase.ext.mssql.database.MSSQLDatabase;\nimport liquibase.ext.mssql.statement.AddPrimaryKeyStatementMSSQL;\nimport liquibase.sql.Sql;\nimport liquibase.sql.UnparsedSql;\nimport liquibase.sqlgenerator.SqlGeneratorChain;\nimport liquibase.sqlgenerator.core.AddPrimaryKeyGenerator;\nimport liquibase.statement.core.AddPrimaryKeyStatement;\nimport liquibase.structure.core.Index;\nimport liquibase.util.StringUtils;\n@Override\npublic int getPriority() {\nreturn 15;\n}\n/**\n* Conditionally executes to extension's custom Primary Key SQL generation process if statement is the\n* AddPrimaryKeyStatementMSSQL implementation and the custom attribute (fillFactor) is set.\n*\n* Otherwise, defers to default liquibase implementation.\n*\n* @param statement\n* @param database\n* @param sqlGeneratorChain\n* @return\n*/\n@Override\npublic Sql[] generateSql(AddPrimaryKeyStatement statement, Database database, SqlGeneratorChain sqlGeneratorChain) {\nif (statement instanceof AddPrimaryKeyStatementMSSQL && ((AddPrimaryKeyStatementMSSQL) statement).getFillFactor() != null) {\nreturn generateMSSQLSql((AddPrimaryKeyStatementMSSQL)statement, database, sqlGeneratorChain);\n}\n@Override\npublic Sql[] generateSql(AddPrimaryKeyStatement statement, Database database, SqlGeneratorChain sqlGeneratorChain) {\nif (statement instanceof AddPrimaryKeyStatementMSSQL && ((AddPrimaryKeyStatementMSSQL) statement).getFillFactor() != null) {\nreturn generateMSSQLSql((AddPrimaryKeyStatementMSSQL)statement, database, sqlGeneratorChain);\n}\nreturn super.generateSql(statement, database, sqlGeneratorChain);\n}\n/**\n* The extension's implementation is essentially a copy/paste of the default implementation, with the following changes:\n*\n* 1) Removed other database platform specific logic other than MSSQL (purely to simplify)\n*\n* 2) Added support for setting fillFactor\n*\n* @param statement\n* @param database\n* @param sqlGeneratorChain\n* @return\n*/\nprivate Sql[] generateMSSQLSql(AddPrimaryKeyStatementMSSQL statement, Database database, SqlGeneratorChain sqlGeneratorChain) {\nString sql;\nif (statement.getConstraintName() == null) {\nsql = \"ALTER TABLE \" + database.escapeTableName(statement.getCatalogName(), statement.getSchemaName(), statement.getTableName()) + \" ADD PRIMARY KEY (\" + database.escapeColumnNameList(statement.getColumnNames()) + \")\";\n} else {\nsql = \"ALTER TABLE \" + database.escapeTableName(statement.getCatalogName(), statement.getSchemaName(), statement.getTableName()) + \" ADD CONSTRAINT \" + database.escapeConstraintName(statement.getConstraintName())+\" PRIMARY KEY\";\nif (!statement.isClustered()) {\nsql += \" NONCLUSTERED\";\n}\nsql += \" (\" + database.escapeColumnNameList(statement.getColumnNames()) + \")\";\n}\n// the only new feature being added is support for fillFactor\nsql += \" WITH (FILLFACTOR = \" + statement.getFillFactor() + \")\";\nif (StringUtils.trimToNull(statement.getTablespace()) != null && database.supportsTablespaces()) {\nsql += \" ON \"+statement.getTablespace();\n}\nif (statement.getForIndexName() != null) {\nsql += \" USING INDEX \"+database.escapeObjectName(statement.getForIndexCatalogName(), statement.getForIndexSchemaName(), statement.getForIndexName(), Index.class);\n}\nreturn new Sql[] {\nnew UnparsedSql(sql, getAffectedPrimaryKey(statement))\n};\n}\n@Override\npublic boolean supports(AddPrimaryKeyStatement statement, Database database) {\nreturn database instanceof MSSQLDatabase;\n}\n```",
+            "span_id": 4030874982824908142
+        },
+        {
+            "input": "```diff\nsrc/java/liquibase/ext/mssql/sqlgenerator/AddPrimaryKeyGeneratorMSSQL.java\nsrc/java/liquibase/ext/mssql/sqlgenerator/AddPrimaryKeyGeneratorMSSQL.java\n--- src/java/liquibase/ext/mssql/sqlgenerator/AddPrimaryKeyGeneratorMSSQL.java\n+++ src/java/liquibase/ext/mssql/sqlgenerator/AddPrimaryKeyGeneratorMSSQL.java\n@@ -1,7 +1,7 @@\n-package liquibase.ext.mssql.sqlgenerator;\n+\n \n import liquibase.database.Database;\n import liquibase.ext.mssql.database.MSSQLDatabase;\n import liquibase.ext.mssql.statement.AddPrimaryKeyStatementMSSQL;\n import liquibase.sql.Sql;\n import liquibase.sql.UnparsedSql;\n import liquibase.sqlgenerator.SqlGeneratorChain;\n import liquibase.sqlgenerator.core.AddPrimaryKeyGenerator;\n import liquibase.statement.core.AddPrimaryKeyStatement;\n import liquibase.structure.core.Index;\n import liquibase.util.StringUtils;\n\npublic class AddPrimaryKeyGeneratorMSSQL extends AddPrimaryKeyGenerator {\n  @Override\n  public int getPriority() {\n    return 15;\n  }\n\n  /**\n   * Conditionally executes to extension's custom Primary Key SQL generation process if statement is the\n   * AddPrimaryKeyStatementMSSQL implementation and the custom attribute (fillFactor) is set.\n   *\n   * Otherwise, defers to default liquibase implementation.\n   *\n   * @param statement\n   * @param database\n   * @param sqlGeneratorChain\n   * @return\n   */\n  @Override\n  public Sql[] generateSql(AddPrimaryKeyStatement statement, Database database, SqlGeneratorChain sqlGeneratorChain) {\n    if (statement instanceof AddPrimaryKeyStatementMSSQL && ((AddPrimaryKeyStatementMSSQL) statement).getFillFactor() != null) {\n      return generateMSSQLSql((AddPrimaryKeyStatementMSSQL)statement, database, sqlGeneratorChain);\n    }\n\n  @Override\n  public Sql[] generateSql(AddPrimaryKeyStatement statement, Database database, SqlGeneratorChain sqlGeneratorChain) {\n    if (statement instanceof AddPrimaryKeyStatementMSSQL && ((AddPrimaryKeyStatementMSSQL) statement).getFillFactor() != null) {\n      return generateMSSQLSql((AddPrimaryKeyStatementMSSQL)statement, database, sqlGeneratorChain);\n    }\n\n    return super.generateSql(statement, database, sqlGeneratorChain);\n  }\n\n  /**\n   * The extension's implementation is essentially a copy/paste of the default implementation, with the following changes:\n   *\n   * 1) Removed other database platform specific logic other than MSSQL (purely to simplify)\n   *\n   * 2) Added support for setting fillFactor\n   *\n   * @param statement\n   * @param database\n   * @param sqlGeneratorChain\n   * @return\n   */\n  private Sql[] generateMSSQLSql(AddPrimaryKeyStatementMSSQL statement, Database database, SqlGeneratorChain sqlGeneratorChain) {\n    String sql;\n    if (statement.getConstraintName() == null) {\n      sql = \"ALTER TABLE \" + database.escapeTableName(statement.getCatalogName(), statement.getSchemaName(), statement.getTableName()) + \" ADD PRIMARY KEY (\" + database.escapeColumnNameList(statement.getColumnNames()) + \")\";\n    } else {\n      sql = \"ALTER TABLE \" + database.escapeTableName(statement.getCatalogName(), statement.getSchemaName(), statement.getTableName()) + \" ADD CONSTRAINT \" + database.escapeConstraintName(statement.getConstraintName())+\" PRIMARY KEY\";\n      if (!statement.isClustered()) {\n        sql += \" NONCLUSTERED\";\n      }\n      sql += \" (\" + database.escapeColumnNameList(statement.getColumnNames()) + \")\";\n    }\n\n    // the only new feature being added is support for fillFactor\n    sql += \" WITH (FILLFACTOR = \" + statement.getFillFactor() + \")\";\n\n    if (StringUtils.trimToNull(statement.getTablespace()) != null && database.supportsTablespaces()) {\n      sql += \" ON \"+statement.getTablespace();\n    }\n\n    if (statement.getForIndexName() != null) {\n      sql += \" USING INDEX \"+database.escapeObjectName(statement.getForIndexCatalogName(), statement.getForIndexSchemaName(), statement.getForIndexName(), Index.class);\n    }\n\n    return new Sql[] {\n        new UnparsedSql(sql, getAffectedPrimaryKey(statement))\n    };\n  }\n\n  @Override\n  public boolean supports(AddPrimaryKeyStatement statement, Database database) {\n    return database instanceof MSSQLDatabase;\n  }\n\n}\n```",
+            "output": {
+                "compilation_has_succeeded": false,
+                "test_has_succeeded": false,
+                "error_text": "cannot find symbol\n",
+                "updated_files": {
+                    "src/java/liquibase/ext/mssql/sqlgenerator/AddPrimaryKeyGeneratorMSSQL.java": "\n\nimport liquibase.database.Database;\nimport liquibase.ext.mssql.database.MSSQLDatabase;\nimport liquibase.ext.mssql.statement.AddPrimaryKeyStatementMSSQL;\nimport liquibase.sql.Sql;\nimport liquibase.sql.UnparsedSql;\nimport liquibase.sqlgenerator.SqlGeneratorChain;\nimport liquibase.sqlgenerator.core.AddPrimaryKeyGenerator;\nimport liquibase.statement.core.AddPrimaryKeyStatement;\nimport liquibase.structure.core.Index;\nimport liquibase.util.StringUtils;\n\npublic class AddPrimaryKeyGeneratorMSSQL extends AddPrimaryKeyGenerator {\n  @Override\n  public int getPriority() {\n    return 15;\n  }\n\n  /**\n   * Conditionally executes to extension's custom Primary Key SQL generation process if statement is the\n   * AddPrimaryKeyStatementMSSQL implementation and the custom attribute (fillFactor) is set.\n   *\n   * Otherwise, defers to default liquibase implementation.\n   *\n   * @param statement\n   * @param database\n   * @param sqlGeneratorChain\n   * @return\n   */\n  @Override\n  public Sql[] generateSql(AddPrimaryKeyStatement statement, Database database, SqlGeneratorChain sqlGeneratorChain) {\n    if (statement instanceof AddPrimaryKeyStatementMSSQL && ((AddPrimaryKeyStatementMSSQL) statement).getFillFactor() != null) {\n      return generateMSSQLSql((AddPrimaryKeyStatementMSSQL)statement, database, sqlGeneratorChain);\n    }\n\n    return super.generateSql(statement, database, sqlGeneratorChain);\n  }\n\n  /**\n   * The extension's implementation is essentially a copy/paste of the default implementation, with the following changes:\n   *\n   * 1) Removed other database platform specific logic other than MSSQL (purely to simplify)\n   *\n   * 2) Added support for setting fillFactor\n   *\n   * @param statement\n   * @param database\n   * @param sqlGeneratorChain\n   * @return\n   */\n  private Sql[] generateMSSQLSql(AddPrimaryKeyStatementMSSQL statement, Database database, SqlGeneratorChain sqlGeneratorChain) {\n    String sql;\n    if (statement.getConstraintName() == null) {\n      sql = \"ALTER TABLE \" + database.escapeTableName(statement.getCatalogName(), statement.getSchemaName(), statement.getTableName()) + \" ADD PRIMARY KEY (\" + database.escapeColumnNameList(statement.getColumnNames()) + \")\";\n    } else {\n      sql = \"ALTER TABLE \" + database.escapeTableName(statement.getCatalogName(), statement.getSchemaName(), statement.getTableName()) + \" ADD CONSTRAINT \" + database.escapeConstraintName(statement.getConstraintName())+\" PRIMARY KEY\";\n      if (!statement.isClustered()) {\n        sql += \" NONCLUSTERED\";\n      }\n      sql += \" (\" + database.escapeColumnNameList(statement.getColumnNames()) + \")\";\n    }\n\n    // the only new feature being added is support for fillFactor\n    sql += \" WITH (FILLFACTOR = \" + statement.getFillFactor() + \")\";\n\n    if (StringUtils.trimToNull(statement.getTablespace()) != null && database.supportsTablespaces()) {\n      sql += \" ON \"+statement.getTablespace();\n    }\n\n    if (statement.getForIndexName() != null) {\n      sql += \" USING INDEX \"+database.escapeObjectName(statement.getForIndexCatalogName(), statement.getForIndexSchemaName(), statement.getForIndexName(), Index.class);\n    }\n\n    return new Sql[] {\n        new UnparsedSql(sql, getAffectedPrimaryKey(statement))\n    };\n  }\n\n  @Override\n  public boolean supports(AddPrimaryKeyStatement statement, Database database) {\n    return database instanceof MSSQLDatabase;\n  }\n\n}\n"
+                },
+                "compile_error_details": {
+                    "src/java/liquibase/ext/mssql/sqlgenerator/AddPrimaryKeyGeneratorMSSQL.java": {
+                        "12": {
+                            "lines": [
+                                {
+                                    "line_no": 11,
+                                    "content": "import liquibase.structure.core.Index;"
+                                },
+                                {
+                                    "line_no": 12,
+                                    "content": "import liquibase.util.StringUtils;"
+                                },
+                                {
+                                    "line_no": 13,
+                                    "content": ""
+                                }
+                            ],
+                            "error_texts": [
+                                "[12,22] cannot find symbol\n",
+                                "[12,22] cannot find symbol\nsymbol: class StringUtils\nlocation: package liquibase.util\n"
+                            ]
+                        },
+                        "67": {
+                            "lines": [
+                                {
+                                    "line_no": 66,
+                                    "content": ""
+                                },
+                                {
+                                    "line_no": 67,
+                                    "content": "    if (StringUtils.trimToNull(statement.getTablespace()) != null && database.supportsTablespaces()) {"
+                                },
+                                {
+                                    "line_no": 68,
+                                    "content": "      sql += \" ON \"+statement.getTablespace();"
+                                }
+                            ],
+                            "error_texts": [
+                                "[67,9] cannot find symbol\n",
+                                "[67,9] cannot find symbol\nsymbol: variable StringUtils\nlocation: class AddPrimaryKeyGeneratorMSSQL\n"
+                            ]
+                        }
+                    },
+                    "src/java/liquibase/ext/mssql/sqlgenerator/CreateIndexGeneratorMSSQL.java": {
+                        "12": {
+                            "lines": [
+                                {
+                                    "line_no": 11,
+                                    "content": "import liquibase.statement.core.CreateIndexStatement;"
+                                },
+                                {
+                                    "line_no": 12,
+                                    "content": "import liquibase.util.StringUtils;"
+                                },
+                                {
+                                    "line_no": 13,
+                                    "content": ""
+                                }
+                            ],
+                            "error_texts": [
+                                "[12,22] cannot find symbol\n",
+                                "[12,22] cannot find symbol\nsymbol: class StringUtils\nlocation: package liquibase.util\n"
+                            ]
+                        },
+                        "77": {
+                            "lines": [
+                                {
+                                    "line_no": 76,
+                                    "content": "    // This block simplified, since we know we have MSSQLDatabase"
+                                },
+                                {
+                                    "line_no": 77,
+                                    "content": "    if (StringUtils.trimToNull(statement.getTablespace()) != null) {"
+                                },
+                                {
+                                    "line_no": 78,
+                                    "content": "      builder.append(\" ON \").append(statement.getTablespace());"
+                                }
+                            ],
+                            "error_texts": [
+                                "[77,9] cannot find symbol\nsymbol: variable StringUtils\nlocation: class liquibase.ext.mssql.sqlgenerator.CreateIndexGeneratorMSSQL\n",
+                                "[77,9] cannot find symbol\n"
+                            ]
+                        }
+                    },
+                    "src/java/liquibase/ext/mssql/database/MSSQLDatabase.java": {
+                        "18": {
+                            "lines": [
+                                {
+                                    "line_no": 17,
+                                    "content": "        super.dropDatabaseObjects(schemaToDrop);"
+                                },
+                                {
+                                    "line_no": 18,
+                                    "content": "        ExecutorService.getInstance().getExecutor(this).execute(new DropStoredProcedureStatement(this.getLiquibaseCatalogName(), this.getLiquibaseSchemaName()));"
+                                },
+                                {
+                                    "line_no": 19,
+                                    "content": "    }"
+                                }
+                            ],
+                            "error_texts": [
+                                "[18,24] cannot find symbol\n",
+                                "[18,24] cannot find symbol\nsymbol: method getInstance()\nlocation: class liquibase.executor.ExecutorService\n"
+                            ]
+                        }
+                    }
+                }
+            },
+            "error": "cannot find symbol\n",
+            "span_id": 1083462596852248062
+        }
+    ],
+    "read_file": [
+        {
+            "input": "src/java/liquibase/ext/mssql/database/MSSQLDatabase.java",
+            "output": "package liquibase.ext.mssql.database;\n\nimport liquibase.CatalogAndSchema;\nimport liquibase.exception.LiquibaseException;\nimport liquibase.executor.ExecutorService;\nimport liquibase.ext.mssql.statement.DropStoredProcedureStatement;\n\npublic class MSSQLDatabase extends liquibase.database.core.MSSQLDatabase {\n    \n    @Override\n    public int getPriority() {\n        return PRIORITY_DATABASE;\n    }\n    \n    @Override\n    public void dropDatabaseObjects(CatalogAndSchema schemaToDrop) throws LiquibaseException {\n        super.dropDatabaseObjects(schemaToDrop);\n        ExecutorService.getInstance().getExecutor(this).execute(new DropStoredProcedureStatement(this.getLiquibaseCatalogName(), this.getLiquibaseSchemaName()));\n    }\n}",
+            "error": "",
+            "span_id": 16735155005106838433
+        },
+        {
+            "input": "src/java/liquibase/ext/mssql/sqlgenerator/CreateIndexGeneratorMSSQL.java",
+            "output": "package liquibase.ext.mssql.sqlgenerator;\n\nimport liquibase.change.AddColumnConfig;\nimport liquibase.database.Database;\nimport liquibase.ext.mssql.database.MSSQLDatabase;\nimport liquibase.ext.mssql.statement.CreateIndexStatementMSSQL;\nimport liquibase.sql.Sql;\nimport liquibase.sql.UnparsedSql;\nimport liquibase.sqlgenerator.SqlGeneratorChain;\nimport liquibase.sqlgenerator.core.CreateIndexGenerator;\nimport liquibase.statement.core.CreateIndexStatement;\nimport liquibase.util.StringUtils;\n\nimport java.util.Arrays;\nimport java.util.Iterator;\n\npublic class CreateIndexGeneratorMSSQL extends CreateIndexGenerator {\n  @Override\n  public int getPriority() {\n    return 15;\n  }\n\n  @Override\n  public Sql[] generateSql(CreateIndexStatement statement, Database database, SqlGeneratorChain sqlGeneratorChain) {\n    if (statement instanceof CreateIndexStatementMSSQL) {\n      return generateMSSQLSql((CreateIndexStatementMSSQL)statement, database, sqlGeneratorChain);\n    }\n\n    return super.generateSql(statement, database, sqlGeneratorChain);\n  }\n\n  private Sql[] generateMSSQLSql(CreateIndexStatementMSSQL statement, Database database, SqlGeneratorChain sqlGeneratorChain) {\n    StringBuilder builder = new StringBuilder();\n\n    // Basically copied from liquibase.sqlgenerator.core.CreateIndexGenerator\n    builder.append(\"CREATE \");\n    if (statement.isUnique() != null && statement.isUnique()) {\n      builder.append(\"UNIQUE \");\n    }\n    \n    if (statement.isClustered() != null) {\n        if (statement.isClustered()) {\n            builder.append(\"CLUSTERED \");\n        } else {\n            builder.append(\"NONCLUSTERED \");\n        }\n    }\n    \n    builder.append(\"INDEX \");\n\n    if (statement.getIndexName() != null) {\n      String indexSchema = statement.getTableSchemaName();\n      builder.append(database.escapeIndexName(statement.getTableCatalogName(), indexSchema, statement.getIndexName())).append(\" \");\n    }\n    builder.append(\"ON \");\n    builder.append(database.escapeTableName(statement.getTableCatalogName(), statement.getTableSchemaName(), statement.getTableName())).append(\"(\");\n    Iterator<AddColumnConfig> iterator = Arrays.asList(statement.getColumns()).iterator();\n    while (iterator.hasNext()) {\n      AddColumnConfig column = iterator.next();\n      builder.append(database.escapeColumnName(statement.getTableCatalogName(), statement.getTableSchemaName(), statement.getTableName(), column.getName()));\n      if (column.getDescending() != null && column.getDescending()) {\n          builder.append(\" DESC\");\n      }\n      if (iterator.hasNext()) {\n        builder.append(\", \");\n      }\n    }\n    if (statement.getIncludedColumns() != null && ! statement.getIncludedColumns().isEmpty()) {\n      builder.append(\") INCLUDE (\");\n      builder.append(database.escapeColumnNameList(statement.getIncludedColumns()));\n    }\n    builder.append(\")\");\n    if (statement.getFillFactor() != null) {\n      builder.append(\" WITH (FILLFACTOR = \").append(statement.getFillFactor()).append(\")\");\n    }\n    // This block simplified, since we know we have MSSQLDatabase\n    if (StringUtils.trimToNull(statement.getTablespace()) != null) {\n      builder.append(\" ON \").append(statement.getTablespace());\n    }\n\n    return new Sql[]{new UnparsedSql(builder.toString(), getAffectedIndex(statement))};\n  }\n\n  @Override\n  public boolean supports(CreateIndexStatement statement, Database database) {\n    return database instanceof MSSQLDatabase;\n  }\n}\n",
+            "error": "",
+            "span_id": 2119672495929115411
+        },
+        {
+            "input": "src/java/liquibase/ext/mssql/sqlgenerator/AddPrimaryKeyGeneratorMSSQL.java",
+            "output": "package liquibase.ext.mssql.sqlgenerator;\n\nimport liquibase.database.Database;\nimport liquibase.ext.mssql.database.MSSQLDatabase;\nimport liquibase.ext.mssql.statement.AddPrimaryKeyStatementMSSQL;\nimport liquibase.sql.Sql;\nimport liquibase.sql.UnparsedSql;\nimport liquibase.sqlgenerator.SqlGeneratorChain;\nimport liquibase.sqlgenerator.core.AddPrimaryKeyGenerator;\nimport liquibase.statement.core.AddPrimaryKeyStatement;\nimport liquibase.structure.core.Index;\nimport liquibase.util.StringUtils;\n\npublic class AddPrimaryKeyGeneratorMSSQL extends AddPrimaryKeyGenerator {\n  @Override\n  public int getPriority() {\n    return 15;\n  }\n\n  /**\n   * Conditionally executes to extension's custom Primary Key SQL generation process if statement is the\n   * AddPrimaryKeyStatementMSSQL implementation and the custom attribute (fillFactor) is set.\n   *\n   * Otherwise, defers to default liquibase implementation.\n   *\n   * @param statement\n   * @param database\n   * @param sqlGeneratorChain\n   * @return\n   */\n  @Override\n  public Sql[] generateSql(AddPrimaryKeyStatement statement, Database database, SqlGeneratorChain sqlGeneratorChain) {\n    if (statement instanceof AddPrimaryKeyStatementMSSQL && ((AddPrimaryKeyStatementMSSQL) statement).getFillFactor() != null) {\n      return generateMSSQLSql((AddPrimaryKeyStatementMSSQL)statement, database, sqlGeneratorChain);\n    }\n\n    return super.generateSql(statement, database, sqlGeneratorChain);\n  }\n\n  /**\n   * The extension's implementation is essentially a copy/paste of the default implementation, with the following changes:\n   *\n   * 1) Removed other database platform specific logic other than MSSQL (purely to simplify)\n   *\n   * 2) Added support for setting fillFactor\n   *\n   * @param statement\n   * @param database\n   * @param sqlGeneratorChain\n   * @return\n   */\n  private Sql[] generateMSSQLSql(AddPrimaryKeyStatementMSSQL statement, Database database, SqlGeneratorChain sqlGeneratorChain) {\n    String sql;\n    if (statement.getConstraintName() == null) {\n      sql = \"ALTER TABLE \" + database.escapeTableName(statement.getCatalogName(), statement.getSchemaName(), statement.getTableName()) + \" ADD PRIMARY KEY (\" + database.escapeColumnNameList(statement.getColumnNames()) + \")\";\n    } else {\n      sql = \"ALTER TABLE \" + database.escapeTableName(statement.getCatalogName(), statement.getSchemaName(), statement.getTableName()) + \" ADD CONSTRAINT \" + database.escapeConstraintName(statement.getConstraintName())+\" PRIMARY KEY\";\n      if (!statement.isClustered()) {\n        sql += \" NONCLUSTERED\";\n      }\n      sql += \" (\" + database.escapeColumnNameList(statement.getColumnNames()) + \")\";\n    }\n\n    // the only new feature being added is support for fillFactor\n    sql += \" WITH (FILLFACTOR = \" + statement.getFillFactor() + \")\";\n\n    if (StringUtils.trimToNull(statement.getTablespace()) != null && database.supportsTablespaces()) {\n      sql += \" ON \"+statement.getTablespace();\n    }\n\n    if (statement.getForIndexName() != null) {\n      sql += \" USING INDEX \"+database.escapeObjectName(statement.getForIndexCatalogName(), statement.getForIndexSchemaName(), statement.getForIndexName(), Index.class);\n    }\n\n    return new Sql[] {\n        new UnparsedSql(sql, getAffectedPrimaryKey(statement))\n    };\n  }\n\n  @Override\n  public boolean supports(AddPrimaryKeyStatement statement, Database database) {\n    return database instanceof MSSQLDatabase;\n  }\n\n}\n",
+            "error": "",
+            "span_id": 8165892016686741775
+        },
+        {
+            "input": "src/java/liquibase/util/StringUtils.java",
+            "output": "Error: RetryError[<Future at 0x7a6d5419d490 state=finished raised FileNotFoundError>]",
+            "error": "RetryError[<Future at 0x7a6d5419d490 state=finished raised FileNotFoundError>]",
+            "span_id": 15659161279431043540
+        },
+        {
+            "input": "src/java/liquibase/util/StringUtils.java",
+            "output": "Error: RetryError[<Future at 0x7a6d5419d1f0 state=finished raised FileNotFoundError>]",
+            "error": "RetryError[<Future at 0x7a6d5419d1f0 state=finished raised FileNotFoundError>]",
+            "span_id": 11788701674895074238
+        },
+        {
+            "input": "src/java/liquibase/util/StringUtils.java",
+            "output": "Error: RetryError[<Future at 0x7a6d542393d0 state=finished raised FileNotFoundError>]",
+            "error": "RetryError[<Future at 0x7a6d542393d0 state=finished raised FileNotFoundError>]",
+            "span_id": 7704746246168124321
+        },
+        {
+            "input": "src/java/liquibase/util/StringUtils.java",
+            "output": "Error: RetryError[<Future at 0x7a6d44d47b00 state=finished raised FileNotFoundError>]",
+            "error": "RetryError[<Future at 0x7a6d44d47b00 state=finished raised FileNotFoundError>]",
+            "span_id": 11057425815540720221
+        },
+        {
+            "input": "src/java/liquibase/util/StringUtils.java",
+            "output": "Error: RetryError[<Future at 0x7a6d423987d0 state=finished raised FileNotFoundError>]",
+            "error": "RetryError[<Future at 0x7a6d423987d0 state=finished raised FileNotFoundError>]",
+            "span_id": 17765125420278125473
+        },
+        {
+            "input": "src/java/liquibase/util/StringUtils.java",
+            "output": "Error: RetryError[<Future at 0x7a6d543891f0 state=finished raised FileNotFoundError>]",
+            "error": "RetryError[<Future at 0x7a6d543891f0 state=finished raised FileNotFoundError>]",
+            "span_id": 11090069682690737445
+        }
+    ],
+    "get_directory_tree": [
+        {
+            "input": "src/java/liquibase/ext/mssql",
+            "output": "[\n    {\n        \"name\": \"statement\",\n        \"type\": \"directory\",\n        \"contents\": [\n            {\n                \"name\": \"InsertSetStatementMSSQL.java\",\n                \"type\": \"file\"\n            },\n            {\n                \"name\": \"DropStoredProcedureStatement.java\",\n                \"type\": \"file\"\n            },\n            {\n                \"name\": \"InsertStatementMSSQL.java\",\n                \"type\": \"file\"\n            },\n            {\n                \"name\": \"AddPrimaryKeyStatementMSSQL.java\",\n                \"type\": \"file\"\n            },\n            {\n                \"name\": \"CreateIndexStatementMSSQL.java\",\n                \"type\": \"file\"\n            }\n        ]\n    },\n    {\n        \"name\": \"change\",\n        \"type\": \"directory\",\n        \"contents\": [\n            {\n                \"name\": \"InsertDataChangeMSSQL.java\",\n                \"type\": \"file\"\n            },\n            {\n                \"name\": \"DropStoredProcedureChange.java\",\n                \"type\": \"file\"\n            },\n            {\n                \"name\": \"AddPrimaryKeyChangeMSSQL.java\",\n                \"type\": \"file\"\n            },\n            {\n                \"name\": \"LoadDataChangeMSSQL.java\",\n                \"type\": \"file\"\n            },\n            {\n                \"name\": \"CreateIndexChangeMSSQL.java\",\n                \"type\": \"file\"\n            }\n        ]\n    },\n    {\n        \"name\": \"database\",\n        \"type\": \"directory\",\n        \"contents\": [\n            {\n                \"name\": \"MSSQLDatabase.java\",\n                \"type\": \"file\"\n            }\n        ]\n    },\n    {\n        \"name\": \"sqlgenerator\",\n        \"type\": \"directory\",\n        \"contents\": [\n            {\n                \"name\": \"InsertSetGenerator.java\",\n                \"type\": \"file\"\n            },\n            {\n                \"name\": \"AddPrimaryKeyGeneratorMSSQL.java\",\n                \"type\": \"file\"\n            },\n            {\n                \"name\": \"CreateIndexGeneratorMSSQL.java\",\n                \"type\": \"file\"\n            },\n            {\n                \"name\": \"InsertGenerator.java\",\n                \"type\": \"file\"\n            },\n            {\n                \"name\": \"DropStoredProcedureGeneratorMSSQL.java\",\n                \"type\": \"file\"\n            }\n        ]\n    }\n]",
+            "error": "",
+            "span_id": 7164100405847779745
+        }
+    ],
+    "get_language_server_suggestions": [],
+    "reset_repo": [
+        {
+            "input": "",
+            "output": "Successful reset of repository",
+            "error": "",
+            "span_id": 17237576959650288480
+        },
+        {
+            "input": "",
+            "output": "Successful reset of repository",
+            "error": "",
+            "span_id": 16382759490609072075
+        },
+        {
+            "input": "",
+            "output": "Successful reset of repository",
+            "error": "",
+            "span_id": 17116616069438862955
+        },
+        {
+            "input": "",
+            "output": "Successful reset of repository",
+            "error": "",
+            "span_id": 7535582623133424077
+        }
+    ]
+}

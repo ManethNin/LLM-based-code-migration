@@ -1,0 +1,120 @@
+diff --git a/cdi-test-core/src/main/java/de/hilling/junit/cdi/scope/CallRedirectionInterceptor.java b/cdi-test-core/src/main/java/de/hilling/junit/cdi/scope/CallRedirectionInterceptor.java
+index 6eb35d3..0398ccc 100644
+--- a/cdi-test-core/src/main/java/de/hilling/junit/cdi/scope/CallRedirectionInterceptor.java
++++ b/cdi-test-core/src/main/java/de/hilling/junit/cdi/scope/CallRedirectionInterceptor.java
+@@ -7,11 +7,12 @@ import javax.annotation.Priority;
+ import javax.enterprise.context.Dependent;
+ import javax.enterprise.inject.Instance;
+ import javax.inject.Inject;
+-import javax.interceptor.AroundInvoke;
+-import javax.interceptor.Interceptor;
+-import javax.interceptor.InvocationContext;
++import jakarta.interceptor.AroundInvoke;
++import jakarta.interceptor.Interceptor;
++import jakarta.interceptor.InvocationContext;
+ import java.io.Serializable;
+ import java.lang.reflect.InvocationTargetException;
++import java.util.logging.Logger;
+ import java.lang.reflect.Method;
+ 
+ @Replaceable
+@@ -20,6 +21,7 @@ import java.lang.reflect.Method;
+ @Priority(0)
+ public class CallRedirectionInterceptor implements Serializable {
+     private static final long serialVersionUID = 1L;
++    private static final Logger LOGGER = Logger.getLogger(CallRedirectionInterceptor.class.getName());
+ 
+     @Inject
+     private Instance<InvocationTargetManager> invocationTargetManager;
+@@ -27,11 +29,15 @@ public class CallRedirectionInterceptor implements Serializable {
+     @AroundInvoke
+     public Object invokeMockableBean(InvocationContext ctx) throws Throwable {
+         Class<?> javaClass = ReflectionsUtils.getOriginalClass(ctx.getTarget().getClass());
++        LOGGER.info("Intercepting call for class: " + javaClass.getName());
+         if (invocationTargetManager.get().isAlternativeEnabled(javaClass)) {
++            LOGGER.info("Alternative enabled for " + javaClass.getName());
+             return callAlternative(ctx, javaClass);
+         } else if (invocationTargetManager.get().isMockEnabled(javaClass)) {
++            LOGGER.info("Mock enabled for " + javaClass.getName());
+             return callMock(ctx, javaClass);
+         } else {
++            LOGGER.info("No alternative or mock enabled for " + javaClass.getName() + ", proceeding with original call");
+             return ctx.proceed();
+         }
+     }
+@@ -39,6 +45,7 @@ public class CallRedirectionInterceptor implements Serializable {
+     @SuppressWarnings("squid:S00112")
+     private Object callAlternative(InvocationContext ctx, Class<?> javaClass) throws Throwable {
+         Method method = ctx.getMethod();
++        LOGGER.info("Calling alternative for " + javaClass.getName() + ", method: " + method.getName());
+         Object alternative = BeanProvider
+                 .getContextualReference(invocationTargetManager.get().alternativeFor(javaClass));
+         try {
+@@ -54,6 +61,7 @@ public class CallRedirectionInterceptor implements Serializable {
+     @SuppressWarnings("squid:S00112")
+     private Object callMock(InvocationContext ctx, Class<?> javaClass) throws Throwable {
+         try {
++            LOGGER.info("Calling mock for " + javaClass.getName() + ", method: " + ctx.getMethod().getName());
+             return ctx.getMethod().invoke(invocationTargetManager.get().mock(javaClass), ctx.getParameters());
+         } catch (InvocationTargetException ite) {
+             throw ite.getCause();
+diff --git a/cdi-test-core/src/main/java/de/hilling/junit/cdi/scope/Replaceable.java b/cdi-test-core/src/main/java/de/hilling/junit/cdi/scope/Replaceable.java
+index 260831c..27f3937 100644
+--- a/cdi-test-core/src/main/java/de/hilling/junit/cdi/scope/Replaceable.java
++++ b/cdi-test-core/src/main/java/de/hilling/junit/cdi/scope/Replaceable.java
+@@ -2,7 +2,7 @@ package de.hilling.junit.cdi.scope;
+ 
+ import org.immutables.value.Value;
+ 
+-import javax.interceptor.InterceptorBinding;
++import jakarta.interceptor.InterceptorBinding;
+ import java.lang.annotation.*;
+ 
+ /**
+diff --git a/cdi-test-core/src/test/java/de/hilling/junit/cdi/ActivateAlternativeForAlternativeTest.java b/cdi-test-core/src/test/java/de/hilling/junit/cdi/ActivateAlternativeForAlternativeTest.java
+index f93e947..afa5508 100644
+--- a/cdi-test-core/src/test/java/de/hilling/junit/cdi/ActivateAlternativeForAlternativeTest.java
++++ b/cdi-test-core/src/test/java/de/hilling/junit/cdi/ActivateAlternativeForAlternativeTest.java
+@@ -4,17 +4,20 @@ import de.hilling.junit.cdi.beans.Person;
+ import de.hilling.junit.cdi.service.BackendService;
+ import de.hilling.junit.cdi.service.OverriddenService;
+ import de.hilling.junit.cdi.service.TestActivatedOverridenService;
++import de.hilling.junit.cdi.scope.InvocationTargetManager;
+ import org.junit.jupiter.api.Test;
+ import org.junit.jupiter.api.extension.ExtendWith;
+ import org.mockito.junit.jupiter.MockitoExtension;
+ 
+ import javax.inject.Inject;
++import java.util.logging.Logger;
+ 
+ import static org.junit.jupiter.api.Assertions.assertEquals;
+ 
+ @ExtendWith(CdiTestJunitExtension.class)
+ @ExtendWith(MockitoExtension.class)
+ class ActivateAlternativeForAlternativeTest {
++    private static final Logger LOGGER = Logger.getLogger(ActivateAlternativeForAlternativeTest.class.getName());
+     @Inject
+     private TestActivatedOverridenService testOverride;
+     @Inject
+@@ -22,10 +25,21 @@ class ActivateAlternativeForAlternativeTest {
+     @Inject
+     private BackendService backendService;
+ 
++    @Inject
++    private InvocationTargetManager invocationTargetManager;
++
+     @Test
+     void callTestActivatedService() {
++        LOGGER.info("Starting callTestActivatedService test");
++        LOGGER.info("BackendService: " + backendService.getClass().getName());
++        LOGGER.info("TestActivatedOverridenService: " + testOverride.getClass().getName());
++        LOGGER.info("Is alternative enabled for BackendService: " + invocationTargetManager.isAlternativeEnabled(BackendService.class));
+         backendService.storePerson(new Person());
++        LOGGER.info("Is mock enabled for BackendService: " + invocationTargetManager.isMockEnabled(BackendService.class));
++        LOGGER.info("First storePerson call completed");
+         backendService.storePerson(new Person());
++        LOGGER.info("Second storePerson call completed");
++        LOGGER.info("InvocationCounter: " + testOverride.getInvocationCounter());
+         assertEquals(2, testOverride.getInvocationCounter());
+     }
+ 

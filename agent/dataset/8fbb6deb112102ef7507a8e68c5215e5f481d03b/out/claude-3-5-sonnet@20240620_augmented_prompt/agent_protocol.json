@@ -1,0 +1,1252 @@
+{
+    "validate_diffs": [
+        {
+            "input": "```diff\n--- jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JettyStubHttpServer.java\n+++ jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JettyStubHttpServer.java\n@@ -8,8 +8,8 @@ import org.eclipse.jetty.server.Server;\n import org.slf4j.Logger;\n import org.slf4j.LoggerFactory;\n import org.apache.commons.lang.Validate;\n-import org.eclipse.jetty.server.Connector;\n-import org.eclipse.jetty.server.nio.SelectChannelConnector;\n+import org.eclipse.jetty.server.ServerConnector;\n+import org.eclipse.jetty.server.HttpConfiguration;\n \n \n /**\n@@ -19,7 +19,7 @@ public class JettyStubHttpServer implements StubHttpServer {\n \n     private static final Logger logger = LoggerFactory.getLogger(JettyStubHttpServer.class);\n     private final Server server;\n-    private final Connector httpConnector;\n+    private final ServerConnector httpConnector;\n \n     public JettyStubHttpServer() {\n         this(0);\n@@ -28,11 +28,11 @@ public class JettyStubHttpServer implements StubHttpServer {\n \n     public JettyStubHttpServer(final int port) {\n         this.server = new Server();\n-        this.server.setSendServerVersion(false);\n-        this.server.setSendDateHeader(true);\n+        HttpConfiguration config = new HttpConfiguration();\n+        config.setSendServerVersion(false);\n+        config.setSendDateHeader(true);\n         \n-        this.httpConnector = new SelectChannelConnector();\n-        this.httpConnector.setPort(port);\n+        this.httpConnector = new ServerConnector(server, new HttpConfiguration(config));\n+        this.httpConnector.setPort(port);\n         server.addConnector(this.httpConnector);\n     }\n     \n@@ -76,6 +76,6 @@ public class JettyStubHttpServer implements StubHttpServer {\n      */\n     @Override\n     public int getPort() {\n-        return httpConnector.getLocalPort();\n+        return httpConnector.getPort();\n     }\n }\n```",
+            "output": "{'jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JettyStubHttpServer.java': '/*\\n * Copyright (c) 2012 - 2016 Jadler contributors\\n * This program is made available under the terms of the MIT License.\\n */\\npackage net.jadler.stubbing.server.jetty;\\n\\nimport net.jadler.RequestManager;\\nimport net.jadler.stubbing.server.StubHttpServer;\\nimport org.eclipse.jetty.server.Server;\\nimport org.slf4j.Logger;\\nimport org.slf4j.LoggerFactory;\\nimport org.apache.commons.lang.Validate;\\nimport org.eclipse.jetty.server.ServerConnector;\\nimport org.eclipse.jetty.server.HttpConfiguration;\\n\\n\\n/**\\n * Default stub http server implementation using Jetty as an http server.\\n */\\npublic class JettyStubHttpServer implements StubHttpServer {\\n\\n    private static final Logger logger = LoggerFactory.getLogger(JettyStubHttpServer.class);\\n    private final Server server;\\n    private final ServerConnector httpConnector;\\n\\n    public JettyStubHttpServer() {\\n        this(0);\\n    }\\n    \\n\\n    public JettyStubHttpServer(final int port) {\\n        this.server = new Server();\\nHttpConfiguration config = new HttpConfiguration();\\nconfig.setSendServerVersion(false);\\nconfig.setSendDateHeader(true);\\n\\nthis.httpConnector = new ServerConnector(server, new HttpConfiguration(config));\\n        this.httpConnector.setPort(port);\\n        server.addConnector(this.httpConnector);\\n}\\n\\n\\n/**\\n     * {@inheritDoc}\\n*/\\n@Override\\n    public void registerRequestManager(final RequestManager ruleProvider) {\\n        Validate.notNull(ruleProvider, \"ruleProvider cannot be null\");\\n\\n        server.setHandler(new JadlerHandler(ruleProvider));\\n}\\n\\n\\n/**\\n     * {@inheritDoc}\\n*/\\n@Override\\n    public void start() throws Exception {\\n        logger.debug(\"starting jetty\");\\n        server.start();\\n        logger.debug(\"jetty started\");\\n}\\n\\n\\n/**\\n     * {@inheritDoc}\\n*/\\n@Override\\n    public void stop() throws Exception {\\n        logger.debug(\"stopping jetty\");\\n        server.stop();\\n        logger.debug(\"jetty stopped\");\\n}\\n\\n\\n/**\\n     * {@inheritDoc}\\n*/\\n@Override\\n    public int getPort() {\\nreturn httpConnector.getPort();\\n}\\n}'}",
+            "error": "",
+            "span_id": 3087885909632429232
+        },
+        {
+            "input": "```diff\n--- jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JadlerHandler.java\n+++ jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JadlerHandler.java\n@@ -35,6 +35,7 @@ class JadlerHandler extends AbstractHandler {\n     }\n \n \n+    @Override\n     public void handle(final String target, final Request baseRequest, final HttpServletRequest request,\n             final HttpServletResponse response) throws IOException, ServletException {\n \n```",
+            "output": "{'jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JadlerHandler.java': '/*\\n * Copyright (c) 2012 - 2016 Jadler contributors\\n * This program is made available under the terms of the MIT License.\\n */\\npackage net.jadler.stubbing.server.jetty;\\n\\nimport net.jadler.stubbing.StubResponse;\\nimport net.jadler.RequestManager;\\nimport org.eclipse.jetty.server.Request;\\nimport org.eclipse.jetty.server.handler.AbstractHandler;\\nimport javax.servlet.ServletException;\\nimport javax.servlet.http.HttpServletRequest;\\nimport javax.servlet.http.HttpServletResponse;\\nimport java.io.IOException;\\nimport java.io.OutputStream;\\nimport net.jadler.KeyValues;\\nimport org.apache.commons.lang.Validate;\\n\\n\\n/**\\n * Jetty Handler which handles all http communication by returning an http response according to a stub response\\n * obtained from a {@link RequestManager} instance.\\n */\\nclass JadlerHandler extends AbstractHandler {\\n\\n    private final RequestManager requestManager;\\n\\n    \\n    /**\\n     * @param requestManager request manager instance to retrieve stub responses\\n     */\\n    JadlerHandler(final RequestManager requestManager) {\\n        Validate.notNull(requestManager, \"requestManager cannot be null\");\\n        this.requestManager = requestManager;\\n    }\\n\\n\\n    @Override\\n    @Override\\n    public void handle(final String target, final Request baseRequest, final HttpServletRequest request,\\n            final HttpServletResponse response) throws IOException, ServletException {\\n\\n        final net.jadler.Request req = RequestUtils.convert(request);\\n        final StubResponse stubResponse = this.requestManager.provideStubResponseFor(req);\\n        \\n        response.setStatus(stubResponse.getStatus());\\n        this.insertResponseHeaders(stubResponse.getHeaders(), response);        \\n        \\n        baseRequest.setHandled(true);\\n        \\n        this.processDelay(stubResponse.getDelay());\\n        this.insertResponseBody(stubResponse.getBody(), response);\\n    }\\n\\n    \\n    private void insertResponseBody(final byte[] body, final HttpServletResponse response) throws IOException {\\n        if (body.length > 0) {\\n            final OutputStream os = response.getOutputStream();\\n            os.write(body);\\n        }\\n    }\\n\\n    \\n    private void insertResponseHeaders(final KeyValues headers, final HttpServletResponse response) {\\n        for (final String key: headers.getKeys()) {\\n            \\n            for (final String value: headers.getValues(key)) {\\n                response.addHeader(key, value);\\n            }\\n        }\\n    }\\n\\n\\n    private void processDelay(final long delay) {\\n        if (delay > 0) {\\n            try {\\n                Thread.sleep(delay);\\n            } catch (final InterruptedException e) {\\n                Thread.currentThread().interrupt();\\n            }\\n        }\\n    }\\n}\\n'}",
+            "error": "",
+            "span_id": 17324543703411078271
+        }
+    ],
+    "compile_maven": [
+        {
+            "input": "```diff\n--- jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JettyStubHttpServer.java\n+++ jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JettyStubHttpServer.java\n@@ -8,8 +8,8 @@ import org.eclipse.jetty.server.Server;\n import org.slf4j.Logger;\n import org.slf4j.LoggerFactory;\n import org.apache.commons.lang.Validate;\n-import org.eclipse.jetty.server.Connector;\n-import org.eclipse.jetty.server.nio.SelectChannelConnector;\n+import org.eclipse.jetty.server.ServerConnector;\n+import org.eclipse.jetty.server.HttpConfiguration;\n \n \n /**\n@@ -19,7 +19,7 @@ public class JettyStubHttpServer implements StubHttpServer {\n \n     private static final Logger logger = LoggerFactory.getLogger(JettyStubHttpServer.class);\n     private final Server server;\n-    private final Connector httpConnector;\n+    private final ServerConnector httpConnector;\n \n     public JettyStubHttpServer() {\n         this(0);\n@@ -28,11 +28,11 @@ public class JettyStubHttpServer implements StubHttpServer {\n \n     public JettyStubHttpServer(final int port) {\n         this.server = new Server();\n-        this.server.setSendServerVersion(false);\n-        this.server.setSendDateHeader(true);\n+        HttpConfiguration config = new HttpConfiguration();\n+        config.setSendServerVersion(false);\n+        config.setSendDateHeader(true);\n         \n-        this.httpConnector = new SelectChannelConnector();\n-        this.httpConnector.setPort(port);\n+        this.httpConnector = new ServerConnector(server, new HttpConfiguration(config));\n+        this.httpConnector.setPort(port);\n         server.addConnector(this.httpConnector);\n     }\n     \n@@ -76,6 +76,6 @@ public class JettyStubHttpServer implements StubHttpServer {\n      */\n     @Override\n     public int getPort() {\n-        return httpConnector.getLocalPort();\n+        return httpConnector.getPort();\n     }\n }\n--- jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JadlerHandler.java\n+++ jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JadlerHandler.java\n@@ -35,6 +35,7 @@ class JadlerHandler extends AbstractHandler {\n     }\n \n \n+    @Override\n     public void handle(final String target, final Request baseRequest, final HttpServletRequest request,\n             final HttpServletResponse response) throws IOException, ServletException {\n \n```",
+            "output": {
+                "compilation_has_succeeded": true,
+                "test_has_succeeded": false,
+                "error_text": "[INFO]\n[INFO] Results:\n[INFO]\n[ERROR] Failures:\n[ERROR] StubbingTest.withBodyInputStream:137\nExpected: [<1b>, <2b>, <3b>]\nbut: was []\n[ERROR] Errors:\n[ERROR] StubbingTest.withBodyReader:99 \u00bb NullPointer Cannot enter synchronized block because \"this.lock\" is null\n[INFO]\n[ERROR] Tests run: 235, Failures: 1, Errors: 1, Skipped: 0\n[INFO]\n[INFO] ------------------------------------------------------------------------\n[INFO] Reactor Summary for jadler-pom 1.3.1-SNAPSHOT:\n[INFO]\n[INFO] jadler-pom ......................................... SUCCESS [ 0.613 s]\n[INFO] jadler-core ........................................ FAILURE [ 9.003 s]\n[INFO] jadler-jetty ....................................... SKIPPED\n[INFO] jadler-junit ....................................... SKIPPED\n[INFO] jadler-jdk ......................................... SKIPPED\n[INFO] jadler-all ......................................... SKIPPED\n[INFO] ------------------------------------------------------------------------\n[INFO] BUILD FAILURE\n[INFO] ------------------------------------------------------------------------\n[INFO] Total time: 9.840 s\n[INFO] Finished at: 2024-08-05T02:35:51Z\n[INFO] ------------------------------------------------------------------------\n[ERROR] Failed to execute goal org.apache.maven.plugins:maven-surefire-plugin:3.2.5:test (default-test) on project jadler-core: There are test failures.\n[ERROR]\n[ERROR] Please refer to /mnt/repo/jadler-core/target/surefire-reports for the individual test results.\n[ERROR] Please refer to dump files (if any exist) [date].dump, [date]-jvmRun[N].dump and [date].dumpstream.\n[ERROR] -> [Help 1]\n[ERROR]\n[ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.\n[ERROR] Re-run Maven using the -X switch to enable full debug logging.\n[ERROR]\n[ERROR] For more information about the errors and possible solutions, please read the following articles:\n[ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoFailureException\n[ERROR]\n[ERROR] After correcting the problems, you can resume the build with the command\n[ERROR] mvn <args> -rf :jadler-core",
+                "updated_files": {
+                    "jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JettyStubHttpServer.java": "/*\n * Copyright (c) 2012 - 2016 Jadler contributors\n * This program is made available under the terms of the MIT License.\n */\npackage net.jadler.stubbing.server.jetty;\n\nimport net.jadler.RequestManager;\nimport net.jadler.stubbing.server.StubHttpServer;\nimport org.eclipse.jetty.server.Server;\nimport org.slf4j.Logger;\nimport org.slf4j.LoggerFactory;\nimport org.apache.commons.lang.Validate;\nimport org.eclipse.jetty.server.ServerConnector;\nimport org.eclipse.jetty.server.HttpConfiguration;\n\n\n/**\n * Default stub http server implementation using Jetty as an http server.\n */\npublic class JettyStubHttpServer implements StubHttpServer {\n\n    private static final Logger logger = LoggerFactory.getLogger(JettyStubHttpServer.class);\n    private final Server server;\n    private final ServerConnector httpConnector;\n\n    public JettyStubHttpServer() {\n        this(0);\n    }\n    \n\n    public JettyStubHttpServer(final int port) {\n        this.server = new Server();\nHttpConfiguration config = new HttpConfiguration();\nconfig.setSendServerVersion(false);\nconfig.setSendDateHeader(true);\n\nthis.httpConnector = new ServerConnector(server, new HttpConfiguration(config));\n        this.httpConnector.setPort(port);\n        server.addConnector(this.httpConnector);\n}\n\n\n/**\n     * {@inheritDoc}\n*/\n@Override\n    public void registerRequestManager(final RequestManager ruleProvider) {\n        Validate.notNull(ruleProvider, \"ruleProvider cannot be null\");\n\n        server.setHandler(new JadlerHandler(ruleProvider));\n}\n\n\n/**\n     * {@inheritDoc}\n*/\n@Override\n    public void start() throws Exception {\n        logger.debug(\"starting jetty\");\n        server.start();\n        logger.debug(\"jetty started\");\n}\n\n\n/**\n     * {@inheritDoc}\n*/\n@Override\n    public void stop() throws Exception {\n        logger.debug(\"stopping jetty\");\n        server.stop();\n        logger.debug(\"jetty stopped\");\n}\n\n\n/**\n     * {@inheritDoc}\n*/\n@Override\n    public int getPort() {\nreturn httpConnector.getPort();\n}\n}",
+                    "jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JadlerHandler.java": "/*\n * Copyright (c) 2012 - 2016 Jadler contributors\n * This program is made available under the terms of the MIT License.\n */\npackage net.jadler.stubbing.server.jetty;\n\nimport net.jadler.stubbing.StubResponse;\nimport net.jadler.RequestManager;\nimport org.eclipse.jetty.server.Request;\nimport org.eclipse.jetty.server.handler.AbstractHandler;\nimport javax.servlet.ServletException;\nimport javax.servlet.http.HttpServletRequest;\nimport javax.servlet.http.HttpServletResponse;\nimport java.io.IOException;\nimport java.io.OutputStream;\nimport net.jadler.KeyValues;\nimport org.apache.commons.lang.Validate;\n\n\n/**\n * Jetty Handler which handles all http communication by returning an http response according to a stub response\n * obtained from a {@link RequestManager} instance.\n */\nclass JadlerHandler extends AbstractHandler {\n\n    private final RequestManager requestManager;\n\n    \n    /**\n     * @param requestManager request manager instance to retrieve stub responses\n     */\n    JadlerHandler(final RequestManager requestManager) {\n        Validate.notNull(requestManager, \"requestManager cannot be null\");\n        this.requestManager = requestManager;\n    }\n\n\n    @Override\n    @Override\n    public void handle(final String target, final Request baseRequest, final HttpServletRequest request,\n            final HttpServletResponse response) throws IOException, ServletException {\n\n        final net.jadler.Request req = RequestUtils.convert(request);\n        final StubResponse stubResponse = this.requestManager.provideStubResponseFor(req);\n        \n        response.setStatus(stubResponse.getStatus());\n        this.insertResponseHeaders(stubResponse.getHeaders(), response);        \n        \n        baseRequest.setHandled(true);\n        \n        this.processDelay(stubResponse.getDelay());\n        this.insertResponseBody(stubResponse.getBody(), response);\n    }\n\n    \n    private void insertResponseBody(final byte[] body, final HttpServletResponse response) throws IOException {\n        if (body.length > 0) {\n            final OutputStream os = response.getOutputStream();\n            os.write(body);\n        }\n    }\n\n    \n    private void insertResponseHeaders(final KeyValues headers, final HttpServletResponse response) {\n        for (final String key: headers.getKeys()) {\n            \n            for (final String value: headers.getValues(key)) {\n                response.addHeader(key, value);\n            }\n        }\n    }\n\n\n    private void processDelay(final long delay) {\n        if (delay > 0) {\n            try {\n                Thread.sleep(delay);\n            } catch (final InterruptedException e) {\n                Thread.currentThread().interrupt();\n            }\n        }\n    }\n}\n"
+                },
+                "compile_error_details": {}
+            },
+            "error": "[INFO]\n[INFO] Results:\n[INFO]\n[ERROR] Failures:\n[ERROR] StubbingTest.withBodyInputStream:137\nExpected: [<1b>, <2b>, <3b>]\nbut: was []\n[ERROR] Errors:\n[ERROR] StubbingTest.withBodyReader:99 \u00bb NullPointer Cannot enter synchronized block because \"this.lock\" is null\n[INFO]\n[ERROR] Tests run: 235, Failures: 1, Errors: 1, Skipped: 0\n[INFO]\n[INFO] ------------------------------------------------------------------------\n[INFO] Reactor Summary for jadler-pom 1.3.1-SNAPSHOT:\n[INFO]\n[INFO] jadler-pom ......................................... SUCCESS [ 0.613 s]\n[INFO] jadler-core ........................................ FAILURE [ 9.003 s]\n[INFO] jadler-jetty ....................................... SKIPPED\n[INFO] jadler-junit ....................................... SKIPPED\n[INFO] jadler-jdk ......................................... SKIPPED\n[INFO] jadler-all ......................................... SKIPPED\n[INFO] ------------------------------------------------------------------------\n[INFO] BUILD FAILURE\n[INFO] ------------------------------------------------------------------------\n[INFO] Total time: 9.840 s\n[INFO] Finished at: 2024-08-05T02:35:51Z\n[INFO] ------------------------------------------------------------------------\n[ERROR] Failed to execute goal org.apache.maven.plugins:maven-surefire-plugin:3.2.5:test (default-test) on project jadler-core: There are test failures.\n[ERROR]\n[ERROR] Please refer to /mnt/repo/jadler-core/target/surefire-reports for the individual test results.\n[ERROR] Please refer to dump files (if any exist) [date].dump, [date]-jvmRun[N].dump and [date].dumpstream.\n[ERROR] -> [Help 1]\n[ERROR]\n[ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.\n[ERROR] Re-run Maven using the -X switch to enable full debug logging.\n[ERROR]\n[ERROR] For more information about the errors and possible solutions, please read the following articles:\n[ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoFailureException\n[ERROR]\n[ERROR] After correcting the problems, you can resume the build with the command\n[ERROR] mvn <args> -rf :jadler-core",
+            "span_id": 9296794863472026884
+        },
+        {
+            "input": "```diff\n--- jadler-core/src/main/java/net/jadler/stubbing/Stubbing.java\n+++ jadler-core/src/main/java/net/jadler/stubbing/Stubbing.java\n@@ -18,6 +18,7 @@ import org.apache.commons.collections.MultiMap;\n import org.apache.commons.collections.map.MultiValueMap;\n import org.apache.commons.lang.Validate;\n \n+import java.util.concurrent.locks.ReentrantLock;\n \n /**\n  * Internal class for defining http stubs in a fluid fashion. You shouldn't create instances\n@@ -32,6 +33,7 @@ public class Stubbing extends AbstractRequestMatching<RequestStubbing> implement\n     private final MultiMap defaultHeaders;\n     private final int defaultStatus;\n     private final Charset defaultEncoding;\n+    private final ReentrantLock lock = new ReentrantLock();\n     \n     \n     /**\n@@ -131,14 +133,16 @@ public class Stubbing extends AbstractRequestMatching<RequestStubbing> implement\n     @Override\n     public ResponseStubbing withBody(final InputStream is) {\n         try {\n-            final byte[] responseBody;\n-        \n-            try {\n-                responseBody = IOUtils.toByteArray(is);\n-            }\n-            catch (final IOException e) {\n-                throw new JadlerException(\"A problem occurred while reading the given input stream\", e);\n+            lock.lock();\n+            try {\n+                final byte[] responseBody = IOUtils.toByteArray(is);\n+                currentResponse().setBody(responseBody);\n+                return this;\n+            } catch (final IOException e) {\n+                throw new JadlerException(\"A problem occurred while reading the given input stream\", e);\n+            } finally {\n+                lock.unlock();\n             }\n-        \n-            return this.withBody(responseBody);\n         }\n         finally {\n             IOUtils.closeQuietly(is);\n```",
+            "output": {
+                "compilation_has_succeeded": true,
+                "test_has_succeeded": false,
+                "error_text": "[INFO]\n[INFO] Results:\n[INFO]\n[ERROR] Failures:\n[ERROR] StubbingTest.withBodyInputStream:137\nExpected: [<1b>, <2b>, <3b>]\nbut: was []\n[ERROR] Errors:\n[ERROR] StubbingTest.withBodyReader:99 \u00bb NullPointer Cannot enter synchronized block because \"this.lock\" is null\n[INFO]\n[ERROR] Tests run: 235, Failures: 1, Errors: 1, Skipped: 0\n[INFO]\n[INFO] ------------------------------------------------------------------------\n[INFO] Reactor Summary for jadler-pom 1.3.1-SNAPSHOT:\n[INFO]\n[INFO] jadler-pom ......................................... SUCCESS [ 0.574 s]\n[INFO] jadler-core ........................................ FAILURE [ 9.322 s]\n[INFO] jadler-jetty ....................................... SKIPPED\n[INFO] jadler-junit ....................................... SKIPPED\n[INFO] jadler-jdk ......................................... SKIPPED\n[INFO] jadler-all ......................................... SKIPPED\n[INFO] ------------------------------------------------------------------------\n[INFO] BUILD FAILURE\n[INFO] ------------------------------------------------------------------------\n[INFO] Total time: 10.103 s\n[INFO] Finished at: 2024-08-05T02:36:51Z\n[INFO] ------------------------------------------------------------------------\n[ERROR] Failed to execute goal org.apache.maven.plugins:maven-surefire-plugin:3.2.5:test (default-test) on project jadler-core: There are test failures.\n[ERROR]\n[ERROR] Please refer to /mnt/repo/jadler-core/target/surefire-reports for the individual test results.\n[ERROR] Please refer to dump files (if any exist) [date].dump, [date]-jvmRun[N].dump and [date].dumpstream.\n[ERROR] -> [Help 1]\n[ERROR]\n[ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.\n[ERROR] Re-run Maven using the -X switch to enable full debug logging.\n[ERROR]\n[ERROR] For more information about the errors and possible solutions, please read the following articles:\n[ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoFailureException\n[ERROR]\n[ERROR] After correcting the problems, you can resume the build with the command\n[ERROR] mvn <args> -rf :jadler-core",
+                "updated_files": {
+                    "jadler-core/src/main/java/net/jadler/stubbing/Stubbing.java": "/*\n * Copyright (c) 2012 - 2016 Jadler contributors\n * This program is made available under the terms of the MIT License.\n */\npackage net.jadler.stubbing;\n\nimport net.jadler.exception.JadlerException;\nimport java.util.ArrayList;\nimport java.util.List;\nimport java.util.concurrent.TimeUnit;\nimport org.apache.commons.io.IOUtils;\nimport java.io.IOException;\nimport java.io.InputStream;\nimport java.io.Reader;\nimport java.nio.charset.Charset;\nimport net.jadler.AbstractRequestMatching;\nimport net.jadler.Jadler;\nimport org.apache.commons.collections.MultiMap;\nimport org.apache.commons.collections.map.MultiValueMap;\nimport org.apache.commons.lang.Validate;\n\nimport java.util.concurrent.locks.ReentrantLock;\n\n/**\n * Internal class for defining http stubs in a fluid fashion. You shouldn't create instances\n * of this class on your own, please see {@link Jadler#onRequest()}\n * for more information on creating instances of this class.\n */\npublic class Stubbing extends AbstractRequestMatching<RequestStubbing> implements RequestStubbing, ResponseStubbing {\n    \n    private static final String CONTENT_TYPE_HEADER = \"Content-Type\";\n\n    Responder responder;\n    final List<MutableStubResponse> stubResponses;\n    private final MultiMap defaultHeaders;\n    private final int defaultStatus;\n    private final Charset defaultEncoding;\nprivate final ReentrantLock lock = new ReentrantLock();\n    \n\n/**\n     * @param defaultHeaders default headers to be present in every http stub response\n     * @param defaultStatus default http status of every http stub response \n     * (can be overridden in the particular stub)\n     * @param defaultEncoding default encoding of every stub response body (can be overridden in the particular stub)\n*/\n    @SuppressWarnings(\"unchecked\")\n    Stubbing(final Charset defaultEncoding, final int defaultStatus, final MultiMap defaultHeaders) {\n\n        this.stubResponses = new ArrayList<MutableStubResponse>();\n        this.defaultHeaders = new MultiValueMap();\n        this.defaultHeaders.putAll(defaultHeaders);\n        this.defaultStatus = defaultStatus;\n        this.defaultEncoding = defaultEncoding;        \n        this.responder = null;\n}\n    \n\n/**\n     * {@inheritDoc}\n*/\n@Override\n    public ResponseStubbing respond() {\n        return this.thenRespond();\n}\n    \n\n/**\n     * {@inheritDoc}\n*/\n@Override\n    public ResponseStubbing thenRespond() {\n        final MutableStubResponse response = new MutableStubResponse();\n\n        response.addHeaders(defaultHeaders);\n        response.setStatus(defaultStatus);\n        response.setEncoding(defaultEncoding);\n        response.setBody(\"\");\n\n        stubResponses.add(response);\n        return this;\n}\n    \n\n/**\n     * {@inheritDoc}\n*/\n@Override\n    public void respondUsing(final Responder responder) {\n        Validate.notNull(responder, \"responder cannot be null\");\n\n        this.responder = responder;\n}\n\n\n/**\n     * {@inheritDoc}\n*/\n@Override\n    public ResponseStubbing withContentType(final String contentType) {\n        currentResponse().setHeaderCaseInsensitive(CONTENT_TYPE_HEADER, contentType);\n        return this;\n}\n\n\n/**\n     * {@inheritDoc}\n*/\n@Override\n    public ResponseStubbing withEncoding(final Charset encoding) {\n        currentResponse().setEncoding(encoding);\n        return this;\n}\n\n\n/**\n     * {@inheritDoc}\n*/\n@Override\n    public ResponseStubbing withBody(final String responseBody) {\n        currentResponse().setBody(responseBody);\n        return this;\n}\n\n\n/**\n     * {@inheritDoc}\n*/    \n@Override\n    public ResponseStubbing withBody(final Reader reader) {\ntry {\n            final String responseBody;\n\ntry {\n                responseBody = IOUtils.toString(reader);\n            } catch (final IOException ex) {\n                throw new JadlerException(\"An error ocurred while reading the response body from \"\n                        + \"the given Reader instance.\", ex);\n}\n\n            return this.withBody(responseBody);\n}\nfinally {\n            IOUtils.closeQuietly(reader);\n    }\n}\n    \n\n/**\n     * {@inheritDoc}\n*/ \n@Override\n    public ResponseStubbing withBody(final InputStream is) {\ntry {\nlock.lock();\ntry {\nfinal byte[] responseBody = IOUtils.toByteArray(is);\n        currentResponse().setBody(responseBody);\n        return this;\n} catch (final IOException e) {\n                throw new JadlerException(\"A problem occurred while reading the given input stream\", e);\n} finally {\nlock.unlock();\n}\n}\nfinally {\n            IOUtils.closeQuietly(is);\n    }\n}\n\n\n/**\n     * {@inheritDoc}\n*/ \n@Override\n    public ResponseStubbing withBody(final byte[] responseBody) {\n        currentResponse().setBody(responseBody);\n        return this;\n}\n    \n\n/**\n     * {@inheritDoc}\n*/ \n@Override\n    public ResponseStubbing withHeader(final String name, final String value) {\n        currentResponse().addHeader(name, value);\n        return this;\n}\n\n\n/**\n     * {@inheritDoc}\n*/\n@Override\n    public ResponseStubbing withStatus(final int status) {\n        currentResponse().setStatus(status);\n        return this;\n}\n    \n\n/**\n     * {@inheritDoc}\n*/\n@Override\n    public ResponseStubbing withDelay(long delayValue, TimeUnit delayUnit) {\n        currentResponse().setDelay(java.util.concurrent.TimeUnit.MILLISECONDS.convert(delayValue, delayUnit));\n        return this;\n}\n    \n\n/**\n     * Creates a {@link HttpStub} instance from this Stubbing instance.\n     * Must be called once this stubbing has been finished.\n     * @return {@link HttpStub} instance configured using values from this stubbing\n*/\n    public HttpStub createRule() {\n        if (this.responder != null) {\n            return new HttpStub(predicates, this.responder);\n}\n\n        final List<StubResponse> res = new ArrayList<StubResponse>(this.stubResponses.size());\n        for(final MutableStubResponse msr: this.stubResponses) {\n            res.add(msr.toStubResponse());\n}\n\n        return new HttpStub(predicates, new StaticResponder(res));\n}\n\n\n    private MutableStubResponse currentResponse() {\n        return stubResponses.get(stubResponses.size() - 1);\n}\n}"
+                },
+                "compile_error_details": {}
+            },
+            "error": "[INFO]\n[INFO] Results:\n[INFO]\n[ERROR] Failures:\n[ERROR] StubbingTest.withBodyInputStream:137\nExpected: [<1b>, <2b>, <3b>]\nbut: was []\n[ERROR] Errors:\n[ERROR] StubbingTest.withBodyReader:99 \u00bb NullPointer Cannot enter synchronized block because \"this.lock\" is null\n[INFO]\n[ERROR] Tests run: 235, Failures: 1, Errors: 1, Skipped: 0\n[INFO]\n[INFO] ------------------------------------------------------------------------\n[INFO] Reactor Summary for jadler-pom 1.3.1-SNAPSHOT:\n[INFO]\n[INFO] jadler-pom ......................................... SUCCESS [ 0.574 s]\n[INFO] jadler-core ........................................ FAILURE [ 9.322 s]\n[INFO] jadler-jetty ....................................... SKIPPED\n[INFO] jadler-junit ....................................... SKIPPED\n[INFO] jadler-jdk ......................................... SKIPPED\n[INFO] jadler-all ......................................... SKIPPED\n[INFO] ------------------------------------------------------------------------\n[INFO] BUILD FAILURE\n[INFO] ------------------------------------------------------------------------\n[INFO] Total time: 10.103 s\n[INFO] Finished at: 2024-08-05T02:36:51Z\n[INFO] ------------------------------------------------------------------------\n[ERROR] Failed to execute goal org.apache.maven.plugins:maven-surefire-plugin:3.2.5:test (default-test) on project jadler-core: There are test failures.\n[ERROR]\n[ERROR] Please refer to /mnt/repo/jadler-core/target/surefire-reports for the individual test results.\n[ERROR] Please refer to dump files (if any exist) [date].dump, [date]-jvmRun[N].dump and [date].dumpstream.\n[ERROR] -> [Help 1]\n[ERROR]\n[ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.\n[ERROR] Re-run Maven using the -X switch to enable full debug logging.\n[ERROR]\n[ERROR] For more information about the errors and possible solutions, please read the following articles:\n[ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoFailureException\n[ERROR]\n[ERROR] After correcting the problems, you can resume the build with the command\n[ERROR] mvn <args> -rf :jadler-core",
+            "span_id": 14449485461409780243
+        },
+        {
+            "input": "```diff\n--- jadler-core/src/main/java/net/jadler/stubbing/Stubbing.java\n+++ jadler-core/src/main/java/net/jadler/stubbing/Stubbing.java\n@@ -18,7 +18,7 @@ import org.apache.commons.collections.MultiMap;\n import org.apache.commons.collections.map.MultiValueMap;\n import org.apache.commons.lang.Validate;\n \n-import java.util.concurrent.locks.ReentrantLock;\n+import java.util.concurrent.locks.Lock;\n \n /**\n  * Internal class for defining http stubs in a fluid fashion. You shouldn't create instances\n@@ -33,7 +33,7 @@ public class Stubbing extends AbstractRequestMatching<RequestStubbing> implement\n     private final MultiMap defaultHeaders;\n     private final int defaultStatus;\n     private final Charset defaultEncoding;\n-    private final ReentrantLock lock = new ReentrantLock();\n+    private final Lock lock;\n     \n     \n     /**\n@@ -49,6 +49,7 @@ public class Stubbing extends AbstractRequestMatching<RequestStubbing> implement\n         this.defaultHeaders.putAll(defaultHeaders);\n         this.defaultStatus = defaultStatus;\n         this.defaultEncoding = defaultEncoding;        \n+        this.lock = new java.util.concurrent.locks.ReentrantLock();\n         this.responder = null;\n     }\n \n@@ -133,16 +134,12 @@ public class Stubbing extends AbstractRequestMatching<RequestStubbing> implement\n     @Override\n     public ResponseStubbing withBody(final InputStream is) {\n         try {\n-            lock.lock();\n-            try {\n-                final byte[] responseBody = IOUtils.toByteArray(is);\n-                currentResponse().setBody(responseBody);\n-                return this;\n-            } catch (final IOException e) {\n-                throw new JadlerException(\"A problem occurred while reading the given input stream\", e);\n-            } finally {\n-                lock.unlock();\n-            }\n+            final byte[] responseBody = IOUtils.toByteArray(is);\n+            currentResponse().setBody(responseBody);\n+            return this;\n+        } catch (final IOException e) {\n+            throw new JadlerException(\"A problem occurred while reading the given input stream\", e);\n+        } finally {\n+            IOUtils.closeQuietly(is);\n         }\n-        finally {\n-            IOUtils.closeQuietly(is);\n     }\n```",
+            "output": {
+                "compilation_has_succeeded": false,
+                "test_has_succeeded": false,
+                "error_text": "error: class, interface, or enum expected\n",
+                "updated_files": {
+                    "jadler-core/src/main/java/net/jadler/stubbing/Stubbing.java": "/*\n * Copyright (c) 2012 - 2016 Jadler contributors\n * This program is made available under the terms of the MIT License.\n */\npackage net.jadler.stubbing;\n\nimport net.jadler.exception.JadlerException;\nimport java.util.ArrayList;\nimport java.util.List;\nimport java.util.concurrent.TimeUnit;\nimport org.apache.commons.io.IOUtils;\nimport java.io.IOException;\nimport java.io.InputStream;\nimport java.io.Reader;\nimport java.nio.charset.Charset;\nimport net.jadler.AbstractRequestMatching;\nimport net.jadler.Jadler;\nimport org.apache.commons.collections.MultiMap;\nimport org.apache.commons.collections.map.MultiValueMap;\nimport org.apache.commons.lang.Validate;\n\nimport java.util.concurrent.locks.Lock;\n\n/**\n * Internal class for defining http stubs in a fluid fashion. You shouldn't create instances\n * of this class on your own, please see {@link Jadler#onRequest()}\n * for more information on creating instances of this class.\n */\npublic class Stubbing extends AbstractRequestMatching<RequestStubbing> implements RequestStubbing, ResponseStubbing {\n    \n    private static final String CONTENT_TYPE_HEADER = \"Content-Type\";\n\n    Responder responder;\n    final List<MutableStubResponse> stubResponses;\n    private final MultiMap defaultHeaders;\n    private final int defaultStatus;\n    private final Charset defaultEncoding;\nprivate final Lock lock;\n    \n\n/**\n     * @param defaultHeaders default headers to be present in every http stub response\n     * @param defaultStatus default http status of every http stub response \n     * (can be overridden in the particular stub)\n     * @param defaultEncoding default encoding of every stub response body (can be overridden in the particular stub)\n*/\n    @SuppressWarnings(\"unchecked\")\n    Stubbing(final Charset defaultEncoding, final int defaultStatus, final MultiMap defaultHeaders) {\n\n        this.stubResponses = new ArrayList<MutableStubResponse>();\n        this.defaultHeaders = new MultiValueMap();\n        this.defaultHeaders.putAll(defaultHeaders);\n        this.defaultStatus = defaultStatus;\n        this.defaultEncoding = defaultEncoding;        \nthis.lock = new java.util.concurrent.locks.ReentrantLock();\n        this.responder = null;\n}\n\n\n/**\n     * {@inheritDoc}\n*/\n@Override\n    public ResponseStubbing respond() {\n        return this.thenRespond();\n}\n\n\n/**\n     * {@inheritDoc}\n*/\n@Override\n    public ResponseStubbing thenRespond() {\n        final MutableStubResponse response = new MutableStubResponse();\n\n        response.addHeaders(defaultHeaders);\n        response.setStatus(defaultStatus);\n        response.setEncoding(defaultEncoding);\n        response.setBody(\"\");\n\n        stubResponses.add(response);\n        return this;\n}\n\n\n/**\n     * {@inheritDoc}\n*/\n@Override\n    public void respondUsing(final Responder responder) {\n        Validate.notNull(responder, \"responder cannot be null\");\n\n        this.responder = responder;\n}\n\n\n/**\n     * {@inheritDoc}\n*/\n@Override\n    public ResponseStubbing withContentType(final String contentType) {\n        currentResponse().setHeaderCaseInsensitive(CONTENT_TYPE_HEADER, contentType);\n        return this;\n}\n\n\n/**\n     * {@inheritDoc}\n*/\n@Override\n    public ResponseStubbing withEncoding(final Charset encoding) {\n        currentResponse().setEncoding(encoding);\n        return this;\n}\n\n\n/**\n     * {@inheritDoc}\n*/\n@Override\n    public ResponseStubbing withBody(final String responseBody) {\n        currentResponse().setBody(responseBody);\n        return this;\n}\n\n\n/**\n     * {@inheritDoc}\n*/    \n@Override\n    public ResponseStubbing withBody(final Reader reader) {\ntry {\n            final String responseBody;\n\ntry {\n                responseBody = IOUtils.toString(reader);\n            } catch (final IOException ex) {\n                throw new JadlerException(\"An error ocurred while reading the response body from \"\n                        + \"the given Reader instance.\", ex);\n}\n\n            return this.withBody(responseBody);\n}\nfinally {\n            IOUtils.closeQuietly(reader);\n}\n}\n\n\n/**\n     * {@inheritDoc}\n*/ \n@Override\n    public ResponseStubbing withBody(final InputStream is) {\ntry {\nfinal byte[] responseBody = IOUtils.toByteArray(is);\n        currentResponse().setBody(responseBody);\n        return this;\n} catch (final IOException e) {\n                throw new JadlerException(\"A problem occurred while reading the given input stream\", e);\n} finally {\n            IOUtils.closeQuietly(is);\n}\n}\n}\n\n\n/**\n     * {@inheritDoc}\n*/ \n@Override\n    public ResponseStubbing withBody(final byte[] responseBody) {\n        currentResponse().setBody(responseBody);\n        return this;\n}\n\n\n/**\n     * {@inheritDoc}\n*/ \n@Override\n    public ResponseStubbing withHeader(final String name, final String value) {\n        currentResponse().addHeader(name, value);\n        return this;\n}\n\n\n/**\n     * {@inheritDoc}\n*/\n@Override\n    public ResponseStubbing withStatus(final int status) {\n        currentResponse().setStatus(status);\n        return this;\n}\n\n\n/**\n     * {@inheritDoc}\n*/\n@Override\n    public ResponseStubbing withDelay(long delayValue, TimeUnit delayUnit) {\n        currentResponse().setDelay(java.util.concurrent.TimeUnit.MILLISECONDS.convert(delayValue, delayUnit));\n        return this;\n}\n\n\n/**\n     * Creates a {@link HttpStub} instance from this Stubbing instance.\n     * Must be called once this stubbing has been finished.\n     * @return {@link HttpStub} instance configured using values from this stubbing\n*/\n    public HttpStub createRule() {\n        if (this.responder != null) {\n            return new HttpStub(predicates, this.responder);\n}\n\n        final List<StubResponse> res = new ArrayList<StubResponse>(this.stubResponses.size());\n        for(final MutableStubResponse msr: this.stubResponses) {\n            res.add(msr.toStubResponse());\n}\n\n        return new HttpStub(predicates, new StaticResponder(res));\n}\n\n\n    private MutableStubResponse currentResponse() {\n        return stubResponses.get(stubResponses.size() - 1);\n}\n}"
+                },
+                "compile_error_details": {
+                    "jadler-core/src/main/java/net/jadler/stubbing/Stubbing.java": {
+                        "172": {
+                            "lines": [
+                                {
+                                    "line_no": 171,
+                                    "content": "@Override"
+                                },
+                                {
+                                    "line_no": 172,
+                                    "content": "    public ResponseStubbing withBody(final byte[] responseBody) {"
+                                },
+                                {
+                                    "line_no": 173,
+                                    "content": "        currentResponse().setBody(responseBody);"
+                                }
+                            ],
+                            "error_texts": [
+                                "[172,11] error: class, interface, or enum expected\n",
+                                "[172,43] error: class, interface, or enum expected\n"
+                            ]
+                        },
+                        "174": {
+                            "lines": [
+                                {
+                                    "line_no": 173,
+                                    "content": "        currentResponse().setBody(responseBody);"
+                                },
+                                {
+                                    "line_no": 174,
+                                    "content": "        return this;"
+                                },
+                                {
+                                    "line_no": 175,
+                                    "content": "}"
+                                }
+                            ],
+                            "error_texts": [
+                                "[174,8] error: class, interface, or enum expected\n"
+                            ]
+                        },
+                        "175": {
+                            "lines": [
+                                {
+                                    "line_no": 174,
+                                    "content": "        return this;"
+                                },
+                                {
+                                    "line_no": 175,
+                                    "content": "}"
+                                },
+                                {
+                                    "line_no": 176,
+                                    "content": ""
+                                }
+                            ],
+                            "error_texts": [
+                                "[175,] error: class, interface, or enum expected\n"
+                            ]
+                        },
+                        "182": {
+                            "lines": [
+                                {
+                                    "line_no": 181,
+                                    "content": "@Override"
+                                },
+                                {
+                                    "line_no": 182,
+                                    "content": "    public ResponseStubbing withHeader(final String name, final String value) {"
+                                },
+                                {
+                                    "line_no": 183,
+                                    "content": "        currentResponse().addHeader(name, value);"
+                                }
+                            ],
+                            "error_texts": [
+                                "[182,11] error: class, interface, or enum expected\n",
+                                "[182,45] error: class, interface, or enum expected\n",
+                                "[182,64] error: class, interface, or enum expected\n"
+                            ]
+                        },
+                        "184": {
+                            "lines": [
+                                {
+                                    "line_no": 183,
+                                    "content": "        currentResponse().addHeader(name, value);"
+                                },
+                                {
+                                    "line_no": 184,
+                                    "content": "        return this;"
+                                },
+                                {
+                                    "line_no": 185,
+                                    "content": "}"
+                                }
+                            ],
+                            "error_texts": [
+                                "[184,8] error: class, interface, or enum expected\n"
+                            ]
+                        },
+                        "185": {
+                            "lines": [
+                                {
+                                    "line_no": 184,
+                                    "content": "        return this;"
+                                },
+                                {
+                                    "line_no": 185,
+                                    "content": "}"
+                                },
+                                {
+                                    "line_no": 186,
+                                    "content": ""
+                                }
+                            ],
+                            "error_texts": [
+                                "[185,] error: class, interface, or enum expected\n"
+                            ]
+                        },
+                        "192": {
+                            "lines": [
+                                {
+                                    "line_no": 191,
+                                    "content": "@Override"
+                                },
+                                {
+                                    "line_no": 192,
+                                    "content": "    public ResponseStubbing withStatus(final int status) {"
+                                },
+                                {
+                                    "line_no": 193,
+                                    "content": "        currentResponse().setStatus(status);"
+                                }
+                            ],
+                            "error_texts": [
+                                "[192,45] error: class, interface, or enum expected\n",
+                                "[192,11] error: class, interface, or enum expected\n"
+                            ]
+                        },
+                        "194": {
+                            "lines": [
+                                {
+                                    "line_no": 193,
+                                    "content": "        currentResponse().setStatus(status);"
+                                },
+                                {
+                                    "line_no": 194,
+                                    "content": "        return this;"
+                                },
+                                {
+                                    "line_no": 195,
+                                    "content": "}"
+                                }
+                            ],
+                            "error_texts": [
+                                "[194,8] error: class, interface, or enum expected\n"
+                            ]
+                        },
+                        "195": {
+                            "lines": [
+                                {
+                                    "line_no": 194,
+                                    "content": "        return this;"
+                                },
+                                {
+                                    "line_no": 195,
+                                    "content": "}"
+                                },
+                                {
+                                    "line_no": 196,
+                                    "content": ""
+                                }
+                            ],
+                            "error_texts": [
+                                "[195,] error: class, interface, or enum expected\n"
+                            ]
+                        },
+                        "202": {
+                            "lines": [
+                                {
+                                    "line_no": 201,
+                                    "content": "@Override"
+                                },
+                                {
+                                    "line_no": 202,
+                                    "content": "    public ResponseStubbing withDelay(long delayValue, TimeUnit delayUnit) {"
+                                },
+                                {
+                                    "line_no": 203,
+                                    "content": "        currentResponse().setDelay(java.util.concurrent.TimeUnit.MILLISECONDS.convert(delayValue, delayUnit));"
+                                }
+                            ],
+                            "error_texts": [
+                                "[202,11] error: class, interface, or enum expected\n"
+                            ]
+                        },
+                        "204": {
+                            "lines": [
+                                {
+                                    "line_no": 203,
+                                    "content": "        currentResponse().setDelay(java.util.concurrent.TimeUnit.MILLISECONDS.convert(delayValue, delayUnit));"
+                                },
+                                {
+                                    "line_no": 204,
+                                    "content": "        return this;"
+                                },
+                                {
+                                    "line_no": 205,
+                                    "content": "}"
+                                }
+                            ],
+                            "error_texts": [
+                                "[204,8] error: class, interface, or enum expected\n"
+                            ]
+                        },
+                        "205": {
+                            "lines": [
+                                {
+                                    "line_no": 204,
+                                    "content": "        return this;"
+                                },
+                                {
+                                    "line_no": 205,
+                                    "content": "}"
+                                },
+                                {
+                                    "line_no": 206,
+                                    "content": ""
+                                }
+                            ],
+                            "error_texts": [
+                                "[205,] error: class, interface, or enum expected\n"
+                            ]
+                        },
+                        "213": {
+                            "lines": [
+                                {
+                                    "line_no": 212,
+                                    "content": "*/"
+                                },
+                                {
+                                    "line_no": 213,
+                                    "content": "    public HttpStub createRule() {"
+                                },
+                                {
+                                    "line_no": 214,
+                                    "content": "        if (this.responder != null) {"
+                                }
+                            ],
+                            "error_texts": [
+                                "[213,11] error: class, interface, or enum expected\n"
+                            ]
+                        },
+                        "216": {
+                            "lines": [
+                                {
+                                    "line_no": 215,
+                                    "content": "            return new HttpStub(predicates, this.responder);"
+                                },
+                                {
+                                    "line_no": 216,
+                                    "content": "}"
+                                },
+                                {
+                                    "line_no": 217,
+                                    "content": ""
+                                }
+                            ],
+                            "error_texts": [
+                                "[216,] error: class, interface, or enum expected\n"
+                            ]
+                        },
+                        "218": {
+                            "lines": [
+                                {
+                                    "line_no": 217,
+                                    "content": ""
+                                },
+                                {
+                                    "line_no": 218,
+                                    "content": "        final List<StubResponse> res = new ArrayList<StubResponse>(this.stubResponses.size());"
+                                },
+                                {
+                                    "line_no": 219,
+                                    "content": "        for(final MutableStubResponse msr: this.stubResponses) {"
+                                }
+                            ],
+                            "error_texts": [
+                                "[218,14] error: class, interface, or enum expected\n"
+                            ]
+                        },
+                        "219": {
+                            "lines": [
+                                {
+                                    "line_no": 218,
+                                    "content": "        final List<StubResponse> res = new ArrayList<StubResponse>(this.stubResponses.size());"
+                                },
+                                {
+                                    "line_no": 219,
+                                    "content": "        for(final MutableStubResponse msr: this.stubResponses) {"
+                                },
+                                {
+                                    "line_no": 220,
+                                    "content": "            res.add(msr.toStubResponse());"
+                                }
+                            ],
+                            "error_texts": [
+                                "[219,8] error: class, interface, or enum expected\n",
+                                "[219,18] error: class, interface, or enum expected\n"
+                            ]
+                        },
+                        "221": {
+                            "lines": [
+                                {
+                                    "line_no": 220,
+                                    "content": "            res.add(msr.toStubResponse());"
+                                },
+                                {
+                                    "line_no": 221,
+                                    "content": "}"
+                                },
+                                {
+                                    "line_no": 222,
+                                    "content": ""
+                                }
+                            ],
+                            "error_texts": [
+                                "[221,] error: class, interface, or enum expected\n"
+                            ]
+                        },
+                        "224": {
+                            "lines": [
+                                {
+                                    "line_no": 223,
+                                    "content": "        return new HttpStub(predicates, new StaticResponder(res));"
+                                },
+                                {
+                                    "line_no": 224,
+                                    "content": "}"
+                                },
+                                {
+                                    "line_no": 225,
+                                    "content": ""
+                                }
+                            ],
+                            "error_texts": [
+                                "[224,] error: class, interface, or enum expected\n"
+                            ]
+                        },
+                        "229": {
+                            "lines": [
+                                {
+                                    "line_no": 228,
+                                    "content": "        return stubResponses.get(stubResponses.size() - 1);"
+                                },
+                                {
+                                    "line_no": 229,
+                                    "content": "}"
+                                },
+                                {
+                                    "line_no": 230,
+                                    "content": "}"
+                                }
+                            ],
+                            "error_texts": [
+                                "[229,] error: class, interface, or enum expected\n"
+                            ]
+                        }
+                    }
+                }
+            },
+            "error": "error: class, interface, or enum expected\n",
+            "span_id": 4200017451778354643
+        },
+        {
+            "input": "```diff\n--- jadler-core/src/main/java/net/jadler/stubbing/Stubbing.java\n+++ jadler-core/src/main/java/net/jadler/stubbing/Stubbing.java\n@@ -18,7 +18,7 @@ import org.apache.commons.collections.MultiMap;\n import org.apache.commons.collections.map.MultiValueMap;\n import org.apache.commons.lang.Validate;\n \n-import java.util.concurrent.locks.Lock;\n+import java.util.concurrent.locks.ReentrantLock;\n \n /**\n  * Internal class for defining http stubs in a fluid fashion. You shouldn't create instances\n@@ -33,7 +33,7 @@ public class Stubbing extends AbstractRequestMatching<RequestStubbing> implement\n     private final MultiMap defaultHeaders;\n     private final int defaultStatus;\n     private final Charset defaultEncoding;\n-    private final Lock lock;\n+    private final ReentrantLock lock;\n     \n     \n     /**\n@@ -49,7 +49,7 @@ public class Stubbing extends AbstractRequestMatching<RequestStubbing> implement\n         this.defaultHeaders.putAll(defaultHeaders);\n         this.defaultStatus = defaultStatus;\n         this.defaultEncoding = defaultEncoding;        \n-        this.lock = new java.util.concurrent.locks.ReentrantLock();\n+        this.lock = new ReentrantLock();\n         this.responder = null;\n     }\n \n@@ -133,14 +133,16 @@ public class Stubbing extends AbstractRequestMatching<RequestStubbing> implement\n      */ \n     @Override\n     public ResponseStubbing withBody(final InputStream is) {\n+        lock.lock();\n         try {\n             final byte[] responseBody = IOUtils.toByteArray(is);\n             currentResponse().setBody(responseBody);\n             return this;\n         } catch (final IOException e) {\n             throw new JadlerException(\"A problem occurred while reading the given input stream\", e);\n         } finally {\n             IOUtils.closeQuietly(is);\n+            lock.unlock();\n         }\n     }\n \n```",
+            "output": {
+                "compilation_has_succeeded": false,
+                "test_has_succeeded": false,
+                "error_text": "error: class, interface, or enum expected\n",
+                "updated_files": {
+                    "jadler-core/src/main/java/net/jadler/stubbing/Stubbing.java": "/*\n * Copyright (c) 2012 - 2016 Jadler contributors\n * This program is made available under the terms of the MIT License.\n */\npackage net.jadler.stubbing;\n\nimport net.jadler.exception.JadlerException;\nimport java.util.ArrayList;\nimport java.util.List;\nimport java.util.concurrent.TimeUnit;\nimport org.apache.commons.io.IOUtils;\nimport java.io.IOException;\nimport java.io.InputStream;\nimport java.io.Reader;\nimport java.nio.charset.Charset;\nimport net.jadler.AbstractRequestMatching;\nimport net.jadler.Jadler;\nimport org.apache.commons.collections.MultiMap;\nimport org.apache.commons.collections.map.MultiValueMap;\nimport org.apache.commons.lang.Validate;\n\nimport java.util.concurrent.locks.ReentrantLock;\n\n/**\n * Internal class for defining http stubs in a fluid fashion. You shouldn't create instances\n * of this class on your own, please see {@link Jadler#onRequest()}\n * for more information on creating instances of this class.\n */\npublic class Stubbing extends AbstractRequestMatching<RequestStubbing> implements RequestStubbing, ResponseStubbing {\n    \n    private static final String CONTENT_TYPE_HEADER = \"Content-Type\";\n\n    Responder responder;\n    final List<MutableStubResponse> stubResponses;\n    private final MultiMap defaultHeaders;\n    private final int defaultStatus;\n    private final Charset defaultEncoding;\nprivate final ReentrantLock lock;\n    \n\n/**\n     * @param defaultHeaders default headers to be present in every http stub response\n     * @param defaultStatus default http status of every http stub response \n     * (can be overridden in the particular stub)\n     * @param defaultEncoding default encoding of every stub response body (can be overridden in the particular stub)\n*/\n    @SuppressWarnings(\"unchecked\")\n    Stubbing(final Charset defaultEncoding, final int defaultStatus, final MultiMap defaultHeaders) {\n\n        this.stubResponses = new ArrayList<MutableStubResponse>();\n        this.defaultHeaders = new MultiValueMap();\n        this.defaultHeaders.putAll(defaultHeaders);\n        this.defaultStatus = defaultStatus;\n        this.defaultEncoding = defaultEncoding;        \nthis.lock = new ReentrantLock();\n        this.responder = null;\n}\n\n\n/**\n     * {@inheritDoc}\n*/\n@Override\n    public ResponseStubbing respond() {\n        return this.thenRespond();\n}\n\n\n/**\n     * {@inheritDoc}\n*/\n@Override\n    public ResponseStubbing thenRespond() {\n        final MutableStubResponse response = new MutableStubResponse();\n\n        response.addHeaders(defaultHeaders);\n        response.setStatus(defaultStatus);\n        response.setEncoding(defaultEncoding);\n        response.setBody(\"\");\n\n        stubResponses.add(response);\n        return this;\n}\n\n\n/**\n     * {@inheritDoc}\n*/\n@Override\n    public void respondUsing(final Responder responder) {\n        Validate.notNull(responder, \"responder cannot be null\");\n\n        this.responder = responder;\n}\n\n\n/**\n     * {@inheritDoc}\n*/\n@Override\n    public ResponseStubbing withContentType(final String contentType) {\n        currentResponse().setHeaderCaseInsensitive(CONTENT_TYPE_HEADER, contentType);\n        return this;\n}\n\n\n/**\n     * {@inheritDoc}\n*/\n@Override\n    public ResponseStubbing withEncoding(final Charset encoding) {\n        currentResponse().setEncoding(encoding);\n        return this;\n}\n\n\n/**\n     * {@inheritDoc}\n*/\n@Override\n    public ResponseStubbing withBody(final String responseBody) {\n        currentResponse().setBody(responseBody);\n        return this;\n}\n\n\n/**\n     * {@inheritDoc}\n*/    \n@Override\n    public ResponseStubbing withBody(final Reader reader) {\ntry {\n            final String responseBody;\n\ntry {\n                responseBody = IOUtils.toString(reader);\n            } catch (final IOException ex) {\n                throw new JadlerException(\"An error ocurred while reading the response body from \"\n                        + \"the given Reader instance.\", ex);\n}\n\n            return this.withBody(responseBody);\n}\nfinally {\n            IOUtils.closeQuietly(reader);\n}\n}\n\n\n/**\n     * {@inheritDoc}\n*/ \n@Override\n    public ResponseStubbing withBody(final InputStream is) {\nlock.lock();\ntry {\nfinal byte[] responseBody = IOUtils.toByteArray(is);\n        currentResponse().setBody(responseBody);\n        return this;\n} catch (final IOException e) {\n                throw new JadlerException(\"A problem occurred while reading the given input stream\", e);\n} finally {\n            IOUtils.closeQuietly(is);\nlock.unlock();\n}\n}\n}\n\n\n/**\n     * {@inheritDoc}\n*/ \n@Override\n    public ResponseStubbing withBody(final byte[] responseBody) {\n        currentResponse().setBody(responseBody);\n        return this;\n}\n\n\n/**\n     * {@inheritDoc}\n*/ \n@Override\n    public ResponseStubbing withHeader(final String name, final String value) {\n        currentResponse().addHeader(name, value);\n        return this;\n}\n\n\n/**\n     * {@inheritDoc}\n*/\n@Override\n    public ResponseStubbing withStatus(final int status) {\n        currentResponse().setStatus(status);\n        return this;\n}\n\n\n/**\n     * {@inheritDoc}\n*/\n@Override\n    public ResponseStubbing withDelay(long delayValue, TimeUnit delayUnit) {\n        currentResponse().setDelay(java.util.concurrent.TimeUnit.MILLISECONDS.convert(delayValue, delayUnit));\n        return this;\n}\n\n\n/**\n     * Creates a {@link HttpStub} instance from this Stubbing instance.\n     * Must be called once this stubbing has been finished.\n     * @return {@link HttpStub} instance configured using values from this stubbing\n*/\n    public HttpStub createRule() {\n        if (this.responder != null) {\n            return new HttpStub(predicates, this.responder);\n}\n\n        final List<StubResponse> res = new ArrayList<StubResponse>(this.stubResponses.size());\n        for(final MutableStubResponse msr: this.stubResponses) {\n            res.add(msr.toStubResponse());\n}\n\n        return new HttpStub(predicates, new StaticResponder(res));\n}\n\n\n    private MutableStubResponse currentResponse() {\n        return stubResponses.get(stubResponses.size() - 1);\n}\n}"
+                },
+                "compile_error_details": {
+                    "jadler-core/src/main/java/net/jadler/stubbing/Stubbing.java": {
+                        "174": {
+                            "lines": [
+                                {
+                                    "line_no": 173,
+                                    "content": "@Override"
+                                },
+                                {
+                                    "line_no": 174,
+                                    "content": "    public ResponseStubbing withBody(final byte[] responseBody) {"
+                                },
+                                {
+                                    "line_no": 175,
+                                    "content": "        currentResponse().setBody(responseBody);"
+                                }
+                            ],
+                            "error_texts": [
+                                "[174,43] error: class, interface, or enum expected\n",
+                                "[174,11] error: class, interface, or enum expected\n"
+                            ]
+                        },
+                        "176": {
+                            "lines": [
+                                {
+                                    "line_no": 175,
+                                    "content": "        currentResponse().setBody(responseBody);"
+                                },
+                                {
+                                    "line_no": 176,
+                                    "content": "        return this;"
+                                },
+                                {
+                                    "line_no": 177,
+                                    "content": "}"
+                                }
+                            ],
+                            "error_texts": [
+                                "[176,8] error: class, interface, or enum expected\n"
+                            ]
+                        },
+                        "177": {
+                            "lines": [
+                                {
+                                    "line_no": 176,
+                                    "content": "        return this;"
+                                },
+                                {
+                                    "line_no": 177,
+                                    "content": "}"
+                                },
+                                {
+                                    "line_no": 178,
+                                    "content": ""
+                                }
+                            ],
+                            "error_texts": [
+                                "[177,] error: class, interface, or enum expected\n"
+                            ]
+                        },
+                        "184": {
+                            "lines": [
+                                {
+                                    "line_no": 183,
+                                    "content": "@Override"
+                                },
+                                {
+                                    "line_no": 184,
+                                    "content": "    public ResponseStubbing withHeader(final String name, final String value) {"
+                                },
+                                {
+                                    "line_no": 185,
+                                    "content": "        currentResponse().addHeader(name, value);"
+                                }
+                            ],
+                            "error_texts": [
+                                "[184,11] error: class, interface, or enum expected\n",
+                                "[184,64] error: class, interface, or enum expected\n",
+                                "[184,45] error: class, interface, or enum expected\n"
+                            ]
+                        },
+                        "186": {
+                            "lines": [
+                                {
+                                    "line_no": 185,
+                                    "content": "        currentResponse().addHeader(name, value);"
+                                },
+                                {
+                                    "line_no": 186,
+                                    "content": "        return this;"
+                                },
+                                {
+                                    "line_no": 187,
+                                    "content": "}"
+                                }
+                            ],
+                            "error_texts": [
+                                "[186,8] error: class, interface, or enum expected\n"
+                            ]
+                        },
+                        "187": {
+                            "lines": [
+                                {
+                                    "line_no": 186,
+                                    "content": "        return this;"
+                                },
+                                {
+                                    "line_no": 187,
+                                    "content": "}"
+                                },
+                                {
+                                    "line_no": 188,
+                                    "content": ""
+                                }
+                            ],
+                            "error_texts": [
+                                "[187,] error: class, interface, or enum expected\n"
+                            ]
+                        },
+                        "194": {
+                            "lines": [
+                                {
+                                    "line_no": 193,
+                                    "content": "@Override"
+                                },
+                                {
+                                    "line_no": 194,
+                                    "content": "    public ResponseStubbing withStatus(final int status) {"
+                                },
+                                {
+                                    "line_no": 195,
+                                    "content": "        currentResponse().setStatus(status);"
+                                }
+                            ],
+                            "error_texts": [
+                                "[194,45] error: class, interface, or enum expected\n",
+                                "[194,11] error: class, interface, or enum expected\n"
+                            ]
+                        },
+                        "196": {
+                            "lines": [
+                                {
+                                    "line_no": 195,
+                                    "content": "        currentResponse().setStatus(status);"
+                                },
+                                {
+                                    "line_no": 196,
+                                    "content": "        return this;"
+                                },
+                                {
+                                    "line_no": 197,
+                                    "content": "}"
+                                }
+                            ],
+                            "error_texts": [
+                                "[196,8] error: class, interface, or enum expected\n"
+                            ]
+                        },
+                        "197": {
+                            "lines": [
+                                {
+                                    "line_no": 196,
+                                    "content": "        return this;"
+                                },
+                                {
+                                    "line_no": 197,
+                                    "content": "}"
+                                },
+                                {
+                                    "line_no": 198,
+                                    "content": ""
+                                }
+                            ],
+                            "error_texts": [
+                                "[197,] error: class, interface, or enum expected\n"
+                            ]
+                        },
+                        "204": {
+                            "lines": [
+                                {
+                                    "line_no": 203,
+                                    "content": "@Override"
+                                },
+                                {
+                                    "line_no": 204,
+                                    "content": "    public ResponseStubbing withDelay(long delayValue, TimeUnit delayUnit) {"
+                                },
+                                {
+                                    "line_no": 205,
+                                    "content": "        currentResponse().setDelay(java.util.concurrent.TimeUnit.MILLISECONDS.convert(delayValue, delayUnit));"
+                                }
+                            ],
+                            "error_texts": [
+                                "[204,11] error: class, interface, or enum expected\n"
+                            ]
+                        },
+                        "206": {
+                            "lines": [
+                                {
+                                    "line_no": 205,
+                                    "content": "        currentResponse().setDelay(java.util.concurrent.TimeUnit.MILLISECONDS.convert(delayValue, delayUnit));"
+                                },
+                                {
+                                    "line_no": 206,
+                                    "content": "        return this;"
+                                },
+                                {
+                                    "line_no": 207,
+                                    "content": "}"
+                                }
+                            ],
+                            "error_texts": [
+                                "[206,8] error: class, interface, or enum expected\n"
+                            ]
+                        },
+                        "207": {
+                            "lines": [
+                                {
+                                    "line_no": 206,
+                                    "content": "        return this;"
+                                },
+                                {
+                                    "line_no": 207,
+                                    "content": "}"
+                                },
+                                {
+                                    "line_no": 208,
+                                    "content": ""
+                                }
+                            ],
+                            "error_texts": [
+                                "[207,] error: class, interface, or enum expected\n"
+                            ]
+                        },
+                        "215": {
+                            "lines": [
+                                {
+                                    "line_no": 214,
+                                    "content": "*/"
+                                },
+                                {
+                                    "line_no": 215,
+                                    "content": "    public HttpStub createRule() {"
+                                },
+                                {
+                                    "line_no": 216,
+                                    "content": "        if (this.responder != null) {"
+                                }
+                            ],
+                            "error_texts": [
+                                "[215,11] error: class, interface, or enum expected\n"
+                            ]
+                        },
+                        "218": {
+                            "lines": [
+                                {
+                                    "line_no": 217,
+                                    "content": "            return new HttpStub(predicates, this.responder);"
+                                },
+                                {
+                                    "line_no": 218,
+                                    "content": "}"
+                                },
+                                {
+                                    "line_no": 219,
+                                    "content": ""
+                                }
+                            ],
+                            "error_texts": [
+                                "[218,] error: class, interface, or enum expected\n"
+                            ]
+                        },
+                        "220": {
+                            "lines": [
+                                {
+                                    "line_no": 219,
+                                    "content": ""
+                                },
+                                {
+                                    "line_no": 220,
+                                    "content": "        final List<StubResponse> res = new ArrayList<StubResponse>(this.stubResponses.size());"
+                                },
+                                {
+                                    "line_no": 221,
+                                    "content": "        for(final MutableStubResponse msr: this.stubResponses) {"
+                                }
+                            ],
+                            "error_texts": [
+                                "[220,14] error: class, interface, or enum expected\n"
+                            ]
+                        },
+                        "221": {
+                            "lines": [
+                                {
+                                    "line_no": 220,
+                                    "content": "        final List<StubResponse> res = new ArrayList<StubResponse>(this.stubResponses.size());"
+                                },
+                                {
+                                    "line_no": 221,
+                                    "content": "        for(final MutableStubResponse msr: this.stubResponses) {"
+                                },
+                                {
+                                    "line_no": 222,
+                                    "content": "            res.add(msr.toStubResponse());"
+                                }
+                            ],
+                            "error_texts": [
+                                "[221,18] error: class, interface, or enum expected\n",
+                                "[221,8] error: class, interface, or enum expected\n"
+                            ]
+                        },
+                        "223": {
+                            "lines": [
+                                {
+                                    "line_no": 222,
+                                    "content": "            res.add(msr.toStubResponse());"
+                                },
+                                {
+                                    "line_no": 223,
+                                    "content": "}"
+                                },
+                                {
+                                    "line_no": 224,
+                                    "content": ""
+                                }
+                            ],
+                            "error_texts": [
+                                "[223,] error: class, interface, or enum expected\n"
+                            ]
+                        },
+                        "226": {
+                            "lines": [
+                                {
+                                    "line_no": 225,
+                                    "content": "        return new HttpStub(predicates, new StaticResponder(res));"
+                                },
+                                {
+                                    "line_no": 226,
+                                    "content": "}"
+                                },
+                                {
+                                    "line_no": 227,
+                                    "content": ""
+                                }
+                            ],
+                            "error_texts": [
+                                "[226,] error: class, interface, or enum expected\n"
+                            ]
+                        },
+                        "231": {
+                            "lines": [
+                                {
+                                    "line_no": 230,
+                                    "content": "        return stubResponses.get(stubResponses.size() - 1);"
+                                },
+                                {
+                                    "line_no": 231,
+                                    "content": "}"
+                                },
+                                {
+                                    "line_no": 232,
+                                    "content": "}"
+                                }
+                            ],
+                            "error_texts": [
+                                "[231,] error: class, interface, or enum expected\n"
+                            ]
+                        }
+                    }
+                }
+            },
+            "error": "error: class, interface, or enum expected\n",
+            "span_id": 17608724302369293769
+        },
+        {
+            "input": "```diff\n--- jadler-core/src/main/java/net/jadler/stubbing/Stubbing.java\n+++ jadler-core/src/main/java/net/jadler/stubbing/Stubbing.java\n@@ -133,16 +133,14 @@ public class Stubbing extends AbstractRequestMatching<RequestStubbing> implement\n      */ \n     @Override\n     public ResponseStubbing withBody(final InputStream is) {\n-        lock.lock();\n         try {\n             final byte[] responseBody = IOUtils.toByteArray(is);\n             currentResponse().setBody(responseBody);\n             return this;\n         } catch (final IOException e) {\n             throw new JadlerException(\"A problem occurred while reading the given input stream\", e);\n         } finally {\n             IOUtils.closeQuietly(is);\n-            lock.unlock();\n         }\n     }\n \n@@ -229,4 +227,4 @@ public class Stubbing extends AbstractRequestMatching<RequestStubbing> implement\n     private MutableStubResponse currentResponse() {\n         return stubResponses.get(stubResponses.size() - 1);\n     }\n-}\n+}\n```",
+            "output": {
+                "compilation_has_succeeded": false,
+                "test_has_succeeded": false,
+                "error_text": "error: class, interface, or enum expected\n",
+                "updated_files": {
+                    "jadler-core/src/main/java/net/jadler/stubbing/Stubbing.java": "/*\n * Copyright (c) 2012 - 2016 Jadler contributors\n * This program is made available under the terms of the MIT License.\n */\npackage net.jadler.stubbing;\n\nimport net.jadler.exception.JadlerException;\nimport java.util.ArrayList;\nimport java.util.List;\nimport java.util.concurrent.TimeUnit;\nimport org.apache.commons.io.IOUtils;\nimport java.io.IOException;\nimport java.io.InputStream;\nimport java.io.Reader;\nimport java.nio.charset.Charset;\nimport net.jadler.AbstractRequestMatching;\nimport net.jadler.Jadler;\nimport org.apache.commons.collections.MultiMap;\nimport org.apache.commons.collections.map.MultiValueMap;\nimport org.apache.commons.lang.Validate;\n\nimport java.util.concurrent.locks.ReentrantLock;\n\n/**\n * Internal class for defining http stubs in a fluid fashion. You shouldn't create instances\n * of this class on your own, please see {@link Jadler#onRequest()}\n * for more information on creating instances of this class.\n */\npublic class Stubbing extends AbstractRequestMatching<RequestStubbing> implements RequestStubbing, ResponseStubbing {\n    \n    private static final String CONTENT_TYPE_HEADER = \"Content-Type\";\n\n    Responder responder;\n    final List<MutableStubResponse> stubResponses;\n    private final MultiMap defaultHeaders;\n    private final int defaultStatus;\n    private final Charset defaultEncoding;\nprivate final ReentrantLock lock;\n    \n\n/**\n     * @param defaultHeaders default headers to be present in every http stub response\n     * @param defaultStatus default http status of every http stub response \n     * (can be overridden in the particular stub)\n     * @param defaultEncoding default encoding of every stub response body (can be overridden in the particular stub)\n*/\n    @SuppressWarnings(\"unchecked\")\n    Stubbing(final Charset defaultEncoding, final int defaultStatus, final MultiMap defaultHeaders) {\n\n        this.stubResponses = new ArrayList<MutableStubResponse>();\n        this.defaultHeaders = new MultiValueMap();\n        this.defaultHeaders.putAll(defaultHeaders);\n        this.defaultStatus = defaultStatus;\n        this.defaultEncoding = defaultEncoding;        \nthis.lock = new ReentrantLock();\n        this.responder = null;\n}\n\n\n/**\n     * {@inheritDoc}\n*/\n@Override\n    public ResponseStubbing respond() {\n        return this.thenRespond();\n}\n\n\n/**\n     * {@inheritDoc}\n*/\n@Override\n    public ResponseStubbing thenRespond() {\n        final MutableStubResponse response = new MutableStubResponse();\n\n        response.addHeaders(defaultHeaders);\n        response.setStatus(defaultStatus);\n        response.setEncoding(defaultEncoding);\n        response.setBody(\"\");\n\n        stubResponses.add(response);\n        return this;\n}\n\n\n/**\n     * {@inheritDoc}\n*/\n@Override\n    public void respondUsing(final Responder responder) {\n        Validate.notNull(responder, \"responder cannot be null\");\n\n        this.responder = responder;\n}\n\n\n/**\n     * {@inheritDoc}\n*/\n@Override\n    public ResponseStubbing withContentType(final String contentType) {\n        currentResponse().setHeaderCaseInsensitive(CONTENT_TYPE_HEADER, contentType);\n        return this;\n}\n\n\n/**\n     * {@inheritDoc}\n*/\n@Override\n    public ResponseStubbing withEncoding(final Charset encoding) {\n        currentResponse().setEncoding(encoding);\n        return this;\n}\n\n\n/**\n     * {@inheritDoc}\n*/\n@Override\n    public ResponseStubbing withBody(final String responseBody) {\n        currentResponse().setBody(responseBody);\n        return this;\n}\n\n\n/**\n     * {@inheritDoc}\n*/    \n@Override\n    public ResponseStubbing withBody(final Reader reader) {\ntry {\n            final String responseBody;\n\ntry {\n                responseBody = IOUtils.toString(reader);\n            } catch (final IOException ex) {\n                throw new JadlerException(\"An error ocurred while reading the response body from \"\n                        + \"the given Reader instance.\", ex);\n}\n\n            return this.withBody(responseBody);\n}\nfinally {\n            IOUtils.closeQuietly(reader);\n}\n}\n\n\n/**\n     * {@inheritDoc}\n*/ \n@Override\n    public ResponseStubbing withBody(final InputStream is) {\ntry {\nfinal byte[] responseBody = IOUtils.toByteArray(is);\n        currentResponse().setBody(responseBody);\n        return this;\n} catch (final IOException e) {\n                throw new JadlerException(\"A problem occurred while reading the given input stream\", e);\n} finally {\n            IOUtils.closeQuietly(is);\n}\n}\n}\n\n\n/**\n     * {@inheritDoc}\n*/ \n@Override\n    public ResponseStubbing withBody(final byte[] responseBody) {\n        currentResponse().setBody(responseBody);\n        return this;\n}\n\n\n/**\n     * {@inheritDoc}\n*/ \n@Override\n    public ResponseStubbing withHeader(final String name, final String value) {\n        currentResponse().addHeader(name, value);\n        return this;\n}\n\n\n/**\n     * {@inheritDoc}\n*/\n@Override\n    public ResponseStubbing withStatus(final int status) {\n        currentResponse().setStatus(status);\n        return this;\n}\n\n\n/**\n     * {@inheritDoc}\n*/\n@Override\n    public ResponseStubbing withDelay(long delayValue, TimeUnit delayUnit) {\n        currentResponse().setDelay(java.util.concurrent.TimeUnit.MILLISECONDS.convert(delayValue, delayUnit));\n        return this;\n}\n\n\n/**\n     * Creates a {@link HttpStub} instance from this Stubbing instance.\n     * Must be called once this stubbing has been finished.\n     * @return {@link HttpStub} instance configured using values from this stubbing\n*/\n    public HttpStub createRule() {\n        if (this.responder != null) {\n            return new HttpStub(predicates, this.responder);\n}\n\n        final List<StubResponse> res = new ArrayList<StubResponse>(this.stubResponses.size());\n        for(final MutableStubResponse msr: this.stubResponses) {\n            res.add(msr.toStubResponse());\n}\n\n        return new HttpStub(predicates, new StaticResponder(res));\n}\n\n\n    private MutableStubResponse currentResponse() {\n        return stubResponses.get(stubResponses.size() - 1);\n}\n}"
+                },
+                "compile_error_details": {
+                    "jadler-core/src/main/java/net/jadler/stubbing/Stubbing.java": {
+                        "172": {
+                            "lines": [
+                                {
+                                    "line_no": 171,
+                                    "content": "@Override"
+                                },
+                                {
+                                    "line_no": 172,
+                                    "content": "    public ResponseStubbing withBody(final byte[] responseBody) {"
+                                },
+                                {
+                                    "line_no": 173,
+                                    "content": "        currentResponse().setBody(responseBody);"
+                                }
+                            ],
+                            "error_texts": [
+                                "[172,11] error: class, interface, or enum expected\n",
+                                "[172,43] error: class, interface, or enum expected\n"
+                            ]
+                        },
+                        "174": {
+                            "lines": [
+                                {
+                                    "line_no": 173,
+                                    "content": "        currentResponse().setBody(responseBody);"
+                                },
+                                {
+                                    "line_no": 174,
+                                    "content": "        return this;"
+                                },
+                                {
+                                    "line_no": 175,
+                                    "content": "}"
+                                }
+                            ],
+                            "error_texts": [
+                                "[174,8] error: class, interface, or enum expected\n"
+                            ]
+                        },
+                        "175": {
+                            "lines": [
+                                {
+                                    "line_no": 174,
+                                    "content": "        return this;"
+                                },
+                                {
+                                    "line_no": 175,
+                                    "content": "}"
+                                },
+                                {
+                                    "line_no": 176,
+                                    "content": ""
+                                }
+                            ],
+                            "error_texts": [
+                                "[175,] error: class, interface, or enum expected\n"
+                            ]
+                        },
+                        "182": {
+                            "lines": [
+                                {
+                                    "line_no": 181,
+                                    "content": "@Override"
+                                },
+                                {
+                                    "line_no": 182,
+                                    "content": "    public ResponseStubbing withHeader(final String name, final String value) {"
+                                },
+                                {
+                                    "line_no": 183,
+                                    "content": "        currentResponse().addHeader(name, value);"
+                                }
+                            ],
+                            "error_texts": [
+                                "[182,11] error: class, interface, or enum expected\n",
+                                "[182,45] error: class, interface, or enum expected\n",
+                                "[182,64] error: class, interface, or enum expected\n"
+                            ]
+                        },
+                        "184": {
+                            "lines": [
+                                {
+                                    "line_no": 183,
+                                    "content": "        currentResponse().addHeader(name, value);"
+                                },
+                                {
+                                    "line_no": 184,
+                                    "content": "        return this;"
+                                },
+                                {
+                                    "line_no": 185,
+                                    "content": "}"
+                                }
+                            ],
+                            "error_texts": [
+                                "[184,8] error: class, interface, or enum expected\n"
+                            ]
+                        },
+                        "185": {
+                            "lines": [
+                                {
+                                    "line_no": 184,
+                                    "content": "        return this;"
+                                },
+                                {
+                                    "line_no": 185,
+                                    "content": "}"
+                                },
+                                {
+                                    "line_no": 186,
+                                    "content": ""
+                                }
+                            ],
+                            "error_texts": [
+                                "[185,] error: class, interface, or enum expected\n"
+                            ]
+                        },
+                        "192": {
+                            "lines": [
+                                {
+                                    "line_no": 191,
+                                    "content": "@Override"
+                                },
+                                {
+                                    "line_no": 192,
+                                    "content": "    public ResponseStubbing withStatus(final int status) {"
+                                },
+                                {
+                                    "line_no": 193,
+                                    "content": "        currentResponse().setStatus(status);"
+                                }
+                            ],
+                            "error_texts": [
+                                "[192,45] error: class, interface, or enum expected\n",
+                                "[192,11] error: class, interface, or enum expected\n"
+                            ]
+                        },
+                        "194": {
+                            "lines": [
+                                {
+                                    "line_no": 193,
+                                    "content": "        currentResponse().setStatus(status);"
+                                },
+                                {
+                                    "line_no": 194,
+                                    "content": "        return this;"
+                                },
+                                {
+                                    "line_no": 195,
+                                    "content": "}"
+                                }
+                            ],
+                            "error_texts": [
+                                "[194,8] error: class, interface, or enum expected\n"
+                            ]
+                        },
+                        "195": {
+                            "lines": [
+                                {
+                                    "line_no": 194,
+                                    "content": "        return this;"
+                                },
+                                {
+                                    "line_no": 195,
+                                    "content": "}"
+                                },
+                                {
+                                    "line_no": 196,
+                                    "content": ""
+                                }
+                            ],
+                            "error_texts": [
+                                "[195,] error: class, interface, or enum expected\n"
+                            ]
+                        },
+                        "202": {
+                            "lines": [
+                                {
+                                    "line_no": 201,
+                                    "content": "@Override"
+                                },
+                                {
+                                    "line_no": 202,
+                                    "content": "    public ResponseStubbing withDelay(long delayValue, TimeUnit delayUnit) {"
+                                },
+                                {
+                                    "line_no": 203,
+                                    "content": "        currentResponse().setDelay(java.util.concurrent.TimeUnit.MILLISECONDS.convert(delayValue, delayUnit));"
+                                }
+                            ],
+                            "error_texts": [
+                                "[202,11] error: class, interface, or enum expected\n"
+                            ]
+                        },
+                        "204": {
+                            "lines": [
+                                {
+                                    "line_no": 203,
+                                    "content": "        currentResponse().setDelay(java.util.concurrent.TimeUnit.MILLISECONDS.convert(delayValue, delayUnit));"
+                                },
+                                {
+                                    "line_no": 204,
+                                    "content": "        return this;"
+                                },
+                                {
+                                    "line_no": 205,
+                                    "content": "}"
+                                }
+                            ],
+                            "error_texts": [
+                                "[204,8] error: class, interface, or enum expected\n"
+                            ]
+                        },
+                        "205": {
+                            "lines": [
+                                {
+                                    "line_no": 204,
+                                    "content": "        return this;"
+                                },
+                                {
+                                    "line_no": 205,
+                                    "content": "}"
+                                },
+                                {
+                                    "line_no": 206,
+                                    "content": ""
+                                }
+                            ],
+                            "error_texts": [
+                                "[205,] error: class, interface, or enum expected\n"
+                            ]
+                        },
+                        "213": {
+                            "lines": [
+                                {
+                                    "line_no": 212,
+                                    "content": "*/"
+                                },
+                                {
+                                    "line_no": 213,
+                                    "content": "    public HttpStub createRule() {"
+                                },
+                                {
+                                    "line_no": 214,
+                                    "content": "        if (this.responder != null) {"
+                                }
+                            ],
+                            "error_texts": [
+                                "[213,11] error: class, interface, or enum expected\n"
+                            ]
+                        },
+                        "216": {
+                            "lines": [
+                                {
+                                    "line_no": 215,
+                                    "content": "            return new HttpStub(predicates, this.responder);"
+                                },
+                                {
+                                    "line_no": 216,
+                                    "content": "}"
+                                },
+                                {
+                                    "line_no": 217,
+                                    "content": ""
+                                }
+                            ],
+                            "error_texts": [
+                                "[216,] error: class, interface, or enum expected\n"
+                            ]
+                        },
+                        "218": {
+                            "lines": [
+                                {
+                                    "line_no": 217,
+                                    "content": ""
+                                },
+                                {
+                                    "line_no": 218,
+                                    "content": "        final List<StubResponse> res = new ArrayList<StubResponse>(this.stubResponses.size());"
+                                },
+                                {
+                                    "line_no": 219,
+                                    "content": "        for(final MutableStubResponse msr: this.stubResponses) {"
+                                }
+                            ],
+                            "error_texts": [
+                                "[218,14] error: class, interface, or enum expected\n"
+                            ]
+                        },
+                        "219": {
+                            "lines": [
+                                {
+                                    "line_no": 218,
+                                    "content": "        final List<StubResponse> res = new ArrayList<StubResponse>(this.stubResponses.size());"
+                                },
+                                {
+                                    "line_no": 219,
+                                    "content": "        for(final MutableStubResponse msr: this.stubResponses) {"
+                                },
+                                {
+                                    "line_no": 220,
+                                    "content": "            res.add(msr.toStubResponse());"
+                                }
+                            ],
+                            "error_texts": [
+                                "[219,8] error: class, interface, or enum expected\n",
+                                "[219,18] error: class, interface, or enum expected\n"
+                            ]
+                        },
+                        "221": {
+                            "lines": [
+                                {
+                                    "line_no": 220,
+                                    "content": "            res.add(msr.toStubResponse());"
+                                },
+                                {
+                                    "line_no": 221,
+                                    "content": "}"
+                                },
+                                {
+                                    "line_no": 222,
+                                    "content": ""
+                                }
+                            ],
+                            "error_texts": [
+                                "[221,] error: class, interface, or enum expected\n"
+                            ]
+                        },
+                        "224": {
+                            "lines": [
+                                {
+                                    "line_no": 223,
+                                    "content": "        return new HttpStub(predicates, new StaticResponder(res));"
+                                },
+                                {
+                                    "line_no": 224,
+                                    "content": "}"
+                                },
+                                {
+                                    "line_no": 225,
+                                    "content": ""
+                                }
+                            ],
+                            "error_texts": [
+                                "[224,] error: class, interface, or enum expected\n"
+                            ]
+                        },
+                        "229": {
+                            "lines": [
+                                {
+                                    "line_no": 228,
+                                    "content": "        return stubResponses.get(stubResponses.size() - 1);"
+                                },
+                                {
+                                    "line_no": 229,
+                                    "content": "}"
+                                },
+                                {
+                                    "line_no": 230,
+                                    "content": "}"
+                                }
+                            ],
+                            "error_texts": [
+                                "[229,] error: class, interface, or enum expected\n"
+                            ]
+                        }
+                    }
+                }
+            },
+            "error": "error: class, interface, or enum expected\n",
+            "span_id": 7476272713676242042
+        },
+        {
+            "input": "```diff\n--- jadler-core/src/main/java/net/jadler/stubbing/Stubbing.java\n+++ jadler-core/src/main/java/net/jadler/stubbing/Stubbing.java\n@@ -18,8 +18,6 @@ import org.apache.commons.collections.MultiMap;\n import org.apache.commons.collections.map.MultiValueMap;\n import org.apache.commons.lang.Validate;\n \n-import java.util.concurrent.locks.ReentrantLock;\n-\n /**\n  * Internal class for defining http stubs in a fluid fashion. You shouldn't create instances\n  * of this class on your own, please see {@link Jadler#onRequest()}\n@@ -33,7 +31,6 @@ public class Stubbing extends AbstractRequestMatching<RequestStubbing> implement\n     private final MultiMap defaultHeaders;\n     private final int defaultStatus;\n     private final Charset defaultEncoding;\n-    private final ReentrantLock lock;\n     \n     \n     /**\n@@ -49,7 +46,6 @@ public class Stubbing extends AbstractRequestMatching<RequestStubbing> implement\n         this.defaultHeaders.putAll(defaultHeaders);\n         this.defaultStatus = defaultStatus;\n         this.defaultEncoding = defaultEncoding;        \n-        this.lock = new ReentrantLock();\n         this.responder = null;\n     }\n \n@@ -142,7 +138,6 @@ public class Stubbing extends AbstractRequestMatching<RequestStubbing> implement\n         } finally {\n             IOUtils.closeQuietly(is);\n         }\n-    }\n \n \n     /**\n```",
+            "output": {
+                "compilation_has_succeeded": true,
+                "test_has_succeeded": false,
+                "error_text": "[INFO]\n[INFO] Results:\n[INFO]\n[ERROR] Failures:\n[ERROR] StubbingTest.withBodyInputStream:137\nExpected: [<1b>, <2b>, <3b>]\nbut: was []\n[ERROR] Errors:\n[ERROR] StubbingTest.withBodyReader:99 \u00bb NullPointer Cannot enter synchronized block because \"this.lock\" is null\n[INFO]\n[ERROR] Tests run: 235, Failures: 1, Errors: 1, Skipped: 0\n[INFO]\n[INFO] ------------------------------------------------------------------------\n[INFO] Reactor Summary for jadler-pom 1.3.1-SNAPSHOT:\n[INFO]\n[INFO] jadler-pom ......................................... SUCCESS [ 0.688 s]\n[INFO] jadler-core ........................................ FAILURE [ 9.182 s]\n[INFO] jadler-jetty ....................................... SKIPPED\n[INFO] jadler-junit ....................................... SKIPPED\n[INFO] jadler-jdk ......................................... SKIPPED\n[INFO] jadler-all ......................................... SKIPPED\n[INFO] ------------------------------------------------------------------------\n[INFO] BUILD FAILURE\n[INFO] ------------------------------------------------------------------------\n[INFO] Total time: 10.096 s\n[INFO] Finished at: 2024-08-05T02:38:31Z\n[INFO] ------------------------------------------------------------------------\n[ERROR] Failed to execute goal org.apache.maven.plugins:maven-surefire-plugin:3.2.5:test (default-test) on project jadler-core: There are test failures.\n[ERROR]\n[ERROR] Please refer to /mnt/repo/jadler-core/target/surefire-reports for the individual test results.\n[ERROR] Please refer to dump files (if any exist) [date].dump, [date]-jvmRun[N].dump and [date].dumpstream.\n[ERROR] -> [Help 1]\n[ERROR]\n[ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.\n[ERROR] Re-run Maven using the -X switch to enable full debug logging.\n[ERROR]\n[ERROR] For more information about the errors and possible solutions, please read the following articles:\n[ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoFailureException\n[ERROR]\n[ERROR] After correcting the problems, you can resume the build with the command\n[ERROR] mvn <args> -rf :jadler-core",
+                "updated_files": {
+                    "jadler-core/src/main/java/net/jadler/stubbing/Stubbing.java": "/*\n * Copyright (c) 2012 - 2016 Jadler contributors\n * This program is made available under the terms of the MIT License.\n */\npackage net.jadler.stubbing;\n\nimport net.jadler.exception.JadlerException;\nimport java.util.ArrayList;\nimport java.util.List;\nimport java.util.concurrent.TimeUnit;\nimport org.apache.commons.io.IOUtils;\nimport java.io.IOException;\nimport java.io.InputStream;\nimport java.io.Reader;\nimport java.nio.charset.Charset;\nimport net.jadler.AbstractRequestMatching;\nimport net.jadler.Jadler;\nimport org.apache.commons.collections.MultiMap;\nimport org.apache.commons.collections.map.MultiValueMap;\nimport org.apache.commons.lang.Validate;\n\n/**\n * Internal class for defining http stubs in a fluid fashion. You shouldn't create instances\n * of this class on your own, please see {@link Jadler#onRequest()}\n * for more information on creating instances of this class.\n */\npublic class Stubbing extends AbstractRequestMatching<RequestStubbing> implements RequestStubbing, ResponseStubbing {\n    \n    private static final String CONTENT_TYPE_HEADER = \"Content-Type\";\n\n    Responder responder;\n    final List<MutableStubResponse> stubResponses;\n    private final MultiMap defaultHeaders;\n    private final int defaultStatus;\n    private final Charset defaultEncoding;\n\n    \n/**\n     * @param defaultHeaders default headers to be present in every http stub response\n     * @param defaultStatus default http status of every http stub response \n     * (can be overridden in the particular stub)\n     * @param defaultEncoding default encoding of every stub response body (can be overridden in the particular stub)\n*/\n    @SuppressWarnings(\"unchecked\")\n    Stubbing(final Charset defaultEncoding, final int defaultStatus, final MultiMap defaultHeaders) {\n\n        this.stubResponses = new ArrayList<MutableStubResponse>();\n        this.defaultHeaders = new MultiValueMap();\n        this.defaultHeaders.putAll(defaultHeaders);\n        this.defaultStatus = defaultStatus;\n        this.defaultEncoding = defaultEncoding;        \n        this.responder = null;\n}\n\n\n/**\n     * {@inheritDoc}\n*/\n@Override\n    public ResponseStubbing respond() {\n        return this.thenRespond();\n}\n\n\n/**\n     * {@inheritDoc}\n*/\n@Override\n    public ResponseStubbing thenRespond() {\n        final MutableStubResponse response = new MutableStubResponse();\n\n        response.addHeaders(defaultHeaders);\n        response.setStatus(defaultStatus);\n        response.setEncoding(defaultEncoding);\n        response.setBody(\"\");\n\n        stubResponses.add(response);\n        return this;\n}\n\n\n/**\n     * {@inheritDoc}\n*/\n@Override\n    public void respondUsing(final Responder responder) {\n        Validate.notNull(responder, \"responder cannot be null\");\n\n        this.responder = responder;\n}\n\n\n/**\n     * {@inheritDoc}\n*/\n@Override\n    public ResponseStubbing withContentType(final String contentType) {\n        currentResponse().setHeaderCaseInsensitive(CONTENT_TYPE_HEADER, contentType);\n        return this;\n}\n\n\n/**\n     * {@inheritDoc}\n*/\n@Override\n    public ResponseStubbing withEncoding(final Charset encoding) {\n        currentResponse().setEncoding(encoding);\n        return this;\n}\n\n\n/**\n     * {@inheritDoc}\n*/\n@Override\n    public ResponseStubbing withBody(final String responseBody) {\n        currentResponse().setBody(responseBody);\n        return this;\n}\n\n\n/**\n     * {@inheritDoc}\n*/    \n@Override\n    public ResponseStubbing withBody(final Reader reader) {\ntry {\n            final String responseBody;\n\ntry {\n                responseBody = IOUtils.toString(reader);\n            } catch (final IOException ex) {\n                throw new JadlerException(\"An error ocurred while reading the response body from \"\n                        + \"the given Reader instance.\", ex);\n}\n\n            return this.withBody(responseBody);\n}\nfinally {\n            IOUtils.closeQuietly(reader);\n}\n}\n\n\n/**\n     * {@inheritDoc}\n*/ \n@Override\n    public ResponseStubbing withBody(final InputStream is) {\ntry {\nfinal byte[] responseBody = IOUtils.toByteArray(is);\n        currentResponse().setBody(responseBody);\n        return this;\n} catch (final IOException e) {\n                throw new JadlerException(\"A problem occurred while reading the given input stream\", e);\n} finally {\n            IOUtils.closeQuietly(is);\n}\n}\n\n\n/**\n     * {@inheritDoc}\n*/ \n@Override\n    public ResponseStubbing withBody(final byte[] responseBody) {\n        currentResponse().setBody(responseBody);\n        return this;\n}\n\n\n/**\n     * {@inheritDoc}\n*/ \n@Override\n    public ResponseStubbing withHeader(final String name, final String value) {\n        currentResponse().addHeader(name, value);\n        return this;\n}\n\n\n/**\n     * {@inheritDoc}\n*/\n@Override\n    public ResponseStubbing withStatus(final int status) {\n        currentResponse().setStatus(status);\n        return this;\n}\n\n\n/**\n     * {@inheritDoc}\n*/\n@Override\n    public ResponseStubbing withDelay(long delayValue, TimeUnit delayUnit) {\n        currentResponse().setDelay(java.util.concurrent.TimeUnit.MILLISECONDS.convert(delayValue, delayUnit));\n        return this;\n}\n\n\n/**\n     * Creates a {@link HttpStub} instance from this Stubbing instance.\n     * Must be called once this stubbing has been finished.\n     * @return {@link HttpStub} instance configured using values from this stubbing\n*/\n    public HttpStub createRule() {\n        if (this.responder != null) {\n            return new HttpStub(predicates, this.responder);\n}\n\n        final List<StubResponse> res = new ArrayList<StubResponse>(this.stubResponses.size());\n        for(final MutableStubResponse msr: this.stubResponses) {\n            res.add(msr.toStubResponse());\n}\n\n        return new HttpStub(predicates, new StaticResponder(res));\n}\n\n\n    private MutableStubResponse currentResponse() {\n        return stubResponses.get(stubResponses.size() - 1);\n}\n}"
+                },
+                "compile_error_details": {}
+            },
+            "error": "[INFO]\n[INFO] Results:\n[INFO]\n[ERROR] Failures:\n[ERROR] StubbingTest.withBodyInputStream:137\nExpected: [<1b>, <2b>, <3b>]\nbut: was []\n[ERROR] Errors:\n[ERROR] StubbingTest.withBodyReader:99 \u00bb NullPointer Cannot enter synchronized block because \"this.lock\" is null\n[INFO]\n[ERROR] Tests run: 235, Failures: 1, Errors: 1, Skipped: 0\n[INFO]\n[INFO] ------------------------------------------------------------------------\n[INFO] Reactor Summary for jadler-pom 1.3.1-SNAPSHOT:\n[INFO]\n[INFO] jadler-pom ......................................... SUCCESS [ 0.688 s]\n[INFO] jadler-core ........................................ FAILURE [ 9.182 s]\n[INFO] jadler-jetty ....................................... SKIPPED\n[INFO] jadler-junit ....................................... SKIPPED\n[INFO] jadler-jdk ......................................... SKIPPED\n[INFO] jadler-all ......................................... SKIPPED\n[INFO] ------------------------------------------------------------------------\n[INFO] BUILD FAILURE\n[INFO] ------------------------------------------------------------------------\n[INFO] Total time: 10.096 s\n[INFO] Finished at: 2024-08-05T02:38:31Z\n[INFO] ------------------------------------------------------------------------\n[ERROR] Failed to execute goal org.apache.maven.plugins:maven-surefire-plugin:3.2.5:test (default-test) on project jadler-core: There are test failures.\n[ERROR]\n[ERROR] Please refer to /mnt/repo/jadler-core/target/surefire-reports for the individual test results.\n[ERROR] Please refer to dump files (if any exist) [date].dump, [date]-jvmRun[N].dump and [date].dumpstream.\n[ERROR] -> [Help 1]\n[ERROR]\n[ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.\n[ERROR] Re-run Maven using the -X switch to enable full debug logging.\n[ERROR]\n[ERROR] For more information about the errors and possible solutions, please read the following articles:\n[ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoFailureException\n[ERROR]\n[ERROR] After correcting the problems, you can resume the build with the command\n[ERROR] mvn <args> -rf :jadler-core",
+            "span_id": 7592664928557907951
+        }
+    ],
+    "read_file": [
+        {
+            "input": "jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JettyStubHttpServer.java",
+            "output": "/*\n * Copyright (c) 2012 - 2016 Jadler contributors\n * This program is made available under the terms of the MIT License.\n */\npackage net.jadler.stubbing.server.jetty;\n\nimport net.jadler.RequestManager;\nimport net.jadler.stubbing.server.StubHttpServer;\nimport org.eclipse.jetty.server.Server;\nimport org.slf4j.Logger;\nimport org.slf4j.LoggerFactory;\nimport org.apache.commons.lang.Validate;\nimport org.eclipse.jetty.server.Connector;\nimport org.eclipse.jetty.server.nio.SelectChannelConnector;\n\n\n/**\n * Default stub http server implementation using Jetty as an http server.\n */\npublic class JettyStubHttpServer implements StubHttpServer {\n\n    private static final Logger logger = LoggerFactory.getLogger(JettyStubHttpServer.class);\n    private final Server server;\n    private final Connector httpConnector;\n\n    public JettyStubHttpServer() {\n        this(0);\n    }\n    \n\n    public JettyStubHttpServer(final int port) {\n        this.server = new Server();\n        this.server.setSendServerVersion(false);\n        this.server.setSendDateHeader(true);\n        \n        this.httpConnector = new SelectChannelConnector();\n        this.httpConnector.setPort(port);\n        server.addConnector(this.httpConnector);\n    }\n    \n\n    /**\n     * {@inheritDoc}\n     */\n    @Override\n    public void registerRequestManager(final RequestManager ruleProvider) {\n        Validate.notNull(ruleProvider, \"ruleProvider cannot be null\");\n\n        server.setHandler(new JadlerHandler(ruleProvider));\n    }\n    \n\n    /**\n     * {@inheritDoc}\n     */\n    @Override\n    public void start() throws Exception {\n        logger.debug(\"starting jetty\");\n        server.start();\n        logger.debug(\"jetty started\");\n    }\n\n\n    /**\n     * {@inheritDoc}\n     */\n    @Override\n    public void stop() throws Exception {\n        logger.debug(\"stopping jetty\");\n        server.stop();\n        logger.debug(\"jetty stopped\");\n    }\n    \n\n    /**\n     * {@inheritDoc}\n     */\n    @Override\n    public int getPort() {\n        return httpConnector.getLocalPort();\n    }\n}",
+            "error": "",
+            "span_id": 6766900111360771660
+        },
+        {
+            "input": "jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JadlerHandler.java",
+            "output": "/*\n * Copyright (c) 2012 - 2016 Jadler contributors\n * This program is made available under the terms of the MIT License.\n */\npackage net.jadler.stubbing.server.jetty;\n\nimport net.jadler.stubbing.StubResponse;\nimport net.jadler.RequestManager;\nimport org.eclipse.jetty.server.Request;\nimport org.eclipse.jetty.server.handler.AbstractHandler;\nimport javax.servlet.ServletException;\nimport javax.servlet.http.HttpServletRequest;\nimport javax.servlet.http.HttpServletResponse;\nimport java.io.IOException;\nimport java.io.OutputStream;\nimport net.jadler.KeyValues;\nimport org.apache.commons.lang.Validate;\n\n\n/**\n * Jetty Handler which handles all http communication by returning an http response according to a stub response\n * obtained from a {@link RequestManager} instance.\n */\nclass JadlerHandler extends AbstractHandler {\n\n    private final RequestManager requestManager;\n\n    \n    /**\n     * @param requestManager request manager instance to retrieve stub responses\n     */\n    JadlerHandler(final RequestManager requestManager) {\n        Validate.notNull(requestManager, \"requestManager cannot be null\");\n        this.requestManager = requestManager;\n    }\n\n\n    @Override\n    public void handle(final String target, final Request baseRequest, final HttpServletRequest request,\n            final HttpServletResponse response) throws IOException, ServletException {\n\n        final net.jadler.Request req = RequestUtils.convert(request);\n        final StubResponse stubResponse = this.requestManager.provideStubResponseFor(req);\n        \n        response.setStatus(stubResponse.getStatus());\n        this.insertResponseHeaders(stubResponse.getHeaders(), response);        \n        \n        baseRequest.setHandled(true);\n        \n        this.processDelay(stubResponse.getDelay());\n        this.insertResponseBody(stubResponse.getBody(), response);\n    }\n\n    \n    private void insertResponseBody(final byte[] body, final HttpServletResponse response) throws IOException {\n        if (body.length > 0) {\n            final OutputStream os = response.getOutputStream();\n            os.write(body);\n        }\n    }\n\n    \n    private void insertResponseHeaders(final KeyValues headers, final HttpServletResponse response) {\n        for (final String key: headers.getKeys()) {\n            \n            for (final String value: headers.getValues(key)) {\n                response.addHeader(key, value);\n            }\n        }\n    }\n\n\n    private void processDelay(final long delay) {\n        if (delay > 0) {\n            try {\n                Thread.sleep(delay);\n            } catch (final InterruptedException e) {\n                Thread.currentThread().interrupt();\n            }\n        }\n    }\n}",
+            "error": "",
+            "span_id": 12893725320268166582
+        },
+        {
+            "input": "jadler-core/src/test/java/net/jadler/StubbingTest.java",
+            "output": "Error: RetryError[<Future at 0x786b3de66f60 state=finished raised FileNotFoundError>]",
+            "error": "RetryError[<Future at 0x786b3de66f60 state=finished raised FileNotFoundError>]",
+            "span_id": 7881594182802842883
+        },
+        {
+            "input": "jadler-core/src/test/java/net/jadler/stubbing/StubbingTest.java",
+            "output": "/*\n * Copyright (c) 2012 - 2016 Jadler contributors\n * This program is made available under the terms of the MIT License.\n */\npackage net.jadler.stubbing;\n\nimport java.io.ByteArrayInputStream;\nimport java.io.IOException;\nimport java.io.InputStream;\nimport net.jadler.exception.JadlerException;\nimport org.apache.commons.collections.MultiMap;\nimport org.apache.commons.collections.map.MultiValueMap;\nimport org.junit.Before;\nimport org.junit.Test;\nimport java.io.Reader;\nimport java.io.StringReader;\nimport java.nio.charset.Charset;\nimport java.util.ArrayList;\nimport java.util.List;\nimport java.util.concurrent.TimeUnit;\nimport net.jadler.KeyValues;\n\nimport static org.hamcrest.Matchers.equalTo;\nimport static org.hamcrest.Matchers.hasSize;\nimport static org.hamcrest.Matchers.instanceOf;\nimport static org.hamcrest.Matchers.is;\nimport static org.hamcrest.Matchers.nullValue;\nimport static org.hamcrest.Matchers.notNullValue;\nimport static org.hamcrest.Matchers.empty;\nimport static org.junit.Assert.assertThat;\nimport static org.mockito.Matchers.any;\nimport static org.mockito.Mockito.spy;\nimport static org.mockito.Mockito.mock;\nimport static org.mockito.Mockito.when;\nimport static org.mockito.Mockito.verify;\n\n\npublic class StubbingTest {\n\n    private static final MultiValueMap DEFAULT_HEADERS = new MultiValueMap();\n    private static final int DEFAULT_STATUS = 200;\n    private static final Charset DEFAULT_ENCODING = Charset.forName(\"UTF-8\");\n    private static final Responder RESPONDER = mock(Responder.class);\n\n    private TestStubbing stubbing;\n\n\n    @Before\n    public void setUp() {\n        this.stubbing = new TestStubbing(DEFAULT_ENCODING, DEFAULT_STATUS, DEFAULT_HEADERS);\n    }\n\n\n    @Test\n    public void respond() {\n        this.stubbing.respond();\n        assertOneDefaultResponse();\n        assertThat(this.stubbing.getResponder(), is(nullValue()));\n    }\n\n\n    @Test\n    public void thenRespond() {\n        this.stubbing.thenRespond();\n        assertOneDefaultResponse();\n        assertThat(this.stubbing.getResponder(), is(nullValue()));\n    }\n    \n    \n    @Test(expected = IllegalArgumentException.class)\n    public void respondUsingWrongParam() {\n        this.stubbing.respondUsing(null);\n    }\n    \n    \n    @Test\n    public void respondUsing() {\n        this.stubbing.respondUsing(RESPONDER);\n        \n        assertThat(this.stubbing.getStubResponses(), is(empty()));\n        assertThat(this.stubbing.getResponder(), is(RESPONDER));\n    }\n\n\n    @Test\n    public void withBodyString() {\n        final String body = \"body\";\n        this.stubbing.respond().withBody(body);\n\n        final StubResponse response = assertAndGetOneResponse();\n        assertThat(response.getBody(), equalTo(body.getBytes(DEFAULT_ENCODING)));\n    }\n\n\n    @Test\n    public void withBodyReader() throws Exception {\n        final String body = \"body\";\n        final Reader reader = spy(new StringReader(body));\n        this.stubbing.respond().withBody(reader);\n\n        final StubResponse response = assertAndGetOneResponse();\n        assertThat(response.getBody(), equalTo(body.getBytes(DEFAULT_ENCODING)));\n        verify(reader).close();\n    }\n\n\n    @Test(expected = JadlerException.class)\n    public void withBodyReaderThrowingIOE() throws Exception {\n        final Reader reader = mock(Reader.class);\n        when(reader.read(any(char[].class))).thenThrow(new IOException());\n                \n        try {\n            this.stubbing.respond().withBody(reader);\n        } finally {\n            verify(reader).close();\n        }\n    }\n    \n    \n    @Test\n    public void withBodyBytes() {\n        final byte[] body = \"body\".getBytes(DEFAULT_ENCODING);\n        this.stubbing.respond().withBody(body);\n\n        final StubResponse response = assertAndGetOneResponse();\n        assertThat(response.getBody(), equalTo(body));\n    }\n    \n    \n    @Test\n    public void withBodyInputStream() throws Exception {\n        final byte[] body = new byte[] {1, 2, 3};\n        final InputStream is = spy(new ByteArrayInputStream(body));\n        this.stubbing.respond().withBody(is);\n\n        final StubResponse response = assertAndGetOneResponse();\n        assertThat(response.getBody(), equalTo(body));\n        verify(is).close();\n    }\n    \n    \n    @Test(expected = JadlerException.class)\n    @SuppressWarnings(\"unchecked\")\n    public void withBodyInputStreamThrowingIOE() throws Exception {\n        final InputStream is = mock(InputStream.class);\n\n        when(is.read(any(byte[].class))).thenThrow(new IOException());\n                \n        try {\n            this.stubbing.respond().withBody(is);\n        } finally {\n            verify(is).close();\n        }\n    }\n\n\n    @Test\n    public void withHeader() {\n        final String name = \"name\";\n        final String value = \"value\";\n        this.stubbing.respond().withHeader(name, value);\n\n        final StubResponse response = assertAndGetOneResponse();\n        assertThat(response.getHeaders(), is(notNullValue()));\n        \n        final KeyValues expected = new KeyValues().add(name, value);\n        assertThat(response.getHeaders(), is(expected));\n    }\n\n\n    @Test\n    public void withStatus() {\n        final int status = 2;\n        this.stubbing.respond().withStatus(status);\n\n        final StubResponse response = assertAndGetOneResponse();\n        assertThat(response.getStatus(), is(status));\n    }\n\n\n    @Test\n    public void withDelay() {\n        this.stubbing.respond().withDelay(2, TimeUnit.SECONDS);\n\n        final StubResponse response = assertAndGetOneResponse();\n        assertThat(response.getDelay(), is(2000L));\n    }\n\n    \n    @Test\n    public void createRuleWithResponder() {\n        this.stubbing.respondUsing(RESPONDER);\n        final HttpStub rule = this.stubbing.createRule();\n        \n        assertThat(rule, is(notNullValue()));\n    }\n    \n\n    @Test\n    public void createRule() {\n        this.stubbing.thenRespond();\n        final HttpStub rule = this.stubbing.createRule();\n\n        assertThat(rule, is(notNullValue()));\n    }\n\n\n    // helper methods\n\n    private void assertOneDefaultResponse() {\n        assertThat(this.stubbing.getStubResponses(), is(notNullValue()));\n        assertThat(this.stubbing.getStubResponses(), hasSize(1));\n\n        assertThat(this.stubbing.getStubResponses().get(0), is(instanceOf(MutableStubResponse.class)));\n        assertThat(this.stubbing.getStubResponses().get(0).getHeaders(), equalTo((MultiMap) DEFAULT_HEADERS));\n        assertThat(this.stubbing.getStubResponses().get(0).getStatus(), equalTo(DEFAULT_STATUS));\n    }\n\n\n    private StubResponse assertAndGetOneResponse() {\n        assertThat(this.stubbing.getStubResponses(), is(notNullValue()));\n        assertThat(this.stubbing.getStubResponses(), hasSize(1));\n        \n        assertThat(this.stubbing.getStubResponses().get(0), is(instanceOf(MutableStubResponse.class)));\n        \n        return this.stubbing.getStubResponses().get(0).toStubResponse();\n    }\n    \n    \n    /*\n     * This is a test only extension of the Stubbing class which provides a getter to all StubResponses and to the\n     * Responder\n     */\n    private static class TestStubbing extends Stubbing {\n        TestStubbing(final Charset defaultEncoding, final int defaultStatus, final MultiMap defaultHeaders) {\n            super(defaultEncoding, defaultStatus, defaultHeaders);\n        }\n        \n        List<MutableStubResponse> getStubResponses() {\n            return new ArrayList<MutableStubResponse>(this.stubResponses);\n        }\n        \n        Responder getResponder() {\n            return this.responder;\n        }\n    }\n}\n",
+            "error": "",
+            "span_id": 16461164863260302926
+        },
+        {
+            "input": "jadler-core/src/main/java/net/jadler/stubbing/Stubbing.java",
+            "output": "/*\n * Copyright (c) 2012 - 2016 Jadler contributors\n * This program is made available under the terms of the MIT License.\n */\npackage net.jadler.stubbing;\n\nimport net.jadler.exception.JadlerException;\nimport java.util.ArrayList;\nimport java.util.List;\nimport java.util.concurrent.TimeUnit;\nimport org.apache.commons.io.IOUtils;\nimport java.io.IOException;\nimport java.io.InputStream;\nimport java.io.Reader;\nimport java.nio.charset.Charset;\nimport net.jadler.AbstractRequestMatching;\nimport net.jadler.Jadler;\nimport org.apache.commons.collections.MultiMap;\nimport org.apache.commons.collections.map.MultiValueMap;\nimport org.apache.commons.lang.Validate;\n\n\n/**\n * Internal class for defining http stubs in a fluid fashion. You shouldn't create instances\n * of this class on your own, please see {@link Jadler#onRequest()}\n * for more information on creating instances of this class.\n */\npublic class Stubbing extends AbstractRequestMatching<RequestStubbing> implements RequestStubbing, ResponseStubbing {\n    \n    private static final String CONTENT_TYPE_HEADER = \"Content-Type\";\n\n    Responder responder;\n    final List<MutableStubResponse> stubResponses;\n    private final MultiMap defaultHeaders;\n    private final int defaultStatus;\n    private final Charset defaultEncoding;\n    \n    \n    /**\n     * @param defaultHeaders default headers to be present in every http stub response\n     * @param defaultStatus default http status of every http stub response \n     * (can be overridden in the particular stub)\n     * @param defaultEncoding default encoding of every stub response body (can be overridden in the particular stub)\n     */\n    @SuppressWarnings(\"unchecked\")\n    Stubbing(final Charset defaultEncoding, final int defaultStatus, final MultiMap defaultHeaders) {\n        \n        this.stubResponses = new ArrayList<MutableStubResponse>();\n        this.defaultHeaders = new MultiValueMap();\n        this.defaultHeaders.putAll(defaultHeaders);\n        this.defaultStatus = defaultStatus;\n        this.defaultEncoding = defaultEncoding;        \n        this.responder = null;\n    }\n\n    \n    /**\n     * {@inheritDoc}\n     */\n    @Override\n    public ResponseStubbing respond() {\n        return this.thenRespond();\n    }\n    \n    \n    /**\n     * {@inheritDoc}\n     */\n    @Override\n    public ResponseStubbing thenRespond() {\n        final MutableStubResponse response = new MutableStubResponse();\n        \n        response.addHeaders(defaultHeaders);\n        response.setStatus(defaultStatus);\n        response.setEncoding(defaultEncoding);\n        response.setBody(\"\");\n        \n        stubResponses.add(response);\n        return this;\n    }\n    \n    \n    /**\n     * {@inheritDoc}\n     */\n    @Override\n    public void respondUsing(final Responder responder) {\n        Validate.notNull(responder, \"responder cannot be null\");\n        \n        this.responder = responder;\n    }\n    \n\n    /**\n     * {@inheritDoc}\n     */\n    @Override\n    public ResponseStubbing withContentType(final String contentType) {\n        currentResponse().setHeaderCaseInsensitive(CONTENT_TYPE_HEADER, contentType);\n        return this;\n    }\n    \n\n    /**\n     * {@inheritDoc}\n     */\n    @Override\n    public ResponseStubbing withEncoding(final Charset encoding) {\n        currentResponse().setEncoding(encoding);\n        return this;\n    }\n\n\n    /**\n     * {@inheritDoc}\n     */\n    @Override\n    public ResponseStubbing withBody(final String responseBody) {\n        currentResponse().setBody(responseBody);\n        return this;\n    }\n\n\n    /**\n     * {@inheritDoc}\n     */    \n    @Override\n    public ResponseStubbing withBody(final Reader reader) {\n        try {\n            final String responseBody;\n            \n            try {\n                responseBody = IOUtils.toString(reader);\n            } catch (final IOException ex) {\n                throw new JadlerException(\"An error ocurred while reading the response body from \"\n                        + \"the given Reader instance.\", ex);\n            }\n            \n            return this.withBody(responseBody);\n        }\n        finally {\n            IOUtils.closeQuietly(reader);\n        }\n    }\n    \n    \n    /**\n     * {@inheritDoc}\n     */ \n    @Override\n    public ResponseStubbing withBody(final InputStream is) {\n        try {\n            final byte[] responseBody;\n        \n            try {\n                responseBody = IOUtils.toByteArray(is);\n            }\n            catch (final IOException e) {\n                throw new JadlerException(\"A problem occurred while reading the given input stream\", e);\n            }\n        \n            return this.withBody(responseBody);\n        }\n        finally {\n            IOUtils.closeQuietly(is);\n        }\n    }\n\n\n    /**\n     * {@inheritDoc}\n     */ \n    @Override\n    public ResponseStubbing withBody(final byte[] responseBody) {\n        currentResponse().setBody(responseBody);\n        return this;\n    }\n\n    \n    /**\n     * {@inheritDoc}\n     */ \n    @Override\n    public ResponseStubbing withHeader(final String name, final String value) {\n        currentResponse().addHeader(name, value);\n        return this;\n    }\n\n\n    /**\n     * {@inheritDoc}\n     */\n    @Override\n    public ResponseStubbing withStatus(final int status) {\n        currentResponse().setStatus(status);\n        return this;\n    }\n\n    \n    /**\n     * {@inheritDoc}\n     */\n    @Override\n    public ResponseStubbing withDelay(long delayValue, TimeUnit delayUnit) {\n        currentResponse().setDelay(java.util.concurrent.TimeUnit.MILLISECONDS.convert(delayValue, delayUnit));\n        return this;\n    }\n    \n    \n    /**\n     * Creates a {@link HttpStub} instance from this Stubbing instance.\n     * Must be called once this stubbing has been finished.\n     * @return {@link HttpStub} instance configured using values from this stubbing\n     */\n    public HttpStub createRule() {\n        if (this.responder != null) {\n            return new HttpStub(predicates, this.responder);\n        }\n        \n        final List<StubResponse> res = new ArrayList<StubResponse>(this.stubResponses.size());\n        for(final MutableStubResponse msr: this.stubResponses) {\n            res.add(msr.toStubResponse());\n        }\n        \n        return new HttpStub(predicates, new StaticResponder(res));\n    }\n    \n\n    private MutableStubResponse currentResponse() {\n        return stubResponses.get(stubResponses.size() - 1);\n    }\n}",
+            "error": "",
+            "span_id": 12284590774082511481
+        }
+    ],
+    "get_directory_tree": [
+        {
+            "input": "jadler-core/src/test/java/net/jadler",
+            "output": "[\n    {\n        \"name\": \"JadlerMockerTest.java\",\n        \"type\": \"file\"\n    },\n    {\n        \"name\": \"KeyValuesTest.java\",\n        \"type\": \"file\"\n    },\n    {\n        \"name\": \"stubbing\",\n        \"type\": \"directory\",\n        \"contents\": [\n            {\n                \"name\": \"HttpStubTest.java\",\n                \"type\": \"file\"\n            },\n            {\n                \"name\": \"StubResponseTest.java\",\n                \"type\": \"file\"\n            },\n            {\n                \"name\": \"StaticResponderTest.java\",\n                \"type\": \"file\"\n            },\n            {\n                \"name\": \"MutableStubResponseTest.java\",\n                \"type\": \"file\"\n            },\n            {\n                \"name\": \"StubbingTest.java\",\n                \"type\": \"file\"\n            }\n        ]\n    },\n    {\n        \"name\": \"mocking\",\n        \"type\": \"directory\",\n        \"contents\": [\n            {\n                \"name\": \"VerifyingTest.java\",\n                \"type\": \"file\"\n            }\n        ]\n    },\n    {\n        \"name\": \"RequestTest.java\",\n        \"type\": \"file\"\n    },\n    {\n        \"name\": \"AbstractRequestMatchingTest.java\",\n        \"type\": \"file\"\n    },\n    {\n        \"name\": \"matchers\",\n        \"type\": \"directory\",\n        \"contents\": [\n            {\n                \"name\": \"RawBodyRequestMatcherTest.java\",\n                \"type\": \"file\"\n            },\n            {\n                \"name\": \"ParameterRequestMatcherTest.java\",\n                \"type\": \"file\"\n            },\n            {\n                \"name\": \"BodyRequestMatcherTest.java\",\n                \"type\": \"file\"\n            },\n            {\n                \"name\": \"PathRequestMatcherTest.java\",\n                \"type\": \"file\"\n            },\n            {\n                \"name\": \"HeaderRequestMatcherTest.java\",\n                \"type\": \"file\"\n            },\n            {\n                \"name\": \"QueryStringRequestMatcherTest.java\",\n                \"type\": \"file\"\n            },\n            {\n                \"name\": \"RequestMatcherTest.java\",\n                \"type\": \"file\"\n            },\n            {\n                \"name\": \"MethodRequestMatcherTest.java\",\n                \"type\": \"file\"\n            }\n        ]\n    }\n]",
+            "error": "",
+            "span_id": 2636272804238366772
+        }
+    ],
+    "get_language_server_suggestions": [],
+    "reset_repo": []
+}

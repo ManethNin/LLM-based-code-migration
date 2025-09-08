@@ -1,0 +1,97 @@
+diff --git a/pom.xml b/pom.xml
+index aaf9c92..edd09a8 100644
+--- a/pom.xml
++++ b/pom.xml
+@@ -36,6 +36,7 @@
+         <sonar.coverage.jacoco.xmlReportPaths>${project.basedir}/target/site/jacoco/jacoco.xml
+         </sonar.coverage.jacoco.xmlReportPaths>
+         <sonar.language>java</sonar.language>
++        <jackson.version>2.13.4</jackson.version>
+     </properties>
+ 
+     <dependencies>
+@@ -107,17 +108,23 @@
+         <dependency>
+             <groupId>com.fasterxml.jackson.core</groupId>
+             <artifactId>jackson-core</artifactId>
+-            <version>2.9.8</version>
++            <version>${jackson.version}</version>
+         </dependency>
+         <dependency>
+             <groupId>com.fasterxml.jackson.datatype</groupId>
+             <artifactId>jackson-datatype-jsr310</artifactId>
+-            <version>2.9.8</version>
++            <version>${jackson.version}</version>
+         </dependency>
+         <dependency>
+             <groupId>com.fasterxml.jackson.core</groupId>
+             <artifactId>jackson-databind</artifactId>
+-            <version>2.13.4.1</version>
++            <version>${jackson.version}</version>
++            <scope>compile</scope>
++        </dependency>
++        <dependency>
++            <groupId>com.fasterxml.jackson.core</groupId>
++            <artifactId>jackson-annotations</artifactId>
++            <version>${jackson.version}</version>
+             <scope>compile</scope>
+         </dependency>
+         <dependency>
+diff --git a/src/main/java/io/simplelocalize/cli/client/SimpleLocalizeClient.java b/src/main/java/io/simplelocalize/cli/client/SimpleLocalizeClient.java
+index 7b6f0a7..37a5302 100644
+--- a/src/main/java/io/simplelocalize/cli/client/SimpleLocalizeClient.java
++++ b/src/main/java/io/simplelocalize/cli/client/SimpleLocalizeClient.java
+@@ -1,6 +1,8 @@
+ package io.simplelocalize.cli.client;
+ 
+ import com.fasterxml.jackson.databind.ObjectMapper;
++import com.fasterxml.jackson.databind.JsonNode;
++import com.fasterxml.jackson.core.JsonProcessingException;
+ import com.jayway.jsonpath.JsonPath;
+ import com.jayway.jsonpath.Option;
+ import io.simplelocalize.cli.client.dto.DownloadRequest;
+@@ -21,6 +23,7 @@ import java.nio.file.Path;
+ import java.nio.file.StandardOpenOption;
+ import java.time.Duration;
+ import java.util.Collection;
++import java.util.ArrayList;
+ import java.util.List;
+ import java.util.Objects;
+ import java.util.Optional;
+@@ -85,8 +88,25 @@ public class SimpleLocalizeClient
+     HttpResponse<String> httpResponse = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString());
+     throwOnError(httpResponse);
+     String body = httpResponse.body();
+-    ExportResponse exportResponse = objectMapper.readValue(body, ExportResponse.class);
+-    return exportResponse.getFiles();
++    try {
++      JsonNode rootNode = objectMapper.readTree(body);
++      JsonNode filesNode = rootNode.path("files");
++      List<DownloadableFile> files = new ArrayList<>();
++      for (JsonNode fileNode : filesNode) {
++        DownloadableFile file = new DownloadableFile();
++        file.setLanguage(fileNode.path("language").asText());
++        file.setNamespace(fileNode.path("namespace").asText());
++        file.setUrl(fileNode.path("url").asText());
++        files.add(file);
++      }
++      return files;
++    } catch (JsonProcessingException e) {
++      log.error("Failed to parse JSON response", e);
++      throw new IOException("Failed to parse JSON response", e);
++    } catch (IOException e) {
++      log.error("Failed to parse JSON response", e);
++      throw new IOException("Failed to parse JSON response", e);
++    }
+   }
+ 
+   public void downloadFile(DownloadableFile downloadableFile, String downloadPathTemplate)
+@@ -163,5 +183,4 @@ public class SimpleLocalizeClient
+     return "";
+   }
+ 
+-
+ }
+
+{Untracked files}:
+junit/download-test/file.json

@@ -1,0 +1,1156 @@
+{
+    "validate_diffs": [],
+    "compile_maven": [
+        {
+            "input": "```diff\n--- src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java\n+++ src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java\n@@\n-import com.google.cloud.pubsublite.PublishMetadata;\n+import com.google.cloud.pubsublite.proto.PubSubMessage;\n@@\n-  public Publisher<PublishMetadata> newPublisher(Map<String, String> params) {\n+  public Publisher<PubSubMessage> newPublisher(Map<String, String> params) {\n--- src/main/java/com/google/pubsublite/kafka/sink/PublisherFactory.java\n+++ src/main/java/com/google/pubsublite/kafka/sink/PublisherFactory.java\n@@\n-import com.google.cloud.pubsublite.PublishMetadata;\n+import com.google.cloud.pubsublite.proto.PubSubMessage;\n@@\n-  Publisher<PublishMetadata> newPublisher(Map<String, String> params);\n+  Publisher<PubSubMessage> newPublisher(Map<String, String> params);\n--- src/main/java/com/google/pubsublite/kafka/sink/PubSubLiteSinkTask.java\n+++ src/main/java/com/google/pubsublite/kafka/sink/PubSubLiteSinkTask.java\n@@\n-import com.google.cloud.pubsublite.PublishMetadata;\n+import com.google.cloud.pubsublite.proto.PubSubMessage;\n@@\n  private @Nullable Publisher<PublishMetadata> publisher;\n+  private @Nullable Publisher<PubSubMessage> publisher;\n@@\n  @VisibleForTesting\n  PubSubLiteSinkTask(PublisherFactory factory) {\n    this.factory = factory;\n  }\n  \n  public PubSubLiteSinkTask() {\n    this(new PublisherFactoryImpl());\n  }\n  \n  @Override\n  public String version() {\n    return AppInfoParser.getVersion();\n  }\n  \n  @Override\n  public void start(Map<String, String> map) {\n    if (publisher != null) {\n      throw new IllegalStateException(\"Called start when publisher already exists.\");\n    }\n    publisher = factory.newPublisher(map);\n    publisher.startAsync().awaitRunning();\n  }\n  \n  @Override\n  public void put(Collection<SinkRecord> collection) {\n    if (publisher.state() != State.RUNNING) {\n      if (publisher.state() == State.FAILED) {\n        throw new IllegalStateException(\"Publisher has failed.\", publisher.failureCause());\n      } else {\n        throw new IllegalStateException(\"Publisher not currently running.\");\n      }\n    }\n    for (SinkRecord record : collection) {\n      Message.Builder message = Message.builder();\n      if (record.key() != null) {\n        message.setKey(encodeToBytes(record.keySchema(), record.key()));\n      }\n      if (record.value() != null) {\n        message.setData(encodeToBytes(record.valueSchema(), record.value()));\n      }\n      ImmutableListMultimap.Builder<String, ByteString> attributes =\n          ImmutableListMultimap.builder();\n      getRecordHeaders(record)\n          .forEach(\n              header ->\n                  attributes.put(\n                      header.key(), Schemas.encodeToBytes(header.schema(), header.value())));\n      if (record.topic() != null) {\n        attributes.put(Constants.KAFKA_TOPIC_HEADER, ByteString.copyFromUtf8(record.topic()));\n      }\n      if (record.kafkaPartition() != null) {\n        attributes.put(\n            Constants.KAFKA_PARTITION_HEADER,\n            ByteString.copyFromUtf8(record.kafkaPartition().toString()));\n        attributes.put(\n            Constants.KAFKA_OFFSET_HEADER,\n            ByteString.copyFromUtf8(Long.toString(record.kafkaOffset())));\n      }\n      if (record.timestamp() != null) {\n        attributes.put(\n            Constants.KAFKA_EVENT_TIME_TYPE_HEADER,\n            ByteString.copyFromUtf8(record.timestampType().name));\n        message.setEventTime(Timestamps.fromMillis(record.timestamp()));\n      }\n      message.setAttributes(attributes.build());\n      publisher.publish(message.build());\n    }\n  }\n  \n  private Iterable<? extends Header> getRecordHeaders(SinkRecord record) {\n    ConnectHeaders headers = new ConnectHeaders();\n    if (record.headers() != null) {\n      for (Header header : record.headers()) {\n        headers.add(header);\n      }\n    }\n    return headers;\n  }\n  \n  @Override\n  public void flush(Map<TopicPartition, OffsetAndMetadata> currentOffsets) {\n    try {\n      if (publisher != null) {\n        publisher.flush();\n      }\n    } catch (IOException e) {\n      throw new RuntimeException(e);\n    }\n  }\n  \n  @Override\n  public void stop() {\n    if (publisher == null) {\n      throw new IllegalStateException(\"Called stop when publisher doesn't exist.\");\n    }\n    try {\n      publisher.flush();\n      publisher.stopAsync().awaitTerminated();\n    } catch (IOException e) {\n      throw new RuntimeException(e);\n    } finally {\n      publisher = null;\n    }\n  }\n```",
+            "output": {
+                "compilation_has_succeeded": false,
+                "test_has_succeeded": false,
+                "error_text": "incompatible types: com.google.cloud.pubsublite.internal.Publisher<com.google.cloud.pubsublite.MessageMetadata> cannot be converted to com.google.cloud.pubsublite.internal.Publisher<com.google.cloud.pubsublite.proto.PubSubMessage>\n",
+                "updated_files": {
+                    "src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java": "/*\n * Copyright 2020 Google LLC\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n *       http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\npackage com.google.pubsublite.kafka.sink;\n\nimport com.google.cloud.pubsublite.CloudZone;\nimport com.google.cloud.pubsublite.ProjectPath;\nimport com.google.cloud.pubsublite.proto.PubSubMessage;\nimport com.google.cloud.pubsublite.TopicName;\nimport com.google.cloud.pubsublite.TopicPath;\nimport com.google.cloud.pubsublite.internal.Publisher;\nimport com.google.cloud.pubsublite.internal.wire.PubsubContext;\nimport com.google.cloud.pubsublite.internal.wire.PubsubContext.Framework;\nimport com.google.cloud.pubsublite.internal.wire.RoutingPublisherBuilder;\nimport com.google.cloud.pubsublite.internal.wire.SinglePartitionPublisherBuilder;\nimport java.util.Map;\nimport org.apache.kafka.common.config.ConfigValue;\n\nclass PublisherFactoryImpl implements PublisherFactory {\n\n  private static final Framework FRAMEWORK = Framework.of(\"KAFKA_CONNECT\");\n\n  @Override\n  public Publisher<PubSubMessage> newPublisher(Map<String, String> params) {\n    Map<String, ConfigValue> config = ConfigDefs.config().validateAll(params);\n    RoutingPublisherBuilder.Builder builder = RoutingPublisherBuilder.newBuilder();\n    TopicPath topic =\n        TopicPath.newBuilder()\n            .setProject(\n                ProjectPath.parse(\"projects/\" + config.get(ConfigDefs.PROJECT_FLAG).value())\n                    .project())\n            .setLocation(CloudZone.parse(config.get(ConfigDefs.LOCATION_FLAG).value().toString()))\n            .setName(TopicName.of(config.get(ConfigDefs.TOPIC_NAME_FLAG).value().toString()))\n            .build();\n    builder.setTopic(topic);\n    builder.setPublisherFactory(\n        partition ->\n            SinglePartitionPublisherBuilder.newBuilder()\n                .setTopic(topic)\n                .setPartition(partition)\n                .setContext(PubsubContext.of(FRAMEWORK))\n                .build());\n    return builder.build();\n  }\n}\n",
+                    "src/main/java/com/google/pubsublite/kafka/sink/PublisherFactory.java": "/*\n * Copyright 2020 Google LLC\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n *       http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\npackage com.google.pubsublite.kafka.sink;\n\nimport com.google.cloud.pubsublite.proto.PubSubMessage;\nimport com.google.cloud.pubsublite.internal.Publisher;\nimport java.util.Map;\n\ninterface PublisherFactory {\n\n  Publisher<PubSubMessage> newPublisher(Map<String, String> params);\n}\n",
+                    "src/main/java/com/google/pubsublite/kafka/sink/PubSubLiteSinkTask.java": "/*\n * Copyright 2020 Google LLC\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n *       http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\npackage com.google.pubsublite.kafka.sink;\n\nimport static com.google.pubsublite.kafka.sink.Schemas.encodeToBytes;\n\nimport com.google.api.core.ApiService.State;\nimport com.google.cloud.pubsublite.Message;\nimport com.google.cloud.pubsublite.proto.PubSubMessage;\nimport com.google.cloud.pubsublite.internal.Publisher;\nimport com.google.common.annotations.VisibleForTesting;\nimport com.google.common.collect.ImmutableListMultimap;\nimport com.google.protobuf.ByteString;\nimport com.google.protobuf.util.Timestamps;\nimport java.io.IOException;\nimport java.util.Collection;\nimport java.util.Map;\nimport javax.annotation.Nullable;\nimport org.apache.kafka.clients.consumer.OffsetAndMetadata;\nimport org.apache.kafka.common.TopicPartition;\nimport org.apache.kafka.common.utils.AppInfoParser;\nimport org.apache.kafka.connect.header.ConnectHeaders;\nimport org.apache.kafka.connect.header.Header;\nimport org.apache.kafka.connect.sink.SinkRecord;\nimport org.apache.kafka.connect.sink.SinkTask;\n\npublic class PubSubLiteSinkTask extends SinkTask {\n\n  private final PublisherFactory factory;\n  private @Nullable Publisher<PublishMetadata> publisher;\n  private @Nullable Publisher<PubSubMessage> publisher;\n\n  @VisibleForTesting\n  PubSubLiteSinkTask(PublisherFactory factory) {\n    this.factory = factory;\n  }\n\n  public PubSubLiteSinkTask() {\n    this(new PublisherFactoryImpl());\n  }\n\n  @Override\n  public String version() {\n    return AppInfoParser.getVersion();\n  }\n\n  @Override\n  public void start(Map<String, String> map) {\n    if (publisher != null) {\n      throw new IllegalStateException(\"Called start when publisher already exists.\");\n    }\n    publisher = factory.newPublisher(map);\n    publisher.startAsync().awaitRunning();\n  }\n\n  @Override\n  public void put(Collection<SinkRecord> collection) {\n    if (publisher.state() != State.RUNNING) {\n      if (publisher.state() == State.FAILED) {\n        throw new IllegalStateException(\"Publisher has failed.\", publisher.failureCause());\n      } else {\n        throw new IllegalStateException(\"Publisher not currently running.\");\n      }\n    }\n    for (SinkRecord record : collection) {\n      Message.Builder message = Message.builder();\n      if (record.key() != null) {\n        message.setKey(encodeToBytes(record.keySchema(), record.key()));\n      }\n      if (record.value() != null) {\n        message.setData(encodeToBytes(record.valueSchema(), record.value()));\n      }\n      ImmutableListMultimap.Builder<String, ByteString> attributes =\n          ImmutableListMultimap.builder();\n      getRecordHeaders(record)\n          .forEach(\n              header ->\n                  attributes.put(\n                      header.key(), Schemas.encodeToBytes(header.schema(), header.value())));\n      if (record.topic() != null) {\n        attributes.put(Constants.KAFKA_TOPIC_HEADER, ByteString.copyFromUtf8(record.topic()));\n      }\n      if (record.kafkaPartition() != null) {\n        attributes.put(\n            Constants.KAFKA_PARTITION_HEADER,\n            ByteString.copyFromUtf8(record.kafkaPartition().toString()));\n        attributes.put(\n            Constants.KAFKA_OFFSET_HEADER,\n            ByteString.copyFromUtf8(Long.toString(record.kafkaOffset())));\n      }\n      if (record.timestamp() != null) {\n        attributes.put(\n            Constants.KAFKA_EVENT_TIME_TYPE_HEADER,\n            ByteString.copyFromUtf8(record.timestampType().name));\n        message.setEventTime(Timestamps.fromMillis(record.timestamp()));\n      }\n      message.setAttributes(attributes.build());\n      publisher.publish(message.build());\n    }\n  }\n\n  private Iterable<? extends Header> getRecordHeaders(SinkRecord record) {\n    ConnectHeaders headers = new ConnectHeaders();\n    if (record.headers() != null) {\n      for (Header header : record.headers()) {\n        headers.add(header);\n      }\n    }\n    return headers;\n  }\n\n  @Override\n  public void flush(Map<TopicPartition, OffsetAndMetadata> currentOffsets) {\n    try {\n      if (publisher != null) {\n        publisher.flush();\n      }\n    } catch (IOException e) {\n      throw new RuntimeException(e);\n    }\n  }\n\n  @Override\n  public void stop() {\n    if (publisher == null) {\n      throw new IllegalStateException(\"Called stop when publisher doesn't exist.\");\n    }\n    try {\n      publisher.flush();\n      publisher.stopAsync().awaitTerminated();\n    } catch (IOException e) {\n      throw new RuntimeException(e);\n    } finally {\n      publisher = null;\n    }\n  }\n}\n"
+                },
+                "compile_error_details": {
+                    "src/main/java/com/google/pubsublite/kafka/sink/PubSubLiteSinkTask.java": {
+                        "43": {
+                            "lines": [
+                                {
+                                    "line_no": 42,
+                                    "content": "  private final PublisherFactory factory;"
+                                },
+                                {
+                                    "line_no": 43,
+                                    "content": "  private @Nullable Publisher<PublishMetadata> publisher;"
+                                },
+                                {
+                                    "line_no": 44,
+                                    "content": "  private @Nullable Publisher<PubSubMessage> publisher;"
+                                }
+                            ],
+                            "error_texts": [
+                                "[43,31] cannot find symbol\nsymbol: class PublishMetadata\nlocation: class com.google.pubsublite.kafka.sink.PubSubLiteSinkTask\n",
+                                "[43,31] cannot find symbol\n"
+                            ]
+                        }
+                    },
+                    "src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java": {
+                        "48": {
+                            "lines": [
+                                {
+                                    "line_no": 47,
+                                    "content": "    builder.setTopic(topic);"
+                                },
+                                {
+                                    "line_no": 48,
+                                    "content": "    builder.setPublisherFactory("
+                                },
+                                {
+                                    "line_no": 49,
+                                    "content": "        partition ->"
+                                }
+                            ],
+                            "error_texts": [
+                                "[48,12] incompatible types: com.google.cloud.pubsublite.internal.wire.PartitionPublisherFactory is not a functional interface\n",
+                                "[48,12] incompatible types: com.google.cloud.pubsublite.internal.wire.PartitionPublisherFactory is not a functional interface\nmultiple non-overriding abstract methods found in interface com.google.cloud.pubsublite.internal.wire.PartitionPublisherFactory\n"
+                            ]
+                        },
+                        "55": {
+                            "lines": [
+                                {
+                                    "line_no": 54,
+                                    "content": "                .build());"
+                                },
+                                {
+                                    "line_no": 55,
+                                    "content": "    return builder.build();"
+                                },
+                                {
+                                    "line_no": 56,
+                                    "content": "  }"
+                                }
+                            ],
+                            "error_texts": [
+                                "[55,25] incompatible types: com.google.cloud.pubsublite.internal.Publisher<com.google.cloud.pubsublite.MessageMetadata> cannot be converted to com.google.cloud.pubsublite.internal.Publisher<com.google.cloud.pubsublite.proto.PubSubMessage>\n"
+                            ]
+                        }
+                    }
+                }
+            },
+            "error": "incompatible types: com.google.cloud.pubsublite.internal.Publisher<com.google.cloud.pubsublite.MessageMetadata> cannot be converted to com.google.cloud.pubsublite.internal.Publisher<com.google.cloud.pubsublite.proto.PubSubMessage>\n",
+            "span_id": 5843651022443463660
+        },
+        {
+            "input": "```diff\n--- src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java\n+++ src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java\n@@\n-import com.google.cloud.pubsublite.proto.PubSubMessage;\n+import com.google.cloud.pubsublite.MessageMetadata;\n@@\n-  public Publisher<PubSubMessage> newPublisher(Map<String, String> params) {\n+  public Publisher<MessageMetadata> newPublisher(Map<String, String> params) {\n--- src/main/java/com/google/pubsublite/kafka/sink/PublisherFactory.java\n+++ src/main/java/com/google/pubsublite/kafka/sink/PublisherFactory.java\n@@\n-import com.google.cloud.pubsublite.proto.PubSubMessage;\n+import com.google.cloud.pubsublite.MessageMetadata;\n@@\n-  Publisher<PubSubMessage> newPublisher(Map<String, String> params);\n+  Publisher<MessageMetadata> newPublisher(Map<String, String> params);\n--- src/main/java/com/google/pubsublite/kafka/sink/PubSubLiteSinkTask.java\n+++ src/main/java/com/google/pubsublite/kafka/sink/PubSubLiteSinkTask.java\n@@\n-import com.google.cloud.pubsublite.proto.PubSubMessage;\n+import com.google.cloud.pubsublite.MessageMetadata;\n@@\n  private @Nullable Publisher<PublishMetadata> publisher;\n-  private @Nullable Publisher<PubSubMessage> publisher;\n+  private @Nullable Publisher<MessageMetadata> publisher;\n```",
+            "output": {
+                "compilation_has_succeeded": false,
+                "test_has_succeeded": false,
+                "error_text": "incompatible types: com.google.cloud.pubsublite.internal.wire.PartitionPublisherFactory is not a functional interface\n",
+                "updated_files": {
+                    "src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java": "/*\n * Copyright 2020 Google LLC\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n *       http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\npackage com.google.pubsublite.kafka.sink;\n\nimport com.google.cloud.pubsublite.CloudZone;\nimport com.google.cloud.pubsublite.ProjectPath;\nimport com.google.cloud.pubsublite.MessageMetadata;\nimport com.google.cloud.pubsublite.TopicName;\nimport com.google.cloud.pubsublite.TopicPath;\nimport com.google.cloud.pubsublite.internal.Publisher;\nimport com.google.cloud.pubsublite.internal.wire.PubsubContext;\nimport com.google.cloud.pubsublite.internal.wire.PubsubContext.Framework;\nimport com.google.cloud.pubsublite.internal.wire.RoutingPublisherBuilder;\nimport com.google.cloud.pubsublite.internal.wire.SinglePartitionPublisherBuilder;\nimport java.util.Map;\nimport org.apache.kafka.common.config.ConfigValue;\n\nclass PublisherFactoryImpl implements PublisherFactory {\n\n  private static final Framework FRAMEWORK = Framework.of(\"KAFKA_CONNECT\");\n\n  @Override\n  public Publisher<MessageMetadata> newPublisher(Map<String, String> params) {\n    Map<String, ConfigValue> config = ConfigDefs.config().validateAll(params);\n    RoutingPublisherBuilder.Builder builder = RoutingPublisherBuilder.newBuilder();\n    TopicPath topic =\n        TopicPath.newBuilder()\n            .setProject(\n                ProjectPath.parse(\"projects/\" + config.get(ConfigDefs.PROJECT_FLAG).value())\n                    .project())\n            .setLocation(CloudZone.parse(config.get(ConfigDefs.LOCATION_FLAG).value().toString()))\n            .setName(TopicName.of(config.get(ConfigDefs.TOPIC_NAME_FLAG).value().toString()))\n            .build();\n    builder.setTopic(topic);\n    builder.setPublisherFactory(\n        partition ->\n            SinglePartitionPublisherBuilder.newBuilder()\n                .setTopic(topic)\n                .setPartition(partition)\n                .setContext(PubsubContext.of(FRAMEWORK))\n                .build());\n    return builder.build();\n  }\n}\n",
+                    "src/main/java/com/google/pubsublite/kafka/sink/PublisherFactory.java": "/*\n * Copyright 2020 Google LLC\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n *       http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\npackage com.google.pubsublite.kafka.sink;\n\nimport com.google.cloud.pubsublite.MessageMetadata;\nimport com.google.cloud.pubsublite.internal.Publisher;\nimport java.util.Map;\n\ninterface PublisherFactory {\n\n  Publisher<MessageMetadata> newPublisher(Map<String, String> params);\n}\n",
+                    "src/main/java/com/google/pubsublite/kafka/sink/PubSubLiteSinkTask.java": "/*\n * Copyright 2020 Google LLC\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n *       http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\npackage com.google.pubsublite.kafka.sink;\n\nimport static com.google.pubsublite.kafka.sink.Schemas.encodeToBytes;\n\nimport com.google.api.core.ApiService.State;\nimport com.google.cloud.pubsublite.Message;\nimport com.google.cloud.pubsublite.MessageMetadata;\nimport com.google.cloud.pubsublite.internal.Publisher;\nimport com.google.common.annotations.VisibleForTesting;\nimport com.google.common.collect.ImmutableListMultimap;\nimport com.google.protobuf.ByteString;\nimport com.google.protobuf.util.Timestamps;\nimport java.io.IOException;\nimport java.util.Collection;\nimport java.util.Map;\nimport javax.annotation.Nullable;\nimport org.apache.kafka.clients.consumer.OffsetAndMetadata;\nimport org.apache.kafka.common.TopicPartition;\nimport org.apache.kafka.common.utils.AppInfoParser;\nimport org.apache.kafka.connect.header.ConnectHeaders;\nimport org.apache.kafka.connect.header.Header;\nimport org.apache.kafka.connect.sink.SinkRecord;\nimport org.apache.kafka.connect.sink.SinkTask;\n\npublic class PubSubLiteSinkTask extends SinkTask {\n\n  private final PublisherFactory factory;\n  private @Nullable Publisher<PublishMetadata> publisher;\n  private @Nullable Publisher<MessageMetadata> publisher;\n\n  @VisibleForTesting\n  PubSubLiteSinkTask(PublisherFactory factory) {\n    this.factory = factory;\n  }\n\n  public PubSubLiteSinkTask() {\n    this(new PublisherFactoryImpl());\n  }\n\n  @Override\n  public String version() {\n    return AppInfoParser.getVersion();\n  }\n\n  @Override\n  public void start(Map<String, String> map) {\n    if (publisher != null) {\n      throw new IllegalStateException(\"Called start when publisher already exists.\");\n    }\n    publisher = factory.newPublisher(map);\n    publisher.startAsync().awaitRunning();\n  }\n\n  @Override\n  public void put(Collection<SinkRecord> collection) {\n    if (publisher.state() != State.RUNNING) {\n      if (publisher.state() == State.FAILED) {\n        throw new IllegalStateException(\"Publisher has failed.\", publisher.failureCause());\n      } else {\n        throw new IllegalStateException(\"Publisher not currently running.\");\n      }\n    }\n    for (SinkRecord record : collection) {\n      Message.Builder message = Message.builder();\n      if (record.key() != null) {\n        message.setKey(encodeToBytes(record.keySchema(), record.key()));\n      }\n      if (record.value() != null) {\n        message.setData(encodeToBytes(record.valueSchema(), record.value()));\n      }\n      ImmutableListMultimap.Builder<String, ByteString> attributes =\n          ImmutableListMultimap.builder();\n      getRecordHeaders(record)\n          .forEach(\n              header ->\n                  attributes.put(\n                      header.key(), Schemas.encodeToBytes(header.schema(), header.value())));\n      if (record.topic() != null) {\n        attributes.put(Constants.KAFKA_TOPIC_HEADER, ByteString.copyFromUtf8(record.topic()));\n      }\n      if (record.kafkaPartition() != null) {\n        attributes.put(\n            Constants.KAFKA_PARTITION_HEADER,\n            ByteString.copyFromUtf8(record.kafkaPartition().toString()));\n        attributes.put(\n            Constants.KAFKA_OFFSET_HEADER,\n            ByteString.copyFromUtf8(Long.toString(record.kafkaOffset())));\n      }\n      if (record.timestamp() != null) {\n        attributes.put(\n            Constants.KAFKA_EVENT_TIME_TYPE_HEADER,\n            ByteString.copyFromUtf8(record.timestampType().name));\n        message.setEventTime(Timestamps.fromMillis(record.timestamp()));\n      }\n      message.setAttributes(attributes.build());\n      publisher.publish(message.build());\n    }\n  }\n\n  private Iterable<? extends Header> getRecordHeaders(SinkRecord record) {\n    ConnectHeaders headers = new ConnectHeaders();\n    if (record.headers() != null) {\n      for (Header header : record.headers()) {\n        headers.add(header);\n      }\n    }\n    return headers;\n  }\n\n  @Override\n  public void flush(Map<TopicPartition, OffsetAndMetadata> currentOffsets) {\n    try {\n      if (publisher != null) {\n        publisher.flush();\n      }\n    } catch (IOException e) {\n      throw new RuntimeException(e);\n    }\n  }\n\n  @Override\n  public void stop() {\n    if (publisher == null) {\n      throw new IllegalStateException(\"Called stop when publisher doesn't exist.\");\n    }\n    try {\n      publisher.flush();\n      publisher.stopAsync().awaitTerminated();\n    } catch (IOException e) {\n      throw new RuntimeException(e);\n    } finally {\n      publisher = null;\n    }\n  }\n}\n"
+                },
+                "compile_error_details": {
+                    "src/main/java/com/google/pubsublite/kafka/sink/PubSubLiteSinkTask.java": {
+                        "43": {
+                            "lines": [
+                                {
+                                    "line_no": 42,
+                                    "content": "  private final PublisherFactory factory;"
+                                },
+                                {
+                                    "line_no": 43,
+                                    "content": "  private @Nullable Publisher<PublishMetadata> publisher;"
+                                },
+                                {
+                                    "line_no": 44,
+                                    "content": "  private @Nullable Publisher<MessageMetadata> publisher;"
+                                }
+                            ],
+                            "error_texts": [
+                                "[43,31] cannot find symbol\nsymbol: class PublishMetadata\nlocation: class com.google.pubsublite.kafka.sink.PubSubLiteSinkTask\n",
+                                "[43,31] cannot find symbol\n"
+                            ]
+                        }
+                    },
+                    "src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java": {
+                        "48": {
+                            "lines": [
+                                {
+                                    "line_no": 47,
+                                    "content": "    builder.setTopic(topic);"
+                                },
+                                {
+                                    "line_no": 48,
+                                    "content": "    builder.setPublisherFactory("
+                                },
+                                {
+                                    "line_no": 49,
+                                    "content": "        partition ->"
+                                }
+                            ],
+                            "error_texts": [
+                                "[48,12] incompatible types: com.google.cloud.pubsublite.internal.wire.PartitionPublisherFactory is not a functional interface\n",
+                                "[48,12] incompatible types: com.google.cloud.pubsublite.internal.wire.PartitionPublisherFactory is not a functional interface\nmultiple non-overriding abstract methods found in interface com.google.cloud.pubsublite.internal.wire.PartitionPublisherFactory\n"
+                            ]
+                        }
+                    }
+                }
+            },
+            "error": "incompatible types: com.google.cloud.pubsublite.internal.wire.PartitionPublisherFactory is not a functional interface\n",
+            "span_id": 14078914314939942900
+        },
+        {
+            "input": "```diff\n--- src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java\n+++ src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java\n@@\n-import com.google.cloud.pubsublite.internal.wire.SinglePartitionPublisherBuilder;\n+import com.google.cloud.pubsublite.internal.wire.PartitionPublisher;\n@@\n-        partition ->\n-            SinglePartitionPublisherBuilder.newBuilder()\n-                .setTopic(topic)\n-                .setPartition(partition)\n-                .setContext(PubsubContext.of(FRAMEWORK))\n-                .build());\n+        new PartitionPublisherFactory() {\n+          @Override\n+          public PartitionPublisher newPublisher(Partition partition) {\n+            return SinglePartitionPublisherBuilder.newBuilder()\n+                .setTopic(topic)\n+                .setPartition(partition)\n+                .setContext(PubsubContext.of(FRAMEWORK))\n+                .build();\n+          }\n+        });\n```",
+            "output": {
+                "compilation_has_succeeded": false,
+                "test_has_succeeded": false,
+                "error_text": "cannot find symbol\n",
+                "updated_files": {
+                    "src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java": "/*\n * Copyright 2020 Google LLC\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n *       http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\npackage com.google.pubsublite.kafka.sink;\n\nimport com.google.cloud.pubsublite.CloudZone;\nimport com.google.cloud.pubsublite.ProjectPath;\nimport com.google.cloud.pubsublite.MessageMetadata;\nimport com.google.cloud.pubsublite.TopicName;\nimport com.google.cloud.pubsublite.TopicPath;\nimport com.google.cloud.pubsublite.internal.Publisher;\nimport com.google.cloud.pubsublite.internal.wire.PubsubContext;\nimport com.google.cloud.pubsublite.internal.wire.PubsubContext.Framework;\nimport com.google.cloud.pubsublite.internal.wire.RoutingPublisherBuilder;\nimport com.google.cloud.pubsublite.internal.wire.PartitionPublisher;\nimport java.util.Map;\nimport org.apache.kafka.common.config.ConfigValue;\n\nclass PublisherFactoryImpl implements PublisherFactory {\n\n  private static final Framework FRAMEWORK = Framework.of(\"KAFKA_CONNECT\");\n\n  @Override\n  public Publisher<MessageMetadata> newPublisher(Map<String, String> params) {\n    Map<String, ConfigValue> config = ConfigDefs.config().validateAll(params);\n    RoutingPublisherBuilder.Builder builder = RoutingPublisherBuilder.newBuilder();\n    TopicPath topic =\n        TopicPath.newBuilder()\n            .setProject(\n                ProjectPath.parse(\"projects/\" + config.get(ConfigDefs.PROJECT_FLAG).value())\n                    .project())\n            .setLocation(CloudZone.parse(config.get(ConfigDefs.LOCATION_FLAG).value().toString()))\n            .setName(TopicName.of(config.get(ConfigDefs.TOPIC_NAME_FLAG).value().toString()))\n            .build();\n    builder.setTopic(topic);\n    builder.setPublisherFactory(\n        new PartitionPublisherFactory() {\n          @Override\n          public PartitionPublisher newPublisher(Partition partition) {\n            return SinglePartitionPublisherBuilder.newBuilder()\n                .setTopic(topic)\n                .setPartition(partition)\n                .setContext(PubsubContext.of(FRAMEWORK))\n                .build();\n          }\n        });\n    return builder.build();\n  }\n}\n"
+                },
+                "compile_error_details": {
+                    "src/main/java/com/google/pubsublite/kafka/sink/PubSubLiteSinkTask.java": {
+                        "43": {
+                            "lines": [
+                                {
+                                    "line_no": 42,
+                                    "content": "  private final PublisherFactory factory;"
+                                },
+                                {
+                                    "line_no": 43,
+                                    "content": "  private @Nullable Publisher<PublishMetadata> publisher;"
+                                },
+                                {
+                                    "line_no": 44,
+                                    "content": "  private @Nullable Publisher<MessageMetadata> publisher;"
+                                }
+                            ],
+                            "error_texts": [
+                                "[43,31] cannot find symbol\nsymbol: class PublishMetadata\nlocation: class com.google.pubsublite.kafka.sink.PubSubLiteSinkTask\n",
+                                "[43,31] cannot find symbol\n"
+                            ]
+                        }
+                    },
+                    "src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java": {
+                        "27": {
+                            "lines": [
+                                {
+                                    "line_no": 26,
+                                    "content": "import com.google.cloud.pubsublite.internal.wire.RoutingPublisherBuilder;"
+                                },
+                                {
+                                    "line_no": 27,
+                                    "content": "import com.google.cloud.pubsublite.internal.wire.PartitionPublisher;"
+                                },
+                                {
+                                    "line_no": 28,
+                                    "content": "import java.util.Map;"
+                                }
+                            ],
+                            "error_texts": [
+                                "[27,49] cannot find symbol\n",
+                                "[27,49] cannot find symbol\nsymbol: class PartitionPublisher\nlocation: package com.google.cloud.pubsublite.internal.wire\n"
+                            ]
+                        },
+                        "49": {
+                            "lines": [
+                                {
+                                    "line_no": 48,
+                                    "content": "    builder.setPublisherFactory("
+                                },
+                                {
+                                    "line_no": 49,
+                                    "content": "        new PartitionPublisherFactory() {"
+                                },
+                                {
+                                    "line_no": 50,
+                                    "content": "          @Override"
+                                }
+                            ],
+                            "error_texts": [
+                                "[49,13] cannot find symbol\nsymbol: class PartitionPublisherFactory\nlocation: class com.google.pubsublite.kafka.sink.PublisherFactoryImpl\n",
+                                "[49,13] cannot find symbol\n"
+                            ]
+                        },
+                        "51": {
+                            "lines": [
+                                {
+                                    "line_no": 50,
+                                    "content": "          @Override"
+                                },
+                                {
+                                    "line_no": 51,
+                                    "content": "          public PartitionPublisher newPublisher(Partition partition) {"
+                                },
+                                {
+                                    "line_no": 52,
+                                    "content": "            return SinglePartitionPublisherBuilder.newBuilder()"
+                                }
+                            ],
+                            "error_texts": [
+                                "[51,18] cannot find symbol\n",
+                                "[51,50] cannot find symbol\nsymbol: class Partition\n",
+                                "[51,50] cannot find symbol\n",
+                                "[51,18] cannot find symbol\nsymbol: class PartitionPublisher\n"
+                            ]
+                        },
+                        "50": {
+                            "lines": [
+                                {
+                                    "line_no": 49,
+                                    "content": "        new PartitionPublisherFactory() {"
+                                },
+                                {
+                                    "line_no": 50,
+                                    "content": "          @Override"
+                                },
+                                {
+                                    "line_no": 51,
+                                    "content": "          public PartitionPublisher newPublisher(Partition partition) {"
+                                }
+                            ],
+                            "error_texts": [
+                                "[50,11] method does not override or implement a method from a supertype\n"
+                            ]
+                        },
+                        "52": {
+                            "lines": [
+                                {
+                                    "line_no": 51,
+                                    "content": "          public PartitionPublisher newPublisher(Partition partition) {"
+                                },
+                                {
+                                    "line_no": 52,
+                                    "content": "            return SinglePartitionPublisherBuilder.newBuilder()"
+                                },
+                                {
+                                    "line_no": 53,
+                                    "content": "                .setTopic(topic)"
+                                }
+                            ],
+                            "error_texts": [
+                                "[52,20] cannot find symbol\n",
+                                "[52,20] cannot find symbol\nsymbol: variable SinglePartitionPublisherBuilder\n"
+                            ]
+                        }
+                    }
+                }
+            },
+            "error": "cannot find symbol\n",
+            "span_id": 7189007451347600020
+        },
+        {
+            "input": "```diff\n--- src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java\n+++ src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java\n@@\n-import com.google.cloud.pubsublite.internal.wire.PartitionPublisher;\n+import com.google.cloud.pubsublite.internal.wire.SinglePartitionPublisherBuilder;\n+import com.google.cloud.pubsublite.Partition;\n+import com.google.cloud.pubsublite.internal.wire.PartitionPublisherFactory;\n@@\n-        new PartitionPublisherFactory() {\n-          @Override\n-          public PartitionPublisher newPublisher(Partition partition) {\n-            return SinglePartitionPublisherBuilder.newBuilder()\n-                .setTopic(topic)\n-                .setPartition(partition)\n-                .setContext(PubsubContext.of(FRAMEWORK))\n-                .build();\n-          }\n-        });\n+        partition ->\n+            SinglePartitionPublisherBuilder.newBuilder()\n+                .setTopic(topic)\n+                .setPartition(partition)\n+                .setContext(PubsubContext.of(FRAMEWORK))\n+                .build());\n```",
+            "output": {
+                "compilation_has_succeeded": false,
+                "test_has_succeeded": false,
+                "error_text": "incompatible types: com.google.cloud.pubsublite.internal.wire.PartitionPublisherFactory is not a functional interface\n",
+                "updated_files": {
+                    "src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java": "/*\n * Copyright 2020 Google LLC\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n *       http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\npackage com.google.pubsublite.kafka.sink;\n\nimport com.google.cloud.pubsublite.CloudZone;\nimport com.google.cloud.pubsublite.ProjectPath;\nimport com.google.cloud.pubsublite.MessageMetadata;\nimport com.google.cloud.pubsublite.TopicName;\nimport com.google.cloud.pubsublite.TopicPath;\nimport com.google.cloud.pubsublite.internal.Publisher;\nimport com.google.cloud.pubsublite.internal.wire.PubsubContext;\nimport com.google.cloud.pubsublite.internal.wire.PubsubContext.Framework;\nimport com.google.cloud.pubsublite.internal.wire.RoutingPublisherBuilder;\nimport com.google.cloud.pubsublite.internal.wire.SinglePartitionPublisherBuilder;\nimport com.google.cloud.pubsublite.Partition;\nimport com.google.cloud.pubsublite.internal.wire.PartitionPublisherFactory;\nimport java.util.Map;\nimport org.apache.kafka.common.config.ConfigValue;\n\nclass PublisherFactoryImpl implements PublisherFactory {\n\n  private static final Framework FRAMEWORK = Framework.of(\"KAFKA_CONNECT\");\n\n  @Override\n  public Publisher<MessageMetadata> newPublisher(Map<String, String> params) {\n    Map<String, ConfigValue> config = ConfigDefs.config().validateAll(params);\n    RoutingPublisherBuilder.Builder builder = RoutingPublisherBuilder.newBuilder();\n    TopicPath topic =\n        TopicPath.newBuilder()\n            .setProject(\n                ProjectPath.parse(\"projects/\" + config.get(ConfigDefs.PROJECT_FLAG).value())\n                    .project())\n            .setLocation(CloudZone.parse(config.get(ConfigDefs.LOCATION_FLAG).value().toString()))\n            .setName(TopicName.of(config.get(ConfigDefs.TOPIC_NAME_FLAG).value().toString()))\n            .build();\n    builder.setTopic(topic);\n    builder.setPublisherFactory(\n        partition ->\n            SinglePartitionPublisherBuilder.newBuilder()\n                .setTopic(topic)\n                .setPartition(partition)\n                .setContext(PubsubContext.of(FRAMEWORK))\n                .build());\n    return builder.build();\n  }\n}\n"
+                },
+                "compile_error_details": {
+                    "src/main/java/com/google/pubsublite/kafka/sink/PubSubLiteSinkTask.java": {
+                        "43": {
+                            "lines": [
+                                {
+                                    "line_no": 42,
+                                    "content": "  private final PublisherFactory factory;"
+                                },
+                                {
+                                    "line_no": 43,
+                                    "content": "  private @Nullable Publisher<PublishMetadata> publisher;"
+                                },
+                                {
+                                    "line_no": 44,
+                                    "content": "  private @Nullable Publisher<MessageMetadata> publisher;"
+                                }
+                            ],
+                            "error_texts": [
+                                "[43,31] cannot find symbol\nsymbol: class PublishMetadata\nlocation: class com.google.pubsublite.kafka.sink.PubSubLiteSinkTask\n",
+                                "[43,31] cannot find symbol\n"
+                            ]
+                        }
+                    },
+                    "src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java": {
+                        "50": {
+                            "lines": [
+                                {
+                                    "line_no": 49,
+                                    "content": "    builder.setTopic(topic);"
+                                },
+                                {
+                                    "line_no": 50,
+                                    "content": "    builder.setPublisherFactory("
+                                },
+                                {
+                                    "line_no": 51,
+                                    "content": "        partition ->"
+                                }
+                            ],
+                            "error_texts": [
+                                "[50,12] incompatible types: com.google.cloud.pubsublite.internal.wire.PartitionPublisherFactory is not a functional interface\nmultiple non-overriding abstract methods found in interface com.google.cloud.pubsublite.internal.wire.PartitionPublisherFactory\n",
+                                "[50,12] incompatible types: com.google.cloud.pubsublite.internal.wire.PartitionPublisherFactory is not a functional interface\n"
+                            ]
+                        }
+                    }
+                }
+            },
+            "error": "incompatible types: com.google.cloud.pubsublite.internal.wire.PartitionPublisherFactory is not a functional interface\n",
+            "span_id": 15247784306581393941
+        },
+        {
+            "input": "```diff\n--- src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java\n+++ src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java\n@@\n-import com.google.cloud.pubsublite.internal.wire.PartitionPublisherFactory;\n+import com.google.cloud.pubsublite.internal.wire.PartitionPublisher;\n@@\n-        partition ->\n-            SinglePartitionPublisherBuilder.newBuilder()\n-                .setTopic(topic)\n-                .setPartition(partition)\n-                .setContext(PubsubContext.of(FRAMEWORK))\n-                .build());\n+        new PartitionPublisherFactory() {\n+          @Override\n+          public PartitionPublisher newPublisher(Partition partition) {\n+            return SinglePartitionPublisherBuilder.newBuilder()\n+                .setTopic(topic)\n+                .setPartition(partition)\n+                .setContext(PubsubContext.of(FRAMEWORK))\n+                .build();\n+          }\n+        });\n```",
+            "output": {
+                "compilation_has_succeeded": false,
+                "test_has_succeeded": false,
+                "error_text": "cannot find symbol\n",
+                "updated_files": {
+                    "src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java": "/*\n * Copyright 2020 Google LLC\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n *       http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\npackage com.google.pubsublite.kafka.sink;\n\nimport com.google.cloud.pubsublite.CloudZone;\nimport com.google.cloud.pubsublite.ProjectPath;\nimport com.google.cloud.pubsublite.MessageMetadata;\nimport com.google.cloud.pubsublite.TopicName;\nimport com.google.cloud.pubsublite.TopicPath;\nimport com.google.cloud.pubsublite.internal.Publisher;\nimport com.google.cloud.pubsublite.internal.wire.PubsubContext;\nimport com.google.cloud.pubsublite.internal.wire.PubsubContext.Framework;\nimport com.google.cloud.pubsublite.internal.wire.RoutingPublisherBuilder;\nimport com.google.cloud.pubsublite.internal.wire.SinglePartitionPublisherBuilder;\nimport com.google.cloud.pubsublite.Partition;\nimport com.google.cloud.pubsublite.internal.wire.PartitionPublisher;\nimport java.util.Map;\nimport org.apache.kafka.common.config.ConfigValue;\n\nclass PublisherFactoryImpl implements PublisherFactory {\n\n  private static final Framework FRAMEWORK = Framework.of(\"KAFKA_CONNECT\");\n\n  @Override\n  public Publisher<MessageMetadata> newPublisher(Map<String, String> params) {\n    Map<String, ConfigValue> config = ConfigDefs.config().validateAll(params);\n    RoutingPublisherBuilder.Builder builder = RoutingPublisherBuilder.newBuilder();\n    TopicPath topic =\n        TopicPath.newBuilder()\n            .setProject(\n                ProjectPath.parse(\"projects/\" + config.get(ConfigDefs.PROJECT_FLAG).value())\n                    .project())\n            .setLocation(CloudZone.parse(config.get(ConfigDefs.LOCATION_FLAG).value().toString()))\n            .setName(TopicName.of(config.get(ConfigDefs.TOPIC_NAME_FLAG).value().toString()))\n            .build();\n    builder.setTopic(topic);\n    builder.setPublisherFactory(\n        new PartitionPublisherFactory() {\n          @Override\n          public PartitionPublisher newPublisher(Partition partition) {\n            return SinglePartitionPublisherBuilder.newBuilder()\n                .setTopic(topic)\n                .setPartition(partition)\n                .setContext(PubsubContext.of(FRAMEWORK))\n                .build();\n          }\n        });\n    return builder.build();\n  }\n}\n"
+                },
+                "compile_error_details": {
+                    "src/main/java/com/google/pubsublite/kafka/sink/PubSubLiteSinkTask.java": {
+                        "43": {
+                            "lines": [
+                                {
+                                    "line_no": 42,
+                                    "content": "  private final PublisherFactory factory;"
+                                },
+                                {
+                                    "line_no": 43,
+                                    "content": "  private @Nullable Publisher<PublishMetadata> publisher;"
+                                },
+                                {
+                                    "line_no": 44,
+                                    "content": "  private @Nullable Publisher<MessageMetadata> publisher;"
+                                }
+                            ],
+                            "error_texts": [
+                                "[43,31] cannot find symbol\nsymbol: class PublishMetadata\nlocation: class com.google.pubsublite.kafka.sink.PubSubLiteSinkTask\n",
+                                "[43,31] cannot find symbol\n"
+                            ]
+                        }
+                    },
+                    "src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java": {
+                        "29": {
+                            "lines": [
+                                {
+                                    "line_no": 28,
+                                    "content": "import com.google.cloud.pubsublite.Partition;"
+                                },
+                                {
+                                    "line_no": 29,
+                                    "content": "import com.google.cloud.pubsublite.internal.wire.PartitionPublisher;"
+                                },
+                                {
+                                    "line_no": 30,
+                                    "content": "import java.util.Map;"
+                                }
+                            ],
+                            "error_texts": [
+                                "[29,49] cannot find symbol\nsymbol: class PartitionPublisher\nlocation: package com.google.cloud.pubsublite.internal.wire\n",
+                                "[29,49] cannot find symbol\n"
+                            ]
+                        },
+                        "51": {
+                            "lines": [
+                                {
+                                    "line_no": 50,
+                                    "content": "    builder.setPublisherFactory("
+                                },
+                                {
+                                    "line_no": 51,
+                                    "content": "        new PartitionPublisherFactory() {"
+                                },
+                                {
+                                    "line_no": 52,
+                                    "content": "          @Override"
+                                }
+                            ],
+                            "error_texts": [
+                                "[51,13] cannot find symbol\n",
+                                "[51,13] cannot find symbol\nsymbol: class PartitionPublisherFactory\nlocation: class com.google.pubsublite.kafka.sink.PublisherFactoryImpl\n"
+                            ]
+                        },
+                        "53": {
+                            "lines": [
+                                {
+                                    "line_no": 52,
+                                    "content": "          @Override"
+                                },
+                                {
+                                    "line_no": 53,
+                                    "content": "          public PartitionPublisher newPublisher(Partition partition) {"
+                                },
+                                {
+                                    "line_no": 54,
+                                    "content": "            return SinglePartitionPublisherBuilder.newBuilder()"
+                                }
+                            ],
+                            "error_texts": [
+                                "[53,18] cannot find symbol\n",
+                                "[53,18] cannot find symbol\nsymbol: class PartitionPublisher\n"
+                            ]
+                        },
+                        "52": {
+                            "lines": [
+                                {
+                                    "line_no": 51,
+                                    "content": "        new PartitionPublisherFactory() {"
+                                },
+                                {
+                                    "line_no": 52,
+                                    "content": "          @Override"
+                                },
+                                {
+                                    "line_no": 53,
+                                    "content": "          public PartitionPublisher newPublisher(Partition partition) {"
+                                }
+                            ],
+                            "error_texts": [
+                                "[52,11] method does not override or implement a method from a supertype\n"
+                            ]
+                        },
+                        "57": {
+                            "lines": [
+                                {
+                                    "line_no": 56,
+                                    "content": "                .setPartition(partition)"
+                                },
+                                {
+                                    "line_no": 57,
+                                    "content": "                .setContext(PubsubContext.of(FRAMEWORK))"
+                                },
+                                {
+                                    "line_no": 58,
+                                    "content": "                .build();"
+                                }
+                            ],
+                            "error_texts": [
+                                "[57,17] cannot find symbol\nsymbol: method setContext(com.google.cloud.pubsublite.internal.wire.PubsubContext)\nlocation: class com.google.cloud.pubsublite.internal.wire.SinglePartitionPublisherBuilder.Builder\n",
+                                "[57,17] cannot find symbol\n"
+                            ]
+                        }
+                    }
+                }
+            },
+            "error": "cannot find symbol\n",
+            "span_id": 12112141113710511036
+        },
+        {
+            "input": "```diff\n--- src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java\n+++ src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java\n@@\n-import com.google.cloud.pubsublite.internal.wire.PartitionPublisher;\n+import com.google.cloud.pubsublite.internal.wire.PartitionPublisherFactory;\n@@\n-        new PartitionPublisherFactory() {\n-          @Override\n-          public PartitionPublisher newPublisher(Partition partition) {\n-            return SinglePartitionPublisherBuilder.newBuilder()\n-                .setTopic(topic)\n-                .setPartition(partition)\n-                .setContext(PubsubContext.of(FRAMEWORK))\n-                .build();\n-          }\n-        });\n+        partition ->\n+            SinglePartitionPublisherBuilder.newBuilder()\n+                .setTopic(topic)\n+                .setPartition(partition)\n+                .setContext(PubsubContext.of(FRAMEWORK))\n+                .build());\n```",
+            "output": {
+                "compilation_has_succeeded": false,
+                "test_has_succeeded": false,
+                "error_text": "incompatible types: com.google.cloud.pubsublite.internal.wire.PartitionPublisherFactory is not a functional interface\n",
+                "updated_files": {
+                    "src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java": "/*\n * Copyright 2020 Google LLC\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n *       http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\npackage com.google.pubsublite.kafka.sink;\n\nimport com.google.cloud.pubsublite.CloudZone;\nimport com.google.cloud.pubsublite.ProjectPath;\nimport com.google.cloud.pubsublite.MessageMetadata;\nimport com.google.cloud.pubsublite.TopicName;\nimport com.google.cloud.pubsublite.TopicPath;\nimport com.google.cloud.pubsublite.internal.Publisher;\nimport com.google.cloud.pubsublite.internal.wire.PubsubContext;\nimport com.google.cloud.pubsublite.internal.wire.PubsubContext.Framework;\nimport com.google.cloud.pubsublite.internal.wire.RoutingPublisherBuilder;\nimport com.google.cloud.pubsublite.internal.wire.SinglePartitionPublisherBuilder;\nimport com.google.cloud.pubsublite.Partition;\nimport com.google.cloud.pubsublite.internal.wire.PartitionPublisherFactory;\nimport java.util.Map;\nimport org.apache.kafka.common.config.ConfigValue;\n\nclass PublisherFactoryImpl implements PublisherFactory {\n\n  private static final Framework FRAMEWORK = Framework.of(\"KAFKA_CONNECT\");\n\n  @Override\n  public Publisher<MessageMetadata> newPublisher(Map<String, String> params) {\n    Map<String, ConfigValue> config = ConfigDefs.config().validateAll(params);\n    RoutingPublisherBuilder.Builder builder = RoutingPublisherBuilder.newBuilder();\n    TopicPath topic =\n        TopicPath.newBuilder()\n            .setProject(\n                ProjectPath.parse(\"projects/\" + config.get(ConfigDefs.PROJECT_FLAG).value())\n                    .project())\n            .setLocation(CloudZone.parse(config.get(ConfigDefs.LOCATION_FLAG).value().toString()))\n            .setName(TopicName.of(config.get(ConfigDefs.TOPIC_NAME_FLAG).value().toString()))\n            .build();\n    builder.setTopic(topic);\n    builder.setPublisherFactory(\n        partition ->\n            SinglePartitionPublisherBuilder.newBuilder()\n                .setTopic(topic)\n                .setPartition(partition)\n                .setContext(PubsubContext.of(FRAMEWORK))\n                .build());\n    return builder.build();\n  }\n}\n"
+                },
+                "compile_error_details": {
+                    "src/main/java/com/google/pubsublite/kafka/sink/PubSubLiteSinkTask.java": {
+                        "43": {
+                            "lines": [
+                                {
+                                    "line_no": 42,
+                                    "content": "  private final PublisherFactory factory;"
+                                },
+                                {
+                                    "line_no": 43,
+                                    "content": "  private @Nullable Publisher<PublishMetadata> publisher;"
+                                },
+                                {
+                                    "line_no": 44,
+                                    "content": "  private @Nullable Publisher<MessageMetadata> publisher;"
+                                }
+                            ],
+                            "error_texts": [
+                                "[43,31] cannot find symbol\nsymbol: class PublishMetadata\nlocation: class com.google.pubsublite.kafka.sink.PubSubLiteSinkTask\n",
+                                "[43,31] cannot find symbol\n"
+                            ]
+                        }
+                    },
+                    "src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java": {
+                        "50": {
+                            "lines": [
+                                {
+                                    "line_no": 49,
+                                    "content": "    builder.setTopic(topic);"
+                                },
+                                {
+                                    "line_no": 50,
+                                    "content": "    builder.setPublisherFactory("
+                                },
+                                {
+                                    "line_no": 51,
+                                    "content": "        partition ->"
+                                }
+                            ],
+                            "error_texts": [
+                                "[50,12] incompatible types: com.google.cloud.pubsublite.internal.wire.PartitionPublisherFactory is not a functional interface\nmultiple non-overriding abstract methods found in interface com.google.cloud.pubsublite.internal.wire.PartitionPublisherFactory\n",
+                                "[50,12] incompatible types: com.google.cloud.pubsublite.internal.wire.PartitionPublisherFactory is not a functional interface\n"
+                            ]
+                        }
+                    }
+                }
+            },
+            "error": "incompatible types: com.google.cloud.pubsublite.internal.wire.PartitionPublisherFactory is not a functional interface\n",
+            "span_id": 13782085773579409508
+        },
+        {
+            "input": "```diff\n--- src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java\n+++ src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java\n@@\n-import com.google.cloud.pubsublite.internal.wire.PartitionPublisherFactory;\n+import com.google.cloud.pubsublite.internal.wire.PartitionPublisher;\n@@\n-        partition ->\n-            SinglePartitionPublisherBuilder.newBuilder()\n-                .setTopic(topic)\n-                .setPartition(partition)\n-                .setContext(PubsubContext.of(FRAMEWORK))\n-                .build());\n+        new PartitionPublisherFactory() {\n+          @Override\n+          public PartitionPublisher newPublisher(Partition partition) {\n+            return SinglePartitionPublisherBuilder.newBuilder()\n+                .setTopic(topic)\n+                .setPartition(partition)\n+                .setContext(PubsubContext.of(FRAMEWORK))\n+                .build();\n+          }\n+        });\n```",
+            "output": {
+                "compilation_has_succeeded": false,
+                "test_has_succeeded": false,
+                "error_text": "cannot find symbol\n",
+                "updated_files": {
+                    "src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java": "/*\n * Copyright 2020 Google LLC\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n *       http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\npackage com.google.pubsublite.kafka.sink;\n\nimport com.google.cloud.pubsublite.CloudZone;\nimport com.google.cloud.pubsublite.ProjectPath;\nimport com.google.cloud.pubsublite.MessageMetadata;\nimport com.google.cloud.pubsublite.TopicName;\nimport com.google.cloud.pubsublite.TopicPath;\nimport com.google.cloud.pubsublite.internal.Publisher;\nimport com.google.cloud.pubsublite.internal.wire.PubsubContext;\nimport com.google.cloud.pubsublite.internal.wire.PubsubContext.Framework;\nimport com.google.cloud.pubsublite.internal.wire.RoutingPublisherBuilder;\nimport com.google.cloud.pubsublite.internal.wire.SinglePartitionPublisherBuilder;\nimport com.google.cloud.pubsublite.Partition;\nimport com.google.cloud.pubsublite.internal.wire.PartitionPublisher;\nimport java.util.Map;\nimport org.apache.kafka.common.config.ConfigValue;\n\nclass PublisherFactoryImpl implements PublisherFactory {\n\n  private static final Framework FRAMEWORK = Framework.of(\"KAFKA_CONNECT\");\n\n  @Override\n  public Publisher<MessageMetadata> newPublisher(Map<String, String> params) {\n    Map<String, ConfigValue> config = ConfigDefs.config().validateAll(params);\n    RoutingPublisherBuilder.Builder builder = RoutingPublisherBuilder.newBuilder();\n    TopicPath topic =\n        TopicPath.newBuilder()\n            .setProject(\n                ProjectPath.parse(\"projects/\" + config.get(ConfigDefs.PROJECT_FLAG).value())\n                    .project())\n            .setLocation(CloudZone.parse(config.get(ConfigDefs.LOCATION_FLAG).value().toString()))\n            .setName(TopicName.of(config.get(ConfigDefs.TOPIC_NAME_FLAG).value().toString()))\n            .build();\n    builder.setTopic(topic);\n    builder.setPublisherFactory(\n        new PartitionPublisherFactory() {\n          @Override\n          public PartitionPublisher newPublisher(Partition partition) {\n            return SinglePartitionPublisherBuilder.newBuilder()\n                .setTopic(topic)\n                .setPartition(partition)\n                .setContext(PubsubContext.of(FRAMEWORK))\n                .build();\n          }\n        });\n    return builder.build();\n  }\n}\n"
+                },
+                "compile_error_details": {
+                    "src/main/java/com/google/pubsublite/kafka/sink/PubSubLiteSinkTask.java": {
+                        "43": {
+                            "lines": [
+                                {
+                                    "line_no": 42,
+                                    "content": "  private final PublisherFactory factory;"
+                                },
+                                {
+                                    "line_no": 43,
+                                    "content": "  private @Nullable Publisher<PublishMetadata> publisher;"
+                                },
+                                {
+                                    "line_no": 44,
+                                    "content": "  private @Nullable Publisher<MessageMetadata> publisher;"
+                                }
+                            ],
+                            "error_texts": [
+                                "[43,31] cannot find symbol\nsymbol: class PublishMetadata\nlocation: class com.google.pubsublite.kafka.sink.PubSubLiteSinkTask\n",
+                                "[43,31] cannot find symbol\n"
+                            ]
+                        }
+                    },
+                    "src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java": {
+                        "29": {
+                            "lines": [
+                                {
+                                    "line_no": 28,
+                                    "content": "import com.google.cloud.pubsublite.Partition;"
+                                },
+                                {
+                                    "line_no": 29,
+                                    "content": "import com.google.cloud.pubsublite.internal.wire.PartitionPublisher;"
+                                },
+                                {
+                                    "line_no": 30,
+                                    "content": "import java.util.Map;"
+                                }
+                            ],
+                            "error_texts": [
+                                "[29,49] cannot find symbol\nsymbol: class PartitionPublisher\nlocation: package com.google.cloud.pubsublite.internal.wire\n",
+                                "[29,49] cannot find symbol\n"
+                            ]
+                        },
+                        "51": {
+                            "lines": [
+                                {
+                                    "line_no": 50,
+                                    "content": "    builder.setPublisherFactory("
+                                },
+                                {
+                                    "line_no": 51,
+                                    "content": "        new PartitionPublisherFactory() {"
+                                },
+                                {
+                                    "line_no": 52,
+                                    "content": "          @Override"
+                                }
+                            ],
+                            "error_texts": [
+                                "[51,13] cannot find symbol\n",
+                                "[51,13] cannot find symbol\nsymbol: class PartitionPublisherFactory\nlocation: class com.google.pubsublite.kafka.sink.PublisherFactoryImpl\n"
+                            ]
+                        },
+                        "53": {
+                            "lines": [
+                                {
+                                    "line_no": 52,
+                                    "content": "          @Override"
+                                },
+                                {
+                                    "line_no": 53,
+                                    "content": "          public PartitionPublisher newPublisher(Partition partition) {"
+                                },
+                                {
+                                    "line_no": 54,
+                                    "content": "            return SinglePartitionPublisherBuilder.newBuilder()"
+                                }
+                            ],
+                            "error_texts": [
+                                "[53,18] cannot find symbol\n",
+                                "[53,18] cannot find symbol\nsymbol: class PartitionPublisher\n"
+                            ]
+                        },
+                        "52": {
+                            "lines": [
+                                {
+                                    "line_no": 51,
+                                    "content": "        new PartitionPublisherFactory() {"
+                                },
+                                {
+                                    "line_no": 52,
+                                    "content": "          @Override"
+                                },
+                                {
+                                    "line_no": 53,
+                                    "content": "          public PartitionPublisher newPublisher(Partition partition) {"
+                                }
+                            ],
+                            "error_texts": [
+                                "[52,11] method does not override or implement a method from a supertype\n"
+                            ]
+                        },
+                        "57": {
+                            "lines": [
+                                {
+                                    "line_no": 56,
+                                    "content": "                .setPartition(partition)"
+                                },
+                                {
+                                    "line_no": 57,
+                                    "content": "                .setContext(PubsubContext.of(FRAMEWORK))"
+                                },
+                                {
+                                    "line_no": 58,
+                                    "content": "                .build();"
+                                }
+                            ],
+                            "error_texts": [
+                                "[57,17] cannot find symbol\nsymbol: method setContext(com.google.cloud.pubsublite.internal.wire.PubsubContext)\nlocation: class com.google.cloud.pubsublite.internal.wire.SinglePartitionPublisherBuilder.Builder\n",
+                                "[57,17] cannot find symbol\n"
+                            ]
+                        }
+                    }
+                }
+            },
+            "error": "cannot find symbol\n",
+            "span_id": 3706004526285941171
+        },
+        {
+            "input": "```diff\n--- src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java\n+++ src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java\n@@\n-import com.google.cloud.pubsublite.internal.wire.PartitionPublisher;\n+import com.google.cloud.pubsublite.internal.wire.PartitionPublisherFactory;\n@@\n-        new PartitionPublisherFactory() {\n-          @Override\n-          public PartitionPublisher newPublisher(Partition partition) {\n-            return SinglePartitionPublisherBuilder.newBuilder()\n-                .setTopic(topic)\n-                .setPartition(partition)\n-                .setContext(PubsubContext.of(FRAMEWORK))\n-                .build();\n-          }\n-        });\n+        partition ->\n+            SinglePartitionPublisherBuilder.newBuilder()\n+                .setTopic(topic)\n+                .setPartition(partition)\n+                .setFramework(FRAMEWORK)\n+                .build());\n```",
+            "output": {
+                "compilation_has_succeeded": false,
+                "test_has_succeeded": false,
+                "error_text": "incompatible types: com.google.cloud.pubsublite.internal.wire.PartitionPublisherFactory is not a functional interface\n",
+                "updated_files": {
+                    "src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java": "/*\n * Copyright 2020 Google LLC\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n *       http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\npackage com.google.pubsublite.kafka.sink;\n\nimport com.google.cloud.pubsublite.CloudZone;\nimport com.google.cloud.pubsublite.ProjectPath;\nimport com.google.cloud.pubsublite.MessageMetadata;\nimport com.google.cloud.pubsublite.TopicName;\nimport com.google.cloud.pubsublite.TopicPath;\nimport com.google.cloud.pubsublite.internal.Publisher;\nimport com.google.cloud.pubsublite.internal.wire.PubsubContext;\nimport com.google.cloud.pubsublite.internal.wire.PubsubContext.Framework;\nimport com.google.cloud.pubsublite.internal.wire.RoutingPublisherBuilder;\nimport com.google.cloud.pubsublite.internal.wire.SinglePartitionPublisherBuilder;\nimport com.google.cloud.pubsublite.Partition;\nimport com.google.cloud.pubsublite.internal.wire.PartitionPublisherFactory;\nimport java.util.Map;\nimport org.apache.kafka.common.config.ConfigValue;\n\nclass PublisherFactoryImpl implements PublisherFactory {\n\n  private static final Framework FRAMEWORK = Framework.of(\"KAFKA_CONNECT\");\n\n  @Override\n  public Publisher<MessageMetadata> newPublisher(Map<String, String> params) {\n    Map<String, ConfigValue> config = ConfigDefs.config().validateAll(params);\n    RoutingPublisherBuilder.Builder builder = RoutingPublisherBuilder.newBuilder();\n    TopicPath topic =\n        TopicPath.newBuilder()\n            .setProject(\n                ProjectPath.parse(\"projects/\" + config.get(ConfigDefs.PROJECT_FLAG).value())\n                    .project())\n            .setLocation(CloudZone.parse(config.get(ConfigDefs.LOCATION_FLAG).value().toString()))\n            .setName(TopicName.of(config.get(ConfigDefs.TOPIC_NAME_FLAG).value().toString()))\n            .build();\n    builder.setTopic(topic);\n    builder.setPublisherFactory(\n        partition ->\n            SinglePartitionPublisherBuilder.newBuilder()\n                .setTopic(topic)\n                .setPartition(partition)\n                .setFramework(FRAMEWORK)\n                .build());\n    return builder.build();\n  }\n}\n"
+                },
+                "compile_error_details": {
+                    "src/main/java/com/google/pubsublite/kafka/sink/PubSubLiteSinkTask.java": {
+                        "43": {
+                            "lines": [
+                                {
+                                    "line_no": 42,
+                                    "content": "  private final PublisherFactory factory;"
+                                },
+                                {
+                                    "line_no": 43,
+                                    "content": "  private @Nullable Publisher<PublishMetadata> publisher;"
+                                },
+                                {
+                                    "line_no": 44,
+                                    "content": "  private @Nullable Publisher<MessageMetadata> publisher;"
+                                }
+                            ],
+                            "error_texts": [
+                                "[43,31] cannot find symbol\nsymbol: class PublishMetadata\nlocation: class com.google.pubsublite.kafka.sink.PubSubLiteSinkTask\n",
+                                "[43,31] cannot find symbol\n"
+                            ]
+                        }
+                    },
+                    "src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java": {
+                        "50": {
+                            "lines": [
+                                {
+                                    "line_no": 49,
+                                    "content": "    builder.setTopic(topic);"
+                                },
+                                {
+                                    "line_no": 50,
+                                    "content": "    builder.setPublisherFactory("
+                                },
+                                {
+                                    "line_no": 51,
+                                    "content": "        partition ->"
+                                }
+                            ],
+                            "error_texts": [
+                                "[50,12] incompatible types: com.google.cloud.pubsublite.internal.wire.PartitionPublisherFactory is not a functional interface\nmultiple non-overriding abstract methods found in interface com.google.cloud.pubsublite.internal.wire.PartitionPublisherFactory\n",
+                                "[50,12] incompatible types: com.google.cloud.pubsublite.internal.wire.PartitionPublisherFactory is not a functional interface\n"
+                            ]
+                        }
+                    }
+                }
+            },
+            "error": "incompatible types: com.google.cloud.pubsublite.internal.wire.PartitionPublisherFactory is not a functional interface\n",
+            "span_id": 4185840154001695147
+        },
+        {
+            "input": "```diff\n--- src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java\n+++ src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java\n@@\n-import com.google.cloud.pubsublite.internal.wire.PartitionPublisherFactory;\n+import com.google.cloud.pubsublite.internal.wire.PartitionPublisher;\n@@\n-        partition ->\n-            SinglePartitionPublisherBuilder.newBuilder()\n-                .setTopic(topic)\n-                .setPartition(partition)\n-                .setFramework(FRAMEWORK)\n-                .build());\n+        new PartitionPublisherFactory() {\n+          @Override\n+          public PartitionPublisher newPublisher(Partition partition) {\n+            return SinglePartitionPublisherBuilder.newBuilder()\n+                .setTopic(topic)\n+                .setPartition(partition)\n+                .setContext(PubsubContext.of(FRAMEWORK))\n+                .build();\n+          }\n+        });\n```",
+            "output": {
+                "compilation_has_succeeded": false,
+                "test_has_succeeded": false,
+                "error_text": "cannot find symbol\n",
+                "updated_files": {
+                    "src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java": "/*\n * Copyright 2020 Google LLC\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n *       http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\npackage com.google.pubsublite.kafka.sink;\n\nimport com.google.cloud.pubsublite.CloudZone;\nimport com.google.cloud.pubsublite.ProjectPath;\nimport com.google.cloud.pubsublite.MessageMetadata;\nimport com.google.cloud.pubsublite.TopicName;\nimport com.google.cloud.pubsublite.TopicPath;\nimport com.google.cloud.pubsublite.internal.Publisher;\nimport com.google.cloud.pubsublite.internal.wire.PubsubContext;\nimport com.google.cloud.pubsublite.internal.wire.PubsubContext.Framework;\nimport com.google.cloud.pubsublite.internal.wire.RoutingPublisherBuilder;\nimport com.google.cloud.pubsublite.internal.wire.SinglePartitionPublisherBuilder;\nimport com.google.cloud.pubsublite.Partition;\nimport com.google.cloud.pubsublite.internal.wire.PartitionPublisher;\nimport java.util.Map;\nimport org.apache.kafka.common.config.ConfigValue;\n\nclass PublisherFactoryImpl implements PublisherFactory {\n\n  private static final Framework FRAMEWORK = Framework.of(\"KAFKA_CONNECT\");\n\n  @Override\n  public Publisher<MessageMetadata> newPublisher(Map<String, String> params) {\n    Map<String, ConfigValue> config = ConfigDefs.config().validateAll(params);\n    RoutingPublisherBuilder.Builder builder = RoutingPublisherBuilder.newBuilder();\n    TopicPath topic =\n        TopicPath.newBuilder()\n            .setProject(\n                ProjectPath.parse(\"projects/\" + config.get(ConfigDefs.PROJECT_FLAG).value())\n                    .project())\n            .setLocation(CloudZone.parse(config.get(ConfigDefs.LOCATION_FLAG).value().toString()))\n            .setName(TopicName.of(config.get(ConfigDefs.TOPIC_NAME_FLAG).value().toString()))\n            .build();\n    builder.setTopic(topic);\n    builder.setPublisherFactory(\n        new PartitionPublisherFactory() {\n          @Override\n          public PartitionPublisher newPublisher(Partition partition) {\n            return SinglePartitionPublisherBuilder.newBuilder()\n                .setTopic(topic)\n                .setPartition(partition)\n                .setContext(PubsubContext.of(FRAMEWORK))\n                .build();\n          }\n        });\n    return builder.build();\n  }\n}\n"
+                },
+                "compile_error_details": {
+                    "src/main/java/com/google/pubsublite/kafka/sink/PubSubLiteSinkTask.java": {
+                        "43": {
+                            "lines": [
+                                {
+                                    "line_no": 42,
+                                    "content": "  private final PublisherFactory factory;"
+                                },
+                                {
+                                    "line_no": 43,
+                                    "content": "  private @Nullable Publisher<PublishMetadata> publisher;"
+                                },
+                                {
+                                    "line_no": 44,
+                                    "content": "  private @Nullable Publisher<MessageMetadata> publisher;"
+                                }
+                            ],
+                            "error_texts": [
+                                "[43,31] cannot find symbol\nsymbol: class PublishMetadata\nlocation: class com.google.pubsublite.kafka.sink.PubSubLiteSinkTask\n",
+                                "[43,31] cannot find symbol\n"
+                            ]
+                        }
+                    },
+                    "src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java": {
+                        "29": {
+                            "lines": [
+                                {
+                                    "line_no": 28,
+                                    "content": "import com.google.cloud.pubsublite.Partition;"
+                                },
+                                {
+                                    "line_no": 29,
+                                    "content": "import com.google.cloud.pubsublite.internal.wire.PartitionPublisher;"
+                                },
+                                {
+                                    "line_no": 30,
+                                    "content": "import java.util.Map;"
+                                }
+                            ],
+                            "error_texts": [
+                                "[29,49] cannot find symbol\nsymbol: class PartitionPublisher\nlocation: package com.google.cloud.pubsublite.internal.wire\n",
+                                "[29,49] cannot find symbol\n"
+                            ]
+                        },
+                        "51": {
+                            "lines": [
+                                {
+                                    "line_no": 50,
+                                    "content": "    builder.setPublisherFactory("
+                                },
+                                {
+                                    "line_no": 51,
+                                    "content": "        new PartitionPublisherFactory() {"
+                                },
+                                {
+                                    "line_no": 52,
+                                    "content": "          @Override"
+                                }
+                            ],
+                            "error_texts": [
+                                "[51,13] cannot find symbol\n",
+                                "[51,13] cannot find symbol\nsymbol: class PartitionPublisherFactory\nlocation: class com.google.pubsublite.kafka.sink.PublisherFactoryImpl\n"
+                            ]
+                        },
+                        "53": {
+                            "lines": [
+                                {
+                                    "line_no": 52,
+                                    "content": "          @Override"
+                                },
+                                {
+                                    "line_no": 53,
+                                    "content": "          public PartitionPublisher newPublisher(Partition partition) {"
+                                },
+                                {
+                                    "line_no": 54,
+                                    "content": "            return SinglePartitionPublisherBuilder.newBuilder()"
+                                }
+                            ],
+                            "error_texts": [
+                                "[53,18] cannot find symbol\n",
+                                "[53,18] cannot find symbol\nsymbol: class PartitionPublisher\n"
+                            ]
+                        },
+                        "52": {
+                            "lines": [
+                                {
+                                    "line_no": 51,
+                                    "content": "        new PartitionPublisherFactory() {"
+                                },
+                                {
+                                    "line_no": 52,
+                                    "content": "          @Override"
+                                },
+                                {
+                                    "line_no": 53,
+                                    "content": "          public PartitionPublisher newPublisher(Partition partition) {"
+                                }
+                            ],
+                            "error_texts": [
+                                "[52,11] method does not override or implement a method from a supertype\n"
+                            ]
+                        },
+                        "57": {
+                            "lines": [
+                                {
+                                    "line_no": 56,
+                                    "content": "                .setPartition(partition)"
+                                },
+                                {
+                                    "line_no": 57,
+                                    "content": "                .setContext(PubsubContext.of(FRAMEWORK))"
+                                },
+                                {
+                                    "line_no": 58,
+                                    "content": "                .build();"
+                                }
+                            ],
+                            "error_texts": [
+                                "[57,17] cannot find symbol\nsymbol: method setContext(com.google.cloud.pubsublite.internal.wire.PubsubContext)\nlocation: class com.google.cloud.pubsublite.internal.wire.SinglePartitionPublisherBuilder.Builder\n",
+                                "[57,17] cannot find symbol\n"
+                            ]
+                        }
+                    }
+                }
+            },
+            "error": "cannot find symbol\n",
+            "span_id": 16709221217736262007
+        },
+        {
+            "input": "```diff\n--- src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java\n+++ src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java\n@@\n-import com.google.cloud.pubsublite.internal.wire.PartitionPublisher;\n+import com.google.cloud.pubsublite.internal.wire.PartitionPublisherFactory;\n@@\n-        new PartitionPublisherFactory() {\n-          @Override\n-          public PartitionPublisher newPublisher(Partition partition) {\n-            return SinglePartitionPublisherBuilder.newBuilder()\n-                .setTopic(topic)\n-                .setPartition(partition)\n-                .setContext(PubsubContext.of(FRAMEWORK))\n-                .build();\n-          }\n-        });\n+        partition ->\n+            SinglePartitionPublisherBuilder.newBuilder()\n+                .setTopic(topic)\n+                .setPartition(partition)\n+                .setFramework(FRAMEWORK)\n+                .build());\n```",
+            "output": {
+                "compilation_has_succeeded": false,
+                "test_has_succeeded": false,
+                "error_text": "incompatible types: com.google.cloud.pubsublite.internal.wire.PartitionPublisherFactory is not a functional interface\n",
+                "updated_files": {
+                    "src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java": "/*\n * Copyright 2020 Google LLC\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n *       http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\npackage com.google.pubsublite.kafka.sink;\n\nimport com.google.cloud.pubsublite.CloudZone;\nimport com.google.cloud.pubsublite.ProjectPath;\nimport com.google.cloud.pubsublite.MessageMetadata;\nimport com.google.cloud.pubsublite.TopicName;\nimport com.google.cloud.pubsublite.TopicPath;\nimport com.google.cloud.pubsublite.internal.Publisher;\nimport com.google.cloud.pubsublite.internal.wire.PubsubContext;\nimport com.google.cloud.pubsublite.internal.wire.PubsubContext.Framework;\nimport com.google.cloud.pubsublite.internal.wire.RoutingPublisherBuilder;\nimport com.google.cloud.pubsublite.internal.wire.SinglePartitionPublisherBuilder;\nimport com.google.cloud.pubsublite.Partition;\nimport com.google.cloud.pubsublite.internal.wire.PartitionPublisherFactory;\nimport java.util.Map;\nimport org.apache.kafka.common.config.ConfigValue;\n\nclass PublisherFactoryImpl implements PublisherFactory {\n\n  private static final Framework FRAMEWORK = Framework.of(\"KAFKA_CONNECT\");\n\n  @Override\n  public Publisher<MessageMetadata> newPublisher(Map<String, String> params) {\n    Map<String, ConfigValue> config = ConfigDefs.config().validateAll(params);\n    RoutingPublisherBuilder.Builder builder = RoutingPublisherBuilder.newBuilder();\n    TopicPath topic =\n        TopicPath.newBuilder()\n            .setProject(\n                ProjectPath.parse(\"projects/\" + config.get(ConfigDefs.PROJECT_FLAG).value())\n                    .project())\n            .setLocation(CloudZone.parse(config.get(ConfigDefs.LOCATION_FLAG).value().toString()))\n            .setName(TopicName.of(config.get(ConfigDefs.TOPIC_NAME_FLAG).value().toString()))\n            .build();\n    builder.setTopic(topic);\n    builder.setPublisherFactory(\n        partition ->\n            SinglePartitionPublisherBuilder.newBuilder()\n                .setTopic(topic)\n                .setPartition(partition)\n                .setFramework(FRAMEWORK)\n                .build());\n    return builder.build();\n  }\n}\n"
+                },
+                "compile_error_details": {
+                    "src/main/java/com/google/pubsublite/kafka/sink/PubSubLiteSinkTask.java": {
+                        "43": {
+                            "lines": [
+                                {
+                                    "line_no": 42,
+                                    "content": "  private final PublisherFactory factory;"
+                                },
+                                {
+                                    "line_no": 43,
+                                    "content": "  private @Nullable Publisher<PublishMetadata> publisher;"
+                                },
+                                {
+                                    "line_no": 44,
+                                    "content": "  private @Nullable Publisher<MessageMetadata> publisher;"
+                                }
+                            ],
+                            "error_texts": [
+                                "[43,31] cannot find symbol\nsymbol: class PublishMetadata\nlocation: class com.google.pubsublite.kafka.sink.PubSubLiteSinkTask\n",
+                                "[43,31] cannot find symbol\n"
+                            ]
+                        }
+                    },
+                    "src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java": {
+                        "50": {
+                            "lines": [
+                                {
+                                    "line_no": 49,
+                                    "content": "    builder.setTopic(topic);"
+                                },
+                                {
+                                    "line_no": 50,
+                                    "content": "    builder.setPublisherFactory("
+                                },
+                                {
+                                    "line_no": 51,
+                                    "content": "        partition ->"
+                                }
+                            ],
+                            "error_texts": [
+                                "[50,12] incompatible types: com.google.cloud.pubsublite.internal.wire.PartitionPublisherFactory is not a functional interface\nmultiple non-overriding abstract methods found in interface com.google.cloud.pubsublite.internal.wire.PartitionPublisherFactory\n",
+                                "[50,12] incompatible types: com.google.cloud.pubsublite.internal.wire.PartitionPublisherFactory is not a functional interface\n"
+                            ]
+                        }
+                    }
+                }
+            },
+            "error": "incompatible types: com.google.cloud.pubsublite.internal.wire.PartitionPublisherFactory is not a functional interface\n",
+            "span_id": 3007431262174231410
+        },
+        {
+            "input": "```diff\n--- src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java\n+++ src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java\n@@\n-import com.google.cloud.pubsublite.internal.wire.PartitionPublisherFactory;\n+import com.google.cloud.pubsublite.internal.wire.PartitionPublisher;\n@@\n-        partition ->\n-            SinglePartitionPublisherBuilder.newBuilder()\n-                .setTopic(topic)\n-                .setPartition(partition)\n-                .setFramework(FRAMEWORK)\n-                .build());\n+        new PartitionPublisherFactory() {\n+          @Override\n+          public PartitionPublisher newPublisher(Partition partition) {\n+            return SinglePartitionPublisherBuilder.newBuilder()\n+                .setTopic(topic)\n+                .setPartition(partition)\n+                .setContext(PubsubContext.of(FRAMEWORK))\n+                .build();\n+          }\n+        });\n```",
+            "output": {
+                "compilation_has_succeeded": false,
+                "test_has_succeeded": false,
+                "error_text": "cannot find symbol\n",
+                "updated_files": {
+                    "src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java": "/*\n * Copyright 2020 Google LLC\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n *       http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\npackage com.google.pubsublite.kafka.sink;\n\nimport com.google.cloud.pubsublite.CloudZone;\nimport com.google.cloud.pubsublite.ProjectPath;\nimport com.google.cloud.pubsublite.MessageMetadata;\nimport com.google.cloud.pubsublite.TopicName;\nimport com.google.cloud.pubsublite.TopicPath;\nimport com.google.cloud.pubsublite.internal.Publisher;\nimport com.google.cloud.pubsublite.internal.wire.PubsubContext;\nimport com.google.cloud.pubsublite.internal.wire.PubsubContext.Framework;\nimport com.google.cloud.pubsublite.internal.wire.RoutingPublisherBuilder;\nimport com.google.cloud.pubsublite.internal.wire.SinglePartitionPublisherBuilder;\nimport com.google.cloud.pubsublite.Partition;\nimport com.google.cloud.pubsublite.internal.wire.PartitionPublisher;\nimport java.util.Map;\nimport org.apache.kafka.common.config.ConfigValue;\n\nclass PublisherFactoryImpl implements PublisherFactory {\n\n  private static final Framework FRAMEWORK = Framework.of(\"KAFKA_CONNECT\");\n\n  @Override\n  public Publisher<MessageMetadata> newPublisher(Map<String, String> params) {\n    Map<String, ConfigValue> config = ConfigDefs.config().validateAll(params);\n    RoutingPublisherBuilder.Builder builder = RoutingPublisherBuilder.newBuilder();\n    TopicPath topic =\n        TopicPath.newBuilder()\n            .setProject(\n                ProjectPath.parse(\"projects/\" + config.get(ConfigDefs.PROJECT_FLAG).value())\n                    .project())\n            .setLocation(CloudZone.parse(config.get(ConfigDefs.LOCATION_FLAG).value().toString()))\n            .setName(TopicName.of(config.get(ConfigDefs.TOPIC_NAME_FLAG).value().toString()))\n            .build();\n    builder.setTopic(topic);\n    builder.setPublisherFactory(\n        new PartitionPublisherFactory() {\n          @Override\n          public PartitionPublisher newPublisher(Partition partition) {\n            return SinglePartitionPublisherBuilder.newBuilder()\n                .setTopic(topic)\n                .setPartition(partition)\n                .setContext(PubsubContext.of(FRAMEWORK))\n                .build();\n          }\n        });\n    return builder.build();\n  }\n}\n"
+                },
+                "compile_error_details": {
+                    "src/main/java/com/google/pubsublite/kafka/sink/PubSubLiteSinkTask.java": {
+                        "43": {
+                            "lines": [
+                                {
+                                    "line_no": 42,
+                                    "content": "  private final PublisherFactory factory;"
+                                },
+                                {
+                                    "line_no": 43,
+                                    "content": "  private @Nullable Publisher<PublishMetadata> publisher;"
+                                },
+                                {
+                                    "line_no": 44,
+                                    "content": "  private @Nullable Publisher<MessageMetadata> publisher;"
+                                }
+                            ],
+                            "error_texts": [
+                                "[43,31] cannot find symbol\nsymbol: class PublishMetadata\nlocation: class com.google.pubsublite.kafka.sink.PubSubLiteSinkTask\n",
+                                "[43,31] cannot find symbol\n"
+                            ]
+                        }
+                    },
+                    "src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java": {
+                        "29": {
+                            "lines": [
+                                {
+                                    "line_no": 28,
+                                    "content": "import com.google.cloud.pubsublite.Partition;"
+                                },
+                                {
+                                    "line_no": 29,
+                                    "content": "import com.google.cloud.pubsublite.internal.wire.PartitionPublisher;"
+                                },
+                                {
+                                    "line_no": 30,
+                                    "content": "import java.util.Map;"
+                                }
+                            ],
+                            "error_texts": [
+                                "[29,49] cannot find symbol\nsymbol: class PartitionPublisher\nlocation: package com.google.cloud.pubsublite.internal.wire\n",
+                                "[29,49] cannot find symbol\n"
+                            ]
+                        },
+                        "51": {
+                            "lines": [
+                                {
+                                    "line_no": 50,
+                                    "content": "    builder.setPublisherFactory("
+                                },
+                                {
+                                    "line_no": 51,
+                                    "content": "        new PartitionPublisherFactory() {"
+                                },
+                                {
+                                    "line_no": 52,
+                                    "content": "          @Override"
+                                }
+                            ],
+                            "error_texts": [
+                                "[51,13] cannot find symbol\n",
+                                "[51,13] cannot find symbol\nsymbol: class PartitionPublisherFactory\nlocation: class com.google.pubsublite.kafka.sink.PublisherFactoryImpl\n"
+                            ]
+                        },
+                        "53": {
+                            "lines": [
+                                {
+                                    "line_no": 52,
+                                    "content": "          @Override"
+                                },
+                                {
+                                    "line_no": 53,
+                                    "content": "          public PartitionPublisher newPublisher(Partition partition) {"
+                                },
+                                {
+                                    "line_no": 54,
+                                    "content": "            return SinglePartitionPublisherBuilder.newBuilder()"
+                                }
+                            ],
+                            "error_texts": [
+                                "[53,18] cannot find symbol\n",
+                                "[53,18] cannot find symbol\nsymbol: class PartitionPublisher\n"
+                            ]
+                        },
+                        "52": {
+                            "lines": [
+                                {
+                                    "line_no": 51,
+                                    "content": "        new PartitionPublisherFactory() {"
+                                },
+                                {
+                                    "line_no": 52,
+                                    "content": "          @Override"
+                                },
+                                {
+                                    "line_no": 53,
+                                    "content": "          public PartitionPublisher newPublisher(Partition partition) {"
+                                }
+                            ],
+                            "error_texts": [
+                                "[52,11] method does not override or implement a method from a supertype\n"
+                            ]
+                        },
+                        "57": {
+                            "lines": [
+                                {
+                                    "line_no": 56,
+                                    "content": "                .setPartition(partition)"
+                                },
+                                {
+                                    "line_no": 57,
+                                    "content": "                .setContext(PubsubContext.of(FRAMEWORK))"
+                                },
+                                {
+                                    "line_no": 58,
+                                    "content": "                .build();"
+                                }
+                            ],
+                            "error_texts": [
+                                "[57,17] cannot find symbol\nsymbol: method setContext(com.google.cloud.pubsublite.internal.wire.PubsubContext)\nlocation: class com.google.cloud.pubsublite.internal.wire.SinglePartitionPublisherBuilder.Builder\n",
+                                "[57,17] cannot find symbol\n"
+                            ]
+                        }
+                    }
+                }
+            },
+            "error": "cannot find symbol\n",
+            "span_id": 1283406371288298204
+        },
+        {
+            "input": "```diff\n--- src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java\n+++ src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java\n@@\n-import com.google.cloud.pubsublite.internal.wire.PartitionPublisher;\n+import com.google.cloud.pubsublite.internal.wire.PartitionPublisherFactory;\n@@\n-        new PartitionPublisherFactory() {\n-          @Override\n-          public PartitionPublisher newPublisher(Partition partition) {\n-            return SinglePartitionPublisherBuilder.newBuilder()\n-                .setTopic(topic)\n-                .setPartition(partition)\n-                .setContext(PubsubContext.of(FRAMEWORK))\n-                .build();\n-          }\n-        });\n+        partition ->\n+            SinglePartitionPublisherBuilder.newBuilder()\n+                .setTopic(topic)\n+                .setPartition(partition)\n+                .setFramework(FRAMEWORK)\n+                .build());\n```",
+            "output": {
+                "compilation_has_succeeded": false,
+                "test_has_succeeded": false,
+                "error_text": "incompatible types: com.google.cloud.pubsublite.internal.wire.PartitionPublisherFactory is not a functional interface\n",
+                "updated_files": {
+                    "src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java": "/*\n * Copyright 2020 Google LLC\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n *       http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\npackage com.google.pubsublite.kafka.sink;\n\nimport com.google.cloud.pubsublite.CloudZone;\nimport com.google.cloud.pubsublite.ProjectPath;\nimport com.google.cloud.pubsublite.MessageMetadata;\nimport com.google.cloud.pubsublite.TopicName;\nimport com.google.cloud.pubsublite.TopicPath;\nimport com.google.cloud.pubsublite.internal.Publisher;\nimport com.google.cloud.pubsublite.internal.wire.PubsubContext;\nimport com.google.cloud.pubsublite.internal.wire.PubsubContext.Framework;\nimport com.google.cloud.pubsublite.internal.wire.RoutingPublisherBuilder;\nimport com.google.cloud.pubsublite.internal.wire.SinglePartitionPublisherBuilder;\nimport com.google.cloud.pubsublite.Partition;\nimport com.google.cloud.pubsublite.internal.wire.PartitionPublisherFactory;\nimport java.util.Map;\nimport org.apache.kafka.common.config.ConfigValue;\n\nclass PublisherFactoryImpl implements PublisherFactory {\n\n  private static final Framework FRAMEWORK = Framework.of(\"KAFKA_CONNECT\");\n\n  @Override\n  public Publisher<MessageMetadata> newPublisher(Map<String, String> params) {\n    Map<String, ConfigValue> config = ConfigDefs.config().validateAll(params);\n    RoutingPublisherBuilder.Builder builder = RoutingPublisherBuilder.newBuilder();\n    TopicPath topic =\n        TopicPath.newBuilder()\n            .setProject(\n                ProjectPath.parse(\"projects/\" + config.get(ConfigDefs.PROJECT_FLAG).value())\n                    .project())\n            .setLocation(CloudZone.parse(config.get(ConfigDefs.LOCATION_FLAG).value().toString()))\n            .setName(TopicName.of(config.get(ConfigDefs.TOPIC_NAME_FLAG).value().toString()))\n            .build();\n    builder.setTopic(topic);\n    builder.setPublisherFactory(\n        partition ->\n            SinglePartitionPublisherBuilder.newBuilder()\n                .setTopic(topic)\n                .setPartition(partition)\n                .setFramework(FRAMEWORK)\n                .build());\n    return builder.build();\n  }\n}\n"
+                },
+                "compile_error_details": {
+                    "src/main/java/com/google/pubsublite/kafka/sink/PubSubLiteSinkTask.java": {
+                        "43": {
+                            "lines": [
+                                {
+                                    "line_no": 42,
+                                    "content": "  private final PublisherFactory factory;"
+                                },
+                                {
+                                    "line_no": 43,
+                                    "content": "  private @Nullable Publisher<PublishMetadata> publisher;"
+                                },
+                                {
+                                    "line_no": 44,
+                                    "content": "  private @Nullable Publisher<MessageMetadata> publisher;"
+                                }
+                            ],
+                            "error_texts": [
+                                "[43,31] cannot find symbol\nsymbol: class PublishMetadata\nlocation: class com.google.pubsublite.kafka.sink.PubSubLiteSinkTask\n",
+                                "[43,31] cannot find symbol\n"
+                            ]
+                        }
+                    },
+                    "src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java": {
+                        "50": {
+                            "lines": [
+                                {
+                                    "line_no": 49,
+                                    "content": "    builder.setTopic(topic);"
+                                },
+                                {
+                                    "line_no": 50,
+                                    "content": "    builder.setPublisherFactory("
+                                },
+                                {
+                                    "line_no": 51,
+                                    "content": "        partition ->"
+                                }
+                            ],
+                            "error_texts": [
+                                "[50,12] incompatible types: com.google.cloud.pubsublite.internal.wire.PartitionPublisherFactory is not a functional interface\nmultiple non-overriding abstract methods found in interface com.google.cloud.pubsublite.internal.wire.PartitionPublisherFactory\n",
+                                "[50,12] incompatible types: com.google.cloud.pubsublite.internal.wire.PartitionPublisherFactory is not a functional interface\n"
+                            ]
+                        }
+                    }
+                }
+            },
+            "error": "incompatible types: com.google.cloud.pubsublite.internal.wire.PartitionPublisherFactory is not a functional interface\n",
+            "span_id": 4193227553535345740
+        }
+    ],
+    "read_file": [
+        {
+            "input": "src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java",
+            "output": "/*\n * Copyright 2020 Google LLC\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n *       http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\npackage com.google.pubsublite.kafka.sink;\n\nimport com.google.cloud.pubsublite.CloudZone;\nimport com.google.cloud.pubsublite.ProjectPath;\nimport com.google.cloud.pubsublite.PublishMetadata;\nimport com.google.cloud.pubsublite.TopicName;\nimport com.google.cloud.pubsublite.TopicPath;\nimport com.google.cloud.pubsublite.internal.Publisher;\nimport com.google.cloud.pubsublite.internal.wire.PubsubContext;\nimport com.google.cloud.pubsublite.internal.wire.PubsubContext.Framework;\nimport com.google.cloud.pubsublite.internal.wire.RoutingPublisherBuilder;\nimport com.google.cloud.pubsublite.internal.wire.SinglePartitionPublisherBuilder;\nimport java.util.Map;\nimport org.apache.kafka.common.config.ConfigValue;\n\nclass PublisherFactoryImpl implements PublisherFactory {\n\n  private static final Framework FRAMEWORK = Framework.of(\"KAFKA_CONNECT\");\n\n  @Override\n  public Publisher<PublishMetadata> newPublisher(Map<String, String> params) {\n    Map<String, ConfigValue> config = ConfigDefs.config().validateAll(params);\n    RoutingPublisherBuilder.Builder builder = RoutingPublisherBuilder.newBuilder();\n    TopicPath topic =\n        TopicPath.newBuilder()\n            .setProject(\n                ProjectPath.parse(\"projects/\" + config.get(ConfigDefs.PROJECT_FLAG).value())\n                    .project())\n            .setLocation(CloudZone.parse(config.get(ConfigDefs.LOCATION_FLAG).value().toString()))\n            .setName(TopicName.of(config.get(ConfigDefs.TOPIC_NAME_FLAG).value().toString()))\n            .build();\n    builder.setTopic(topic);\n    builder.setPublisherFactory(\n        partition ->\n            SinglePartitionPublisherBuilder.newBuilder()\n                .setTopic(topic)\n                .setPartition(partition)\n                .setContext(PubsubContext.of(FRAMEWORK))\n                .build());\n    return builder.build();\n  }\n}\n",
+            "error": "",
+            "span_id": 2882819452305616036
+        },
+        {
+            "input": "src/main/java/com/google/pubsublite/kafka/sink/PublisherFactory.java",
+            "output": "/*\n * Copyright 2020 Google LLC\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n *       http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\npackage com.google.pubsublite.kafka.sink;\n\nimport com.google.cloud.pubsublite.PublishMetadata;\nimport com.google.cloud.pubsublite.internal.Publisher;\nimport java.util.Map;\n\ninterface PublisherFactory {\n\n  Publisher<PublishMetadata> newPublisher(Map<String, String> params);\n}\n",
+            "error": "",
+            "span_id": 3382300544949474290
+        },
+        {
+            "input": "src/main/java/com/google/pubsublite/kafka/sink/PubSubLiteSinkTask.java",
+            "output": "/*\n * Copyright 2020 Google LLC\n *\n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n *\n *       http://www.apache.org/licenses/LICENSE-2.0\n *\n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\npackage com.google.pubsublite.kafka.sink;\n\nimport static com.google.pubsublite.kafka.sink.Schemas.encodeToBytes;\n\nimport com.google.api.core.ApiService.State;\nimport com.google.cloud.pubsublite.Message;\nimport com.google.cloud.pubsublite.PublishMetadata;\nimport com.google.cloud.pubsublite.internal.Publisher;\nimport com.google.common.annotations.VisibleForTesting;\nimport com.google.common.collect.ImmutableListMultimap;\nimport com.google.protobuf.ByteString;\nimport com.google.protobuf.util.Timestamps;\nimport java.io.IOException;\nimport java.util.Collection;\nimport java.util.Map;\nimport javax.annotation.Nullable;\nimport org.apache.kafka.clients.consumer.OffsetAndMetadata;\nimport org.apache.kafka.common.TopicPartition;\nimport org.apache.kafka.common.utils.AppInfoParser;\nimport org.apache.kafka.connect.header.ConnectHeaders;\nimport org.apache.kafka.connect.header.Header;\nimport org.apache.kafka.connect.sink.SinkRecord;\nimport org.apache.kafka.connect.sink.SinkTask;\n\npublic class PubSubLiteSinkTask extends SinkTask {\n\n  private final PublisherFactory factory;\n  private @Nullable Publisher<PublishMetadata> publisher;\n\n  @VisibleForTesting\n  PubSubLiteSinkTask(PublisherFactory factory) {\n    this.factory = factory;\n  }\n\n  public PubSubLiteSinkTask() {\n    this(new PublisherFactoryImpl());\n  }\n\n  @Override\n  public String version() {\n    return AppInfoParser.getVersion();\n  }\n\n  @Override\n  public void start(Map<String, String> map) {\n    if (publisher != null) {\n      throw new IllegalStateException(\"Called start when publisher already exists.\");\n    }\n    publisher = factory.newPublisher(map);\n    publisher.startAsync().awaitRunning();\n  }\n\n  @Override\n  public void put(Collection<SinkRecord> collection) {\n    if (publisher.state() != State.RUNNING) {\n      if (publisher.state() == State.FAILED) {\n        throw new IllegalStateException(\"Publisher has failed.\", publisher.failureCause());\n      } else {\n        throw new IllegalStateException(\"Publisher not currently running.\");\n      }\n    }\n    for (SinkRecord record : collection) {\n      Message.Builder message = Message.builder();\n      if (record.key() != null) {\n        message.setKey(encodeToBytes(record.keySchema(), record.key()));\n      }\n      if (record.value() != null) {\n        message.setData(encodeToBytes(record.valueSchema(), record.value()));\n      }\n      ImmutableListMultimap.Builder<String, ByteString> attributes =\n          ImmutableListMultimap.builder();\n      getRecordHeaders(record)\n          .forEach(\n              header ->\n                  attributes.put(\n                      header.key(), Schemas.encodeToBytes(header.schema(), header.value())));\n      if (record.topic() != null) {\n        attributes.put(Constants.KAFKA_TOPIC_HEADER, ByteString.copyFromUtf8(record.topic()));\n      }\n      if (record.kafkaPartition() != null) {\n        attributes.put(\n            Constants.KAFKA_PARTITION_HEADER,\n            ByteString.copyFromUtf8(record.kafkaPartition().toString()));\n        attributes.put(\n            Constants.KAFKA_OFFSET_HEADER,\n            ByteString.copyFromUtf8(Long.toString(record.kafkaOffset())));\n      }\n      if (record.timestamp() != null) {\n        attributes.put(\n            Constants.KAFKA_EVENT_TIME_TYPE_HEADER,\n            ByteString.copyFromUtf8(record.timestampType().name));\n        message.setEventTime(Timestamps.fromMillis(record.timestamp()));\n      }\n      message.setAttributes(attributes.build());\n      publisher.publish(message.build());\n    }\n  }\n\n  private Iterable<? extends Header> getRecordHeaders(SinkRecord record) {\n    ConnectHeaders headers = new ConnectHeaders();\n    if (record.headers() != null) {\n      for (Header header : record.headers()) {\n        headers.add(header);\n      }\n    }\n    return headers;\n  }\n\n  @Override\n  public void flush(Map<TopicPartition, OffsetAndMetadata> currentOffsets) {\n    try {\n      if (publisher != null) {\n        publisher.flush();\n      }\n    } catch (IOException e) {\n      throw new RuntimeException(e);\n    }\n  }\n\n  @Override\n  public void stop() {\n    if (publisher == null) {\n      throw new IllegalStateException(\"Called stop when publisher doesn't exist.\");\n    }\n    try {\n      publisher.flush();\n      publisher.stopAsync().awaitTerminated();\n    } catch (IOException e) {\n      throw new RuntimeException(e);\n    } finally {\n      publisher = null;\n    }\n  }\n}\n",
+            "error": "",
+            "span_id": 17804811951836545311
+        }
+    ],
+    "get_directory_tree": [],
+    "get_language_server_suggestions": [],
+    "reset_repo": []
+}

@@ -1,0 +1,162 @@
+diff --git a/singer-commons/src/main/java/com/pinterest/singer/loggingaudit/client/AuditEventKafkaSender.java b/singer-commons/src/main/java/com/pinterest/singer/loggingaudit/client/AuditEventKafkaSender.java
+index 58dabd4..8c9a78b 100644
+--- a/singer-commons/src/main/java/com/pinterest/singer/loggingaudit/client/AuditEventKafkaSender.java
++++ b/singer-commons/src/main/java/com/pinterest/singer/loggingaudit/client/AuditEventKafkaSender.java
+@@ -30,6 +30,18 @@ import org.apache.kafka.clients.producer.ProducerRecord;
+ import org.apache.kafka.clients.producer.RecordMetadata;
+ import org.apache.kafka.common.PartitionInfo;
+ import org.apache.thrift.TException;
++import org.apache.thrift.transport.TTransportException;
++import org.apache.thrift.transport.TTransportException;
++import org.apache.thrift.transport.TTransportException;
++import org.apache.thrift.transport.TTransportException;
++import org.apache.thrift.transport.TTransportException;
++import org.apache.thrift.transport.TTransportException;
++import org.apache.thrift.transport.TTransportException;
++import org.apache.thrift.transport.TTransportException;
++import org.apache.thrift.transport.TTransportException;
++import org.apache.thrift.transport.TTransportException;
++import org.apache.thrift.transport.TTransportException;
++import org.apache.thrift.transport.TTransportException;
+ import org.apache.thrift.TSerializer;
+ import org.slf4j.Logger;
+ import org.slf4j.LoggerFactory;
+@@ -229,9 +241,9 @@ public class AuditEventKafkaSender implements LoggingAuditEventSender {
+           LOG.warn("Change current partition of audit event topic from {} to {}", currentPartitionId,
+               randomPartition);
+           currentPartitionId = randomPartition;
+-          OpenTsdbMetricConverter.incr(
++        OpenTsdbMetricConverter.incr(
+               LoggingAuditClientMetrics.AUDIT_CLIENT_SENDER_KAFKA_CURRENT_PARTITION_RESET, 1,
+-              "host=" + host, "stage=" + stage.toString());
++                "host=" + host, "stage=" + stage.toString());
+           return;
+         }
+       }
+@@ -267,9 +279,11 @@ public class AuditEventKafkaSender implements LoggingAuditEventSender {
+         if (event != null) {
+           try {
+             value = serializer.serialize(event);
+-            record = new ProducerRecord<>(this.topic, currentPartitionId , null, value);
++-            record = new ProducerRecord<>(this.topic, currentPartitionId , null, value);
+++            record = new ProducerRecord<>(this.topic, currentPartitionId, null, value);
+             kafkaProducer.send(record, new KafkaProducerCallback(event, currentPartitionId));
+-          } catch (TException e) {
++-          } catch (TException | TTransportException e) {
+++          } catch (TException | TTransportException e) {
+             LOG.debug("[{}] failed to construct ProducerRecord because of serialization exception.",
+                 Thread.currentThread().getName(), e);
+             OpenTsdbMetricConverter
+@@ -281,7 +295,7 @@ public class AuditEventKafkaSender implements LoggingAuditEventSender {
+         }
+       } catch (InterruptedException e) {
+         LOG.warn("[{}] got interrupted when polling the queue and while loop is ended!",
+-            Thread.currentThread().getName(), e);
++                Thread.currentThread().getName(), e);
+         OpenTsdbMetricConverter.incr(
+             LoggingAuditClientMetrics.AUDIT_CLIENT_SENDER_DEQUEUE_INTERRUPTED_EXCEPTION, 1,
+                 "host=" + host, "stage=" + stage.toString());
+@@ -289,7 +303,7 @@ public class AuditEventKafkaSender implements LoggingAuditEventSender {
+       } catch (Exception e) {
+         LOG.warn("Exit the while loop and finish the thread execution due to exception: ", e);
+         OpenTsdbMetricConverter.incr(LoggingAuditClientMetrics.AUDIT_CLIENT_SENDER_EXCEPTION, 1,
+-            "host=" + host, "stage=" + stage.toString());
++                "host=" + host, "stage=" + stage.toString());
+         break;
+       }
+     }
+@@ -309,7 +323,7 @@ public class AuditEventKafkaSender implements LoggingAuditEventSender {
+     public void checkAndEnqueueWhenSendFailed() {
+       // if exception thrown (i.e. the send failed), the partition is added to badPartitions.
+       badPartitions.add(this.partition);
+-      OpenTsdbMetricConverter
++            OpenTsdbMetricConverter
+           .incr(LoggingAuditClientMetrics.AUDIT_CLIENT_SENDER_KAFKA_PARTITION_ERROR, 1,
+               "host=" + host, "stage=" + stage.toString(), "topic=" + topic,
+               "partition=" + this.partition);
+@@ -321,20 +335,20 @@ public class AuditEventKafkaSender implements LoggingAuditEventSender {
+       if (count == null){
+         eventTriedCount.put(event.getLoggingAuditHeaders(), 1);
+         insertEvent(event);
+-        OpenTsdbMetricConverter
++            OpenTsdbMetricConverter
+             .gauge(LoggingAuditClientMetrics.AUDIT_CLIENT_SENDER_KAFKA_EVENTS_RETRIED,
+                 eventTriedCount.size(), "host=" + host, "stage=" + stage.toString(),
+                 "topic=" + topic);
+       } else if (count >= NUM_OF_PARTITIONS_TO_TRY_SENDING) {
+           LOG.debug("Failed to send audit event after trying {} partitions. Drop event.", count);
+-          OpenTsdbMetricConverter
++            OpenTsdbMetricConverter
+               .incr(LoggingAuditClientMetrics.AUDIT_CLIENT_SENDER_KAFKA_EVENTS_DROPPED, 1,
+-                  "host=" + host, "stage=" + stage.toString(),
+-                  "logName=" + event.getLoggingAuditHeaders().getLogName());
+-          eventTriedCount.remove(event.getLoggingAuditHeaders());
++                    "host=" + host, "stage=" + stage.toString(),
++                    "logName=" + event.getLoggingAuditHeaders().getLogName());
++            eventTriedCount.remove(event.getLoggingAuditHeaders());
+       } else {
+           eventTriedCount.put(event.getLoggingAuditHeaders(), count + 1);
+-          insertEvent(event);
++        insertEvent(event);
+       }
+     }
+ 
+@@ -344,13 +358,13 @@ public class AuditEventKafkaSender implements LoggingAuditEventSender {
+         if (!success) {
+           LOG.debug("Failed to enqueue LoggingAuditEvent at head of the queue when executing "
+               + "producer send callback. Drop this event.");
+-          eventTriedCount.remove(event.getLoggingAuditHeaders());
++            eventTriedCount.remove(event.getLoggingAuditHeaders());
+         }
+       } catch (InterruptedException ex) {
+         LOG.debug(
+             "Enqueuing LoggingAuditEvent at head of the queue was interrupted in callback. "
+                 + "Drop this event");
+-        eventTriedCount.remove(event.getLoggingAuditHeaders());
++            eventTriedCount.remove(event.getLoggingAuditHeaders());
+       }
+     }
+ 
+@@ -358,14 +372,14 @@ public class AuditEventKafkaSender implements LoggingAuditEventSender {
+     public void onCompletion(RecordMetadata recordMetadata, Exception e) {
+       try {
+         if (e == null) {
+-          OpenTsdbMetricConverter
++            OpenTsdbMetricConverter
+               .incr(LoggingAuditClientMetrics.AUDIT_CLIENT_SENDER_KAFKA_EVENTS_ACKED, 1,
+-                  "host=" + host, "stage=" + stage.toString(),
+-                  "logName=" + event.getLoggingAuditHeaders().getLogName());
++                    "host=" + host, "stage=" + stage.toString(),
++                    "logName=" + event.getLoggingAuditHeaders().getLogName());
+ 
+           // if send is successful, remove the event from the map eventTriedCount if it was added
+           // LoggingAuditHeaders can uniquely identify an event.
+-          eventTriedCount.remove(event.getLoggingAuditHeaders());
++            eventTriedCount.remove(event.getLoggingAuditHeaders());
+           // if send out successfully, remove the partition from the badPartitions if it was added.
+           badPartitions.remove(recordMetadata.partition());
+         } else {
+@@ -373,7 +387,7 @@ public class AuditEventKafkaSender implements LoggingAuditEventSender {
+         }
+       } catch (Throwable t) {
+         LOG.warn("Exception throws in the callback. Drop this event {}", event, t);
+-        OpenTsdbMetricConverter
++            OpenTsdbMetricConverter
+             .incr(LoggingAuditClientMetrics.AUDIT_CLIENT_SENDER_KAFKA_CALLBACK_EXCEPTION, 1,
+                 "host=" + host, "stage=" + stage.toString(), "topic=" + topic);
+       }
+@@ -424,11 +438,11 @@ public class AuditEventKafkaSender implements LoggingAuditEventSender {
+     }
+     try {
+       this.kafkaProducer.close();
+-    } catch (Throwable t) {
++      } catch (Throwable t) {
+       LOG.warn("Exception is thrown while stopping {}.", name, t);
+     }
+     LOG.warn("[{}] is stopped and the number of LoggingAuditEvents left in the queue is {}.", name,
+         queue.size());
+   }
+ 
+-}
++}
+\ No newline at end of file

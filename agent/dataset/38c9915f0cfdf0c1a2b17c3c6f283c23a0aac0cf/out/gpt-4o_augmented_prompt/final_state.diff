@@ -1,0 +1,186 @@
+diff --git a/src/main/java/io/zold/api/Copies.java b/src/main/java/io/zold/api/Copies.java
+index 815b506..a6ffab6 100644
+--- a/src/main/java/io/zold/api/Copies.java
++++ b/src/main/java/io/zold/api/Copies.java
+@@ -27,7 +27,7 @@ import io.zold.api.Copies.Copy;
+ import java.io.IOException;
+ import java.util.ArrayList;
+ import java.util.List;
+-import org.cactoos.collection.CollectionOf;
++import org.cactoos.list.ListOf;
+ import org.cactoos.iterable.IterableEnvelope;
+ import org.cactoos.iterable.IterableOf;
+ import org.cactoos.iterable.Joined;
+@@ -89,8 +89,8 @@ public final class Copies extends IterableEnvelope<Copy> {
+     private static boolean equalWallets(final Wallet first,
+         final Wallet second) throws IOException {
+         return first.id() == second.id() && new CollectionOf<>(
+-            first.ledger()
+-        ).size() == new CollectionOf<>(second.ledger()).size();
++            new ListOf<>(first.ledger())
++        ).size() == new ListOf<>(second.ledger()).size();
+     }
+ 
+     /**
+diff --git a/src/main/java/io/zold/api/Remote.java b/src/main/java/io/zold/api/Remote.java
+index 7124353..981d03d 100644
+--- a/src/main/java/io/zold/api/Remote.java
++++ b/src/main/java/io/zold/api/Remote.java
+@@ -25,7 +25,7 @@
+ package io.zold.api;
+ 
+ import org.cactoos.iterable.Repeated;
+-import org.cactoos.text.RandomText;
++import org.cactoos.text.TextRandom;
+ 
+ /**
+  * Remote node.
+@@ -68,7 +68,7 @@ public interface Remote {
+          */
+         public Fake(final int val) {
+             this(new RtScore(
+-                new Repeated<>(val, new RandomText())
++                new Repeated<>(val, new TextRandom())
+             ));
+         }
+ 
+diff --git a/src/main/java/io/zold/api/RtNetwork.java b/src/main/java/io/zold/api/RtNetwork.java
+index d85be79..b88bc62 100644
+--- a/src/main/java/io/zold/api/RtNetwork.java
++++ b/src/main/java/io/zold/api/RtNetwork.java
+@@ -27,7 +27,7 @@ import java.io.IOException;
+ import java.util.Iterator;
+ import org.cactoos.iterable.Mapped;
+ import org.cactoos.iterable.Sorted;
+-import org.cactoos.scalar.IoCheckedScalar;
++import org.cactoos.scalar.IoChecked;
+ import org.cactoos.scalar.Reduced;
+ 
+ /**
+@@ -64,6 +64,7 @@ public final class RtNetwork implements Network {
+     @Override
+     public Wallet pull(final long id) throws IOException {
+         return new IoCheckedScalar<>(
++        return new IoChecked<>(
+             new Reduced<>(
+                 Wallet::merge,
+                 new Mapped<>(
+diff --git a/src/main/java/io/zold/api/RtScore.java b/src/main/java/io/zold/api/RtScore.java
+index 6206016..108c8b2 100644
+--- a/src/main/java/io/zold/api/RtScore.java
++++ b/src/main/java/io/zold/api/RtScore.java
+@@ -24,7 +24,7 @@
+ package io.zold.api;
+ 
+ import org.cactoos.Text;
+-import org.cactoos.iterable.LengthOf;
++import org.cactoos.scalar.LengthOf;
+ 
+ /**
+  * Default implementation for {@link Score}.
+@@ -49,8 +49,8 @@ public final class RtScore implements Score {
+ 
+     @Override
+     public int compareTo(final Score other) {
+-        return new LengthOf(other.suffixes()).intValue()
+-            - new LengthOf(this.sfxs).intValue();
++        return new LengthOf(other.suffixes()).value().intValue()
++            - new LengthOf(this.sfxs).value().intValue();
+     }
+ 
+     @Override
+diff --git a/src/main/java/io/zold/api/RtTransaction.java b/src/main/java/io/zold/api/RtTransaction.java
+index 8385c61..d99e0ec 100644
+--- a/src/main/java/io/zold/api/RtTransaction.java
++++ b/src/main/java/io/zold/api/RtTransaction.java
+@@ -30,7 +30,7 @@ import java.time.format.DateTimeFormatter;
+ import java.util.List;
+ import java.util.regex.Pattern;
+ import org.cactoos.Text;
+-import org.cactoos.iterable.LengthOf;
++import org.cactoos.scalar.LengthOf;
+ import org.cactoos.list.ListOf;
+ import org.cactoos.scalar.IoCheckedScalar;
+ import org.cactoos.scalar.ItemAt;
+@@ -109,7 +109,7 @@ final class RtTransaction implements Transaction {
+                             new SplitText(trnsct, ";")
+                         );
+                     // @checkstyle MagicNumberCheck (1 line)
+-                    if (new LengthOf(pieces).intValue() != 7) {
++                    if (new LengthOf(pieces).value().intValue() != 7) {
+                         throw new IOException(
+                             new FormattedText(
+                                 // @checkstyle LineLength (1 line)
+diff --git a/src/main/java/io/zold/api/TaxBeneficiaries.java b/src/main/java/io/zold/api/TaxBeneficiaries.java
+index 6ccdbbf..394b840 100644
+--- a/src/main/java/io/zold/api/TaxBeneficiaries.java
++++ b/src/main/java/io/zold/api/TaxBeneficiaries.java
+@@ -24,8 +24,10 @@
+ package io.zold.api;
+ 
+ import java.util.Comparator;
++import org.cactoos.scalar.LengthOf;
+ import org.cactoos.iterable.Filtered;
+ import org.cactoos.iterable.IterableEnvelope;
++import org.cactoos.iterable.Sorted;
+ import org.cactoos.iterable.LengthOf;
+ import org.cactoos.iterable.Sorted;
+ 
+@@ -46,7 +48,7 @@ public final class TaxBeneficiaries extends IterableEnvelope<Remote> {
+             Comparator.comparing(Remote::score),
+             new Filtered<>(
+                 // @checkstyle MagicNumberCheck (1 line)
+-                n -> new LengthOf(n.score().suffixes()).intValue() >= 16,
++                n -> new LengthOf(n.score().suffixes()).value().intValue() >= 16,
+                 nodes
+             )
+         ));
+diff --git a/src/main/java/io/zold/api/Wallet.java b/src/main/java/io/zold/api/Wallet.java
+index d149e1a..19f4424 100644
+--- a/src/main/java/io/zold/api/Wallet.java
++++ b/src/main/java/io/zold/api/Wallet.java
+@@ -27,13 +27,13 @@ import java.io.FileWriter;
+ import java.io.IOException;
+ import java.io.Writer;
+ import java.nio.file.Path;
+-import org.cactoos.collection.Filtered;
++import org.cactoos.iterable.Filtered;
+ import org.cactoos.iterable.IterableOf;
+ import org.cactoos.iterable.Joined;
+ import org.cactoos.iterable.Mapped;
+ import org.cactoos.iterable.Skipped;
+ import org.cactoos.list.ListOf;
+-import org.cactoos.scalar.CheckedScalar;
++import org.cactoos.scalar.IoChecked;
+ import org.cactoos.scalar.Or;
+ import org.cactoos.scalar.UncheckedScalar;
+ import org.cactoos.text.FormattedText;
+@@ -199,6 +199,7 @@ public interface Wallet {
+         @Override
+         public long id() throws IOException {
+             return new CheckedScalar<>(
++            return new IoChecked<>(
+                 () -> Long.parseUnsignedLong(
+                     new ListOf<>(
+                         new SplitText(
+diff --git a/src/main/java/io/zold/api/WalletsIn.java b/src/main/java/io/zold/api/WalletsIn.java
+index 065f80a..490a4a6 100644
+--- a/src/main/java/io/zold/api/WalletsIn.java
++++ b/src/main/java/io/zold/api/WalletsIn.java
+@@ -34,7 +34,7 @@ import org.cactoos.func.IoCheckedFunc;
+ import org.cactoos.io.Directory;
+ import org.cactoos.iterable.Filtered;
+ import org.cactoos.iterable.Mapped;
+-import org.cactoos.scalar.IoCheckedScalar;
++import org.cactoos.scalar.IoChecked;
+ import org.cactoos.scalar.SolidScalar;
+ import org.cactoos.text.FormattedText;
+ import org.cactoos.text.JoinedText;
+@@ -101,6 +101,7 @@ public final class WalletsIn implements Wallets {
+     public WalletsIn(final Scalar<Path> pth, final String ext,
+         final Random random) {
+         this.path = new IoCheckedScalar<>(
++        this.path = new IoChecked<>(
+             new SolidScalar<>(pth)
+         );
+         this.filter = new IoCheckedFunc<Path, Boolean>(

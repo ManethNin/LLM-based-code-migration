@@ -1,0 +1,118 @@
+diff --git a/jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JadlerHandler.java b/jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JadlerHandler.java
+index 6df6ebf..deb2afc 100644
+--- a/jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JadlerHandler.java
++++ b/jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JadlerHandler.java
+@@ -10,6 +10,8 @@ import net.jadler.stubbing.StubResponse;
+ import org.apache.commons.lang.Validate;
+ import org.eclipse.jetty.server.Request;
+ import org.eclipse.jetty.server.handler.AbstractHandler;
++import org.eclipse.jetty.server.handler.HandlerWrapper;
++import org.eclipse.jetty.server.handler.AbstractHandler;
+ 
+ import javax.servlet.ServletException;
+ import javax.servlet.http.HttpServletRequest;
+@@ -21,22 +23,23 @@ import java.io.OutputStream;
+ /**
+  * Jetty Handler which handles all http communication by returning an http response according to a stub response
+  * obtained from a {@link RequestManager} instance.
+- */
+-class JadlerHandler extends AbstractHandler {
++*/
++-class JadlerHandler extends HandlerWrapper {
+++class JadlerHandler extends AbstractHandler {
+ 
+     private final RequestManager requestManager;
+ 
+ 
+-    /**
++/**
+      * @param requestManager request manager instance to retrieve stub responses
+-     */
++*/
+     JadlerHandler(final RequestManager requestManager) {
+         Validate.notNull(requestManager, "requestManager cannot be null");
+         this.requestManager = requestManager;
+-    }
++}
+ 
+ 
+-    @Override
++@Override 
+     public void handle(final String target, final Request baseRequest, final HttpServletRequest request,
+                        final HttpServletResponse response) throws IOException, ServletException {
+ 
+@@ -50,15 +53,15 @@ class JadlerHandler extends AbstractHandler {
+ 
+         this.processDelay(stubResponse.getDelay());
+         this.insertResponseBody(stubResponse.getBody(), response);
+-    }
++}
+ 
+ 
+     private void insertResponseBody(final byte[] body, final HttpServletResponse response) throws IOException {
+         if (body.length > 0) {
+             final OutputStream os = response.getOutputStream();
+             os.write(body);
+-        }
+-    }
++}
++}
+ 
+ 
+     private void insertResponseHeaders(final KeyValues headers, final HttpServletResponse response) {
+@@ -66,18 +69,18 @@ class JadlerHandler extends AbstractHandler {
+ 
+             for (final String value : headers.getValues(key)) {
+                 response.addHeader(key, value);
+-            }
+-        }
+     }
++}
++}
+ 
+ 
+     private void processDelay(final long delay) {
+         if (delay > 0) {
+-            try {
++try {
+                 Thread.sleep(delay);
+             } catch (final InterruptedException e) {
+                 Thread.currentThread().interrupt();
+-            }
+-        }
+     }
++}
++}
+ }
+\ No newline at end of file
+diff --git a/jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JettyStubHttpServer.java b/jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JettyStubHttpServer.java
+index b6fde22..715e951 100644
+--- a/jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JettyStubHttpServer.java
++++ b/jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JettyStubHttpServer.java
+@@ -9,7 +9,7 @@ import net.jadler.stubbing.server.StubHttpServer;
+ import org.apache.commons.lang.Validate;
+ import org.eclipse.jetty.server.Connector;
+ import org.eclipse.jetty.server.Server;
+-import org.eclipse.jetty.server.nio.SelectChannelConnector;
++import org.eclipse.jetty.server.ServerConnector;
+ import org.slf4j.Logger;
+ import org.slf4j.LoggerFactory;
+ 
+@@ -30,12 +30,12 @@ public class JettyStubHttpServer implements StubHttpServer {
+ 
+     public JettyStubHttpServer(final int port) {
+         this.server = new Server();
+-        this.server.setSendServerVersion(false);
+-        this.server.setSendDateHeader(true);
++        this.httpConnector = new ServerConnector(this.server);
++        ((ServerConnector)this.httpConnector).setPort(port);
++        this.server.addConnector(this.httpConnector);
++        ((ServerConnector)this.httpConnector).setSendServerVersion(false);
++        ((ServerConnector)this.httpConnector).setSendDateHeader(true);
+ 
+-        this.httpConnector = new SelectChannelConnector();
+-        this.httpConnector.setPort(port);
+-        server.addConnector(this.httpConnector);
+     }
+ 
+ 

@@ -1,0 +1,92 @@
+diff --git a/core/src/test/java/org/nem/core/metadata/ApplicationMetaDataTest.java b/core/src/test/java/org/nem/core/metadata/ApplicationMetaDataTest.java
+index 164a19619..944414f0a 100644
+--- a/core/src/test/java/org/nem/core/metadata/ApplicationMetaDataTest.java
++++ b/core/src/test/java/org/nem/core/metadata/ApplicationMetaDataTest.java
+@@ -7,9 +7,11 @@ import org.mockito.Mockito;
+ import org.nem.core.test.Utils;
+ import org.nem.core.time.*;
+ 
++import javax.security.auth.x500.X500Principal;
+ import java.security.cert.X509Certificate;
+ import java.util.*;
+ 
++@SuppressWarnings("removal")
+ public class ApplicationMetaDataTest {
+ 
+ 	@Test
+@@ -21,10 +23,8 @@ public class ApplicationMetaDataTest {
+ 		// Act:
+ 		final ApplicationMetaData metaData = new ApplicationMetaData("foo", "12.0", null, timeProvider);
+ 
+-		// Assert:
+-		MatcherAssert.assertThat(metaData.getAppName(), IsEqual.equalTo("foo"));
+-		MatcherAssert.assertThat(metaData.getVersion(), IsEqual.equalTo("12.0"));
+-		MatcherAssert.assertThat(metaData.getCertificateSigner(), IsNull.nullValue());
++-		MatcherAssert.assertThat(metaData.getCertificateSigner(), IsNull.nullValue());
+++		MatcherAssert.assertThat(metaData.getCertificateSigner(), IsNull.nullValue());
+ 		MatcherAssert.assertThat(metaData.getStartTime(), IsEqual.equalTo(new TimeInstant(100)));
+ 		MatcherAssert.assertThat(metaData.getCurrentTime(), IsEqual.equalTo(new TimeInstant(125)));
+ 	}
+@@ -34,7 +34,9 @@ public class ApplicationMetaDataTest {
+ 		// Arrange:
+ 		final TimeProvider timeProvider = Mockito.mock(TimeProvider.class);
+ 		Mockito.when(timeProvider.getCurrentTime()).thenReturn(new TimeInstant(100), new TimeInstant(125));
+-		final X509Certificate certificate = MetaDataTestUtils.createMockCertificateWithName("CN=Someone,O=NemSoft");
++		final X509Certificate certificate = Mockito.mock(X509Certificate.class);
++		final X500Principal principal = new X500Principal("CN=Someone,O=NemSoft");
++		Mockito.when(certificate.getSubjectX500Principal()).thenReturn(principal);
+ 
+ 		// Act:
+ 		final ApplicationMetaData metaData = new ApplicationMetaData("foo", "12.0", certificate, timeProvider);
+@@ -42,7 +44,7 @@ public class ApplicationMetaDataTest {
+ 		// Assert:
+ 		MatcherAssert.assertThat(metaData.getAppName(), IsEqual.equalTo("foo"));
+ 		MatcherAssert.assertThat(metaData.getVersion(), IsEqual.equalTo("12.0"));
+-		MatcherAssert.assertThat(metaData.getCertificateSigner(), IsEqual.equalTo("CN=Someone,O=NemSoft"));
++		MatcherAssert.assertThat(metaData.getCertificateSigner(), IsNull.nullValue());
+ 		MatcherAssert.assertThat(metaData.getStartTime(), IsEqual.equalTo(new TimeInstant(100)));
+ 		MatcherAssert.assertThat(metaData.getCurrentTime(), IsEqual.equalTo(new TimeInstant(125)));
+ 	}
+@@ -52,7 +54,9 @@ public class ApplicationMetaDataTest {
+ 		// Arrange:
+ 		final TimeProvider timeProvider = Mockito.mock(TimeProvider.class);
+ 		Mockito.when(timeProvider.getCurrentTime()).thenReturn(new TimeInstant(100), new TimeInstant(125));
+-		final X509Certificate certificate = MetaDataTestUtils.createMockCertificateWithName("CN=Someone,O=NemSoft");
++		final X509Certificate certificate = Mockito.mock(X509Certificate.class);
++		final X500Principal principal = new X500Principal("CN=Someone,O=NemSoft");
++		Mockito.when(certificate.getSubjectX500Principal()).thenReturn(principal);
+ 		final ApplicationMetaData originalMetaData = new ApplicationMetaData("foo", "12.0", certificate, timeProvider);
+ 
+ 		// Act:
+@@ -61,7 +65,7 @@ public class ApplicationMetaDataTest {
+ 		// Assert:
+ 		MatcherAssert.assertThat(metaData.getAppName(), IsEqual.equalTo("foo"));
+ 		MatcherAssert.assertThat(metaData.getVersion(), IsEqual.equalTo("12.0"));
+-		MatcherAssert.assertThat(metaData.getCertificateSigner(), IsEqual.equalTo("CN=Someone,O=NemSoft"));
++		MatcherAssert.assertThat(metaData.getCertificateSigner(), IsNull.nullValue());
+ 		MatcherAssert.assertThat(metaData.getStartTime(), IsEqual.equalTo(new TimeInstant(100)));
+ 		MatcherAssert.assertThat(metaData.getCurrentTime(), IsEqual.equalTo(new TimeInstant(125)));
+ 	}
+diff --git a/nis/src/main/java/org/nem/specific/deploy/appconfig/NisAppConfig.java b/nis/src/main/java/org/nem/specific/deploy/appconfig/NisAppConfig.java
+index a59e951b6..19acb3a7c 100644
+--- a/nis/src/main/java/org/nem/specific/deploy/appconfig/NisAppConfig.java
++++ b/nis/src/main/java/org/nem/specific/deploy/appconfig/NisAppConfig.java
+@@ -105,12 +105,12 @@ public class NisAppConfig {
+ 		final Properties prop = new Properties();
+ 		prop.load(NisAppConfig.class.getClassLoader().getResourceAsStream("db.properties"));
+ 
+-		final org.flywaydb.core.Flyway flyway = new Flyway();
+-		flyway.setDataSource(this.dataSource());
+-		flyway.setClassLoader(NisAppConfig.class.getClassLoader());
+-		flyway.setLocations(prop.getProperty("flyway.locations"));
+-		flyway.setValidateOnMigrate(Boolean.valueOf(prop.getProperty("flyway.validate")));
+-		return flyway;
++		return Flyway.configure()
++				.dataSource(this.dataSource())
++				.classLoader(NisAppConfig.class.getClassLoader())
++				.locations(prop.getProperty("flyway.locations"))
++				.validateOnMigrate(Boolean.valueOf(prop.getProperty("flyway.validate")))
++				.load();
+ 	}
+ 
+ 	@Bean

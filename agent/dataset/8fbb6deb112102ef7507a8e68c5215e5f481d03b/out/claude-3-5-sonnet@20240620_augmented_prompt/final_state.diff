@@ -1,0 +1,430 @@
+diff --git a/jadler-core/src/main/java/net/jadler/stubbing/Stubbing.java b/jadler-core/src/main/java/net/jadler/stubbing/Stubbing.java
+index 12eec1e..a5694c8 100644
+--- a/jadler-core/src/main/java/net/jadler/stubbing/Stubbing.java
++++ b/jadler-core/src/main/java/net/jadler/stubbing/Stubbing.java
+@@ -19,7 +19,6 @@ import org.apache.commons.collections.MultiMap;
+ import org.apache.commons.collections.map.MultiValueMap;
+ import org.apache.commons.lang.Validate;
+ 
+-
+ /**
+  * Internal class for defining http stubs in a fluid fashion. You shouldn't create instances
+  * of this class on your own, please see {@link Jadler#onRequest()}
+@@ -34,199 +33,193 @@ public class Stubbing extends AbstractRequestMatching<RequestStubbing> implement
+     private final MultiMap defaultHeaders;
+     private final int defaultStatus;
+     private final Charset defaultEncoding;
++
+     
+-    
+-    /**
++/**
+      * @param defaultHeaders default headers to be present in every http stub response
+      * @param defaultStatus default http status of every http stub response 
+      * (can be overridden in the particular stub)
+      * @param defaultEncoding default encoding of every stub response body (can be overridden in the particular stub)
+-     */
++*/
+     @SuppressWarnings("unchecked")
+     Stubbing(final Charset defaultEncoding, final int defaultStatus, final MultiMap defaultHeaders) {
+-        
++
+         this.stubResponses = new ArrayList<MutableStubResponse>();
+         this.defaultHeaders = new MultiValueMap();
+         this.defaultHeaders.putAll(defaultHeaders);
+         this.defaultStatus = defaultStatus;
+         this.defaultEncoding = defaultEncoding;        
+         this.responder = null;
+-    }
++}
+ 
+-    
+-    /**
++
++/**
+      * {@inheritDoc}
+-     */
+-    @Override
++*/
++@Override
+     public ResponseStubbing respond() {
+         return this.thenRespond();
+-    }
+-    
+-    
+-    /**
++}
++
++
++/**
+      * {@inheritDoc}
+-     */
+-    @Override
++*/
++@Override
+     public ResponseStubbing thenRespond() {
+         final MutableStubResponse response = new MutableStubResponse();
+-        
++
+         response.addHeaders(defaultHeaders);
+         response.setStatus(defaultStatus);
+         response.setEncoding(defaultEncoding);
+         response.setBody("");
+-        
++
+         stubResponses.add(response);
+         return this;
+-    }
+-    
+-    
+-    /**
++}
++
++
++/**
+      * {@inheritDoc}
+-     */
+-    @Override
++*/
++@Override
+     public void respondUsing(final Responder responder) {
+         Validate.notNull(responder, "responder cannot be null");
+-        
++
+         this.responder = responder;
+-    }
+-    
++}
++
+ 
+-    /**
++/**
+      * {@inheritDoc}
+-     */
+-    @Override
++*/
++@Override
+     public ResponseStubbing withContentType(final String contentType) {
+         currentResponse().setHeaderCaseInsensitive(CONTENT_TYPE_HEADER, contentType);
+         return this;
+-    }
+-    
++}
+ 
+-    /**
++
++/**
+      * {@inheritDoc}
+-     */
+-    @Override
++*/
++@Override
+     public ResponseStubbing withEncoding(final Charset encoding) {
+         currentResponse().setEncoding(encoding);
+         return this;
+-    }
++}
+ 
+ 
+-    /**
++/**
+      * {@inheritDoc}
+-     */
+-    @Override
++*/
++@Override
+     public ResponseStubbing withBody(final String responseBody) {
+         currentResponse().setBody(responseBody);
+         return this;
+-    }
++}
+ 
+ 
+-    /**
++/**
+      * {@inheritDoc}
+-     */    
+-    @Override
++*/    
++@Override
+     public ResponseStubbing withBody(final Reader reader) {
+-        try {
++try {
+             final String responseBody;
+-            
+-            try {
++
++try {
+                 responseBody = IOUtils.toString(reader);
+             } catch (final IOException ex) {
+                 throw new JadlerException("An error ocurred while reading the response body from "
+                         + "the given Reader instance.", ex);
+-            }
+-            
++}
++
+             return this.withBody(responseBody);
+-        }
+-        finally {
++}
++finally {
+             IOUtils.closeQuietly(reader);
+-        }
+-    }
+-    
+-    
+-    /**
++}
++}
++
++
++/**
+      * {@inheritDoc}
+-     */ 
+-    @Override
++*/ 
++@Override
+     public ResponseStubbing withBody(final InputStream is) {
+-        try {
+-            final byte[] responseBody;
+-        
+-            try {
+-                responseBody = IOUtils.toByteArray(is);
+-            }
+-            catch (final IOException e) {
++try {
++final byte[] responseBody = IOUtils.toByteArray(is);
++        currentResponse().setBody(responseBody);
++        return this;
++} catch (final IOException e) {
+                 throw new JadlerException("A problem occurred while reading the given input stream", e);
+-            }
+-        
+-            return this.withBody(responseBody);
+-        }
+-        finally {
++} finally {
+             IOUtils.closeQuietly(is);
+-        }
+-    }
++}
++}
+ 
+ 
+-    /**
++/**
+      * {@inheritDoc}
+-     */ 
+-    @Override
++*/ 
++@Override
+     public ResponseStubbing withBody(final byte[] responseBody) {
+         currentResponse().setBody(responseBody);
+         return this;
+-    }
++}
+ 
+-    
+-    /**
++
++/**
+      * {@inheritDoc}
+-     */ 
+-    @Override
++*/ 
++@Override
+     public ResponseStubbing withHeader(final String name, final String value) {
+         currentResponse().addHeader(name, value);
+         return this;
+-    }
++}
+ 
+ 
+-    /**
++/**
+      * {@inheritDoc}
+-     */
+-    @Override
++*/
++@Override
+     public ResponseStubbing withStatus(final int status) {
+         currentResponse().setStatus(status);
+         return this;
+-    }
++}
+ 
+-    
+-    /**
++
++/**
+      * {@inheritDoc}
+-     */
+-    @Override
++*/
++@Override
+     public ResponseStubbing withDelay(long delayValue, TimeUnit delayUnit) {
+         currentResponse().setDelay(java.util.concurrent.TimeUnit.MILLISECONDS.convert(delayValue, delayUnit));
+         return this;
+-    }
+-    
+-    
+-    /**
++}
++
++
++/**
+      * Creates a {@link HttpStub} instance from this Stubbing instance.
+      * Must be called once this stubbing has been finished.
+      * @return {@link HttpStub} instance configured using values from this stubbing
+-     */
++*/
+     public HttpStub createRule() {
+         if (this.responder != null) {
+             return new HttpStub(predicates, this.responder);
+-        }
+-        
++}
++
+         final List<StubResponse> res = new ArrayList<StubResponse>(this.stubResponses.size());
+         for(final MutableStubResponse msr: this.stubResponses) {
+             res.add(msr.toStubResponse());
+-        }
+-        
++}
++
+         return new HttpStub(predicates, new StaticResponder(res));
+-    }
+-    
++}
++
+ 
+     private MutableStubResponse currentResponse() {
+         return stubResponses.get(stubResponses.size() - 1);
+-    }
++}
+ }
+\ No newline at end of file
+diff --git a/jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JadlerHandler.java b/jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JadlerHandler.java
+index 0198464..9a774ec 100644
+--- a/jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JadlerHandler.java
++++ b/jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JadlerHandler.java
+@@ -35,6 +35,7 @@ class JadlerHandler extends AbstractHandler {
+     }
+ 
+ 
++    @Override
+     @Override
+     public void handle(final String target, final Request baseRequest, final HttpServletRequest request,
+             final HttpServletResponse response) throws IOException, ServletException {
+@@ -79,4 +80,4 @@ class JadlerHandler extends AbstractHandler {
+             }
+         }
+     }
+-}
+\ No newline at end of file
++}
+diff --git a/jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JettyStubHttpServer.java b/jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JettyStubHttpServer.java
+index a501e45..0221c39 100644
+--- a/jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JettyStubHttpServer.java
++++ b/jadler-jetty/src/main/java/net/jadler/stubbing/server/jetty/JettyStubHttpServer.java
+@@ -10,8 +10,8 @@ import org.eclipse.jetty.server.Server;
+ import org.slf4j.Logger;
+ import org.slf4j.LoggerFactory;
+ import org.apache.commons.lang.Validate;
+-import org.eclipse.jetty.server.Connector;
+-import org.eclipse.jetty.server.nio.SelectChannelConnector;
++import org.eclipse.jetty.server.ServerConnector;
++import org.eclipse.jetty.server.HttpConfiguration;
+ 
+ 
+ /**
+@@ -21,7 +21,7 @@ public class JettyStubHttpServer implements StubHttpServer {
+ 
+     private static final Logger logger = LoggerFactory.getLogger(JettyStubHttpServer.class);
+     private final Server server;
+-    private final Connector httpConnector;
++    private final ServerConnector httpConnector;
+ 
+     public JettyStubHttpServer() {
+         this(0);
+@@ -30,53 +30,54 @@ public class JettyStubHttpServer implements StubHttpServer {
+ 
+     public JettyStubHttpServer(final int port) {
+         this.server = new Server();
+-        this.server.setSendServerVersion(false);
+-        this.server.setSendDateHeader(true);
+-        
+-        this.httpConnector = new SelectChannelConnector();
++HttpConfiguration config = new HttpConfiguration();
++config.setSendServerVersion(false);
++config.setSendDateHeader(true);
++
++this.httpConnector = new ServerConnector(server, new HttpConfiguration(config));
+         this.httpConnector.setPort(port);
+         server.addConnector(this.httpConnector);
+-    }
+-    
++}
++
+ 
+-    /**
++/**
+      * {@inheritDoc}
+-     */
+-    @Override
++*/
++@Override
+     public void registerRequestManager(final RequestManager ruleProvider) {
+         Validate.notNull(ruleProvider, "ruleProvider cannot be null");
+ 
+         server.setHandler(new JadlerHandler(ruleProvider));
+-    }
+-    
++}
++
+ 
+-    /**
++/**
+      * {@inheritDoc}
+-     */
+-    @Override
++*/
++@Override
+     public void start() throws Exception {
+         logger.debug("starting jetty");
+         server.start();
+         logger.debug("jetty started");
+-    }
++}
+ 
+ 
+-    /**
++/**
+      * {@inheritDoc}
+-     */
+-    @Override
++*/
++@Override
+     public void stop() throws Exception {
+         logger.debug("stopping jetty");
+         server.stop();
+         logger.debug("jetty stopped");
+-    }
+-    
++}
++
+ 
+-    /**
++/**
+      * {@inheritDoc}
+-     */
+-    @Override
++*/
++@Override
+     public int getPort() {
+-        return httpConnector.getLocalPort();
+-    }
++return httpConnector.getPort();
++}
+ }
+\ No newline at end of file

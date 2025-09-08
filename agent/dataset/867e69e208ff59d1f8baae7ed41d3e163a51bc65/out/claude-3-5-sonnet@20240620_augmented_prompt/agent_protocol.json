@@ -1,0 +1,321 @@
+{
+    "validate_diffs": [],
+    "compile_maven": [
+        {
+            "input": "```diff\n--- singer/src/main/java/com/pinterest/singer/reader/ThriftReader.java\n+++ singer/src/main/java/com/pinterest/singer/reader/ThriftReader.java\n@@ -5,7 +5,7 @@ import com.google.common.base.Strings;\n import org.apache.thrift.TBase;\n import org.apache.thrift.TException;\n import org.apache.thrift.protocol.TProtocol;\n-import org.apache.thrift.transport.TFramedTransport;\n+import org.apache.thrift.transport.TFastFramedTransport;\n import org.apache.thrift.transport.TIOStreamTransport;\n import org.apache.thrift.transport.TTransport;\n \n@@ -37,7 +37,7 @@ public class ThriftReader<T extends TBase> implements Closeable {\n   private final ByteOffsetInputStream byteOffsetInputStream;\n \n   // The framed framedTransport.\n-  private final TFramedTransport framedTransport;\n+  private final TFastFramedTransport framedTransport;\n \n   // TProtocol implementation.\n   private final TProtocol protocol;\n@@ -52,7 +52,7 @@ public class ThriftReader<T extends TBase> implements Closeable {\n \n     this.byteOffsetInputStream = new ByteOffsetInputStream(\n         new RandomAccessFile(path, \"r\"), readBufferSize);\n-    this.framedTransport = new TFramedTransport(new TIOStreamTransport(this\n+    this.framedTransport = new TFastFramedTransport(new TIOStreamTransport(this\n         .byteOffsetInputStream), maxMessageSize);\n     this.baseFactory = Preconditions.checkNotNull(baseFactory);\n     this.protocol = protocolFactory.get(this.framedTransport);\n--- singer/src/main/java/com/pinterest/singer/utils/SimpleThriftLogger.java\n+++ singer/src/main/java/com/pinterest/singer/utils/SimpleThriftLogger.java\n@@ -5,7 +5,7 @@ import com.pinterest.singer.thrift.LogFile;\n import org.apache.thrift.TBase;\n import org.apache.thrift.protocol.TBinaryProtocol;\n import org.apache.thrift.protocol.TProtocol;\n-import org.apache.thrift.transport.TFramedTransport;\n+import org.apache.thrift.transport.TFastFramedTransport;\n import org.apache.thrift.transport.TIOStreamTransport;\n import org.apache.thrift.transport.TTransport;\n import org.apache.thrift.transport.TTransportException;\n@@ -24,7 +24,7 @@ import java.nio.file.FileSystems;\n @SuppressWarnings(\"rawtypes\")\n public final class SimpleThriftLogger<T extends TBase> implements Closeable {\n \n-  private static final class ByteOffsetTFramedTransport extends TFramedTransport {\n+  private static final class ByteOffsetTFramedTransport extends TFastFramedTransport {\n \n     private long byteOffset;\n \n@@ -42,7 +42,7 @@ public final class SimpleThriftLogger<T extends TBase> implements Closeable {\n     @Override\n     public void flush() throws TTransportException {\n       super.flush();\n-      // Add 4 bytes for the frame size.\n+      // Add 4 bytes for the frame size (TFastFramedTransport uses 4 bytes for frame size).\n       byteOffset += 4;\n     }\n```",
+            "output": {
+                "compilation_has_succeeded": false,
+                "test_has_succeeded": false,
+                "error_text": "cannot find symbol\n",
+                "updated_files": {
+                    "singer/src/main/java/com/pinterest/singer/reader/ThriftReader.java": "/**\n * Copyright 2019 Pinterest, Inc.\n * \n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n * \n *    http://www.apache.org/licenses/LICENSE-2.0\n * \n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\npackage com.pinterest.singer.reader;\n\nimport com.google.common.base.Preconditions;\nimport com.google.common.base.Strings;\nimport org.apache.thrift.TBase;\nimport org.apache.thrift.TException;\nimport org.apache.thrift.protocol.TProtocol;\nimport org.apache.thrift.transport.TFastFramedTransport;\nimport org.apache.thrift.transport.TIOStreamTransport;\nimport org.apache.thrift.transport.TTransport;\n\nimport java.io.Closeable;\nimport java.io.IOException;\nimport java.io.RandomAccessFile;\n\n/**\n * Reader that reads Thrift messages of thrift type from a file\n * <p/>\n * This class is NOT thread-safe.\n */\n@SuppressWarnings(\"rawtypes\")\npublic class ThriftReader<T extends TBase> implements Closeable {\n\n  /**\n   * Factory that get a TBase instance of the thrift type to be read.\n   *\n   * @param <T> The thrift message type to be read.\n   */\n  public static interface TBaseFactory<T> {\n\n    T get();\n  }\n\n  /**\n   * Factory that get a TProtocol instance.\n   */\n  public static interface TProtocolFactory {\n\n    TProtocol get(TTransport transport);\n  }\n\n  // Factory that creates empty objects that will be initialized with values from the file.\n  private final TBaseFactory<T> baseFactory;\n\n  // The ByteOffsetInputStream to read from.\n  private final ByteOffsetInputStream byteOffsetInputStream;\n\n  // The framed framedTransport.\n  private final TFastFramedTransport framedTransport;\n\n  // TProtocol implementation.\n  private final TProtocol protocol;\n\n  public ThriftReader(\n      String path,\n      TBaseFactory<T> baseFactory,\n      TProtocolFactory protocolFactory,\n      int readBufferSize,\n      int maxMessageSize) throws IOException {\n    Preconditions.checkArgument(!Strings.isNullOrEmpty(path));\n    Preconditions.checkNotNull(protocolFactory);\n\n    this.byteOffsetInputStream = new ByteOffsetInputStream(\n        new RandomAccessFile(path, \"r\"), readBufferSize);\n    this.framedTransport = new TFastFramedTransport(new TIOStreamTransport(this\n        .byteOffsetInputStream), maxMessageSize);\n    this.baseFactory = Preconditions.checkNotNull(baseFactory);\n    this.protocol = protocolFactory.get(this.framedTransport);\n  }\n\n  /**\n   * Read one thrift message.\n   *\n   * @return next thrift message from the reader. null if no thrift message in the reader.\n   * @throws IOException when file error.\n   * @throws TException  when parse error.\n   */\n  public T read() throws IOException, TException {\n    // If frame buffer is empty and we are at EOF of underlying input stream, return null.\n    if (framedTransport.getBytesRemainingInBuffer() == 0 && byteOffsetInputStream.isEOF()) {\n      return null;\n    }\n\n    T t = baseFactory.get();\n    t.read(protocol);\n    return t;\n  }\n\n  /**\n   * @return byte offset of the next message.\n   * @throws IOException on file error.\n   */\n  public long getByteOffset() throws IOException {\n    Preconditions.checkState(\n        byteOffsetInputStream.getByteOffset() >= framedTransport.getBytesRemainingInBuffer());\n    return byteOffsetInputStream.getByteOffset() - framedTransport.getBytesRemainingInBuffer();\n  }\n\n  /**\n   * Set byte offset of the next message to be read.\n   *\n   * @param byteOffset byte offset.\n   * @throws IOException on file error.\n   */\n  public void setByteOffset(long byteOffset) throws IOException {\n    // If we already at the byte offset, return.\n    if (getByteOffset() == byteOffset) {\n      return;\n    }\n\n    // Clear the buffer\n    framedTransport.consumeBuffer(framedTransport.getBytesRemainingInBuffer());\n\n    // Set underlying stream byte offset\n    byteOffsetInputStream.setByteOffset(byteOffset);\n  }\n\n  /**\n   * Close the reader.\n   *\n   * @throws IOException on file error.\n   */\n  public void close() throws IOException {\n    framedTransport.close();\n  }\n}\n",
+                    "singer/src/main/java/com/pinterest/singer/utils/SimpleThriftLogger.java": "/**\n * Copyright 2019 Pinterest, Inc.\n * \n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n * \n *    http://www.apache.org/licenses/LICENSE-2.0\n * \n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\npackage com.pinterest.singer.utils;\n\nimport com.pinterest.singer.thrift.LogFile;\n\nimport org.apache.commons.io.FileUtils;\nimport org.apache.thrift.TBase;\nimport org.apache.thrift.protocol.TBinaryProtocol;\nimport org.apache.thrift.protocol.TProtocol;\nimport org.apache.thrift.transport.TFastFramedTransport;\nimport org.apache.thrift.transport.TIOStreamTransport;\nimport org.apache.thrift.transport.TTransport;\nimport org.apache.thrift.transport.TTransportException;\n\nimport java.io.BufferedOutputStream;\nimport java.io.Closeable;\nimport java.io.File;\nimport java.io.FileOutputStream;\nimport java.io.IOException;\nimport java.nio.file.FileSystems;\n\n/**\n * Thrift Logger which is used to log thrift log messages into a log file.\n *\n * This class is used by unit test and ThriftLogGenerator to write log messages to thrift log\n * file. It provides APIs for client to control the flush behavior and log file rotation.\n */\n@SuppressWarnings(\"rawtypes\")\npublic final class SimpleThriftLogger<T extends TBase> implements Closeable {\n\n  private static final class ByteOffsetTFramedTransport extends TFastFramedTransport {\n\n    private long byteOffset;\n\n    public ByteOffsetTFramedTransport(TTransport transport) {\n      super(transport);\n      byteOffset = 0;\n    }\n\n    @Override\n    public void write(byte[] buf, int off, int len) throws TTransportException {\n      super.write(buf, off, len);\n      byteOffset += len;\n    }\n\n    @Override\n    public void flush() throws TTransportException {\n      super.flush();\n      // Add 4 bytes for the frame size (TFastFramedTransport uses 4 bytes for frame size).\n      byteOffset += 4;\n    }\n\n    public long getByteOffset() {\n      return byteOffset;\n    }\n  }\n\n  private final String fileName;\n\n  private BufferedOutputStream bufferedOutputStream;\n  private ByteOffsetTFramedTransport transport;\n  private TProtocol protocol;\n\n  public SimpleThriftLogger(String filename) throws Exception {\n    this.fileName = filename;\n    bufferedOutputStream = new BufferedOutputStream(new FileOutputStream(fileName, true));\n    transport = new ByteOffsetTFramedTransport(new TIOStreamTransport(bufferedOutputStream));\n    protocol = new TBinaryProtocol(transport);\n  }\n\n  /**\n   * Write a thrift message to log file.\n   * @param message to be written\n   * @throws Exception on write error.\n   */\n  public void logThrift(T message) throws Exception {\n    message.write(protocol);\n    // Flush to make sure one message per frame.\n    transport.flush();\n  }\n\n  /**\n   * Simple implementation of log file rotation.\n   * @throws java.io.IOException\n   */\n  public void rotate() throws IOException {\n    close();\n\n    int i = 0;\n    while (new File(String.format(\"%s.%d\", fileName, ++i)).exists()) {\n      ;\n    }\n\n    for (int j = i - 1; j >= 1; --j) {\n      FileUtils.moveFile(\n          new File(String.format(\"%s.%d\", fileName, j)),\n          new File(String.format(\"%s.%d\", fileName, j + 1)));\n    }\n    FileUtils.moveFile(new File(fileName), new File(fileName + \".1\"));\n    bufferedOutputStream = new BufferedOutputStream(new FileOutputStream(fileName, true));\n    transport = new ByteOffsetTFramedTransport(new TIOStreamTransport(bufferedOutputStream));\n    protocol = new TBinaryProtocol(transport);\n  }\n\n  public void flush() throws IOException {\n    bufferedOutputStream.flush();\n  }\n\n  public LogFile getLogFile() throws IOException {\n    long inode = SingerUtils.getFileInode(FileSystems.getDefault().getPath(fileName));\n    return new LogFile(inode);\n  }\n\n  public long getByteOffset() {\n    return transport.getByteOffset();\n  }\n\n  public void close() throws IOException {\n    transport.close();\n  }\n}\n"
+                },
+                "compile_error_details": {
+                    "singer/src/main/java/com/pinterest/singer/reader/ThriftReader.java": {
+                        "23": {
+                            "lines": [
+                                {
+                                    "line_no": 22,
+                                    "content": "import org.apache.thrift.protocol.TProtocol;"
+                                },
+                                {
+                                    "line_no": 23,
+                                    "content": "import org.apache.thrift.transport.TFastFramedTransport;"
+                                },
+                                {
+                                    "line_no": 24,
+                                    "content": "import org.apache.thrift.transport.TIOStreamTransport;"
+                                }
+                            ],
+                            "error_texts": [
+                                "[23,35] cannot find symbol\nsymbol: class TFastFramedTransport\nlocation: package org.apache.thrift.transport\n",
+                                "[23,35] cannot find symbol\n"
+                            ]
+                        },
+                        "64": {
+                            "lines": [
+                                {
+                                    "line_no": 63,
+                                    "content": "  // The framed framedTransport."
+                                },
+                                {
+                                    "line_no": 64,
+                                    "content": "  private final TFastFramedTransport framedTransport;"
+                                },
+                                {
+                                    "line_no": 65,
+                                    "content": ""
+                                }
+                            ],
+                            "error_texts": [
+                                "[64,17] cannot find symbol\n",
+                                "[64,17] cannot find symbol\nsymbol: class TFastFramedTransport\nlocation: class com.pinterest.singer.reader.ThriftReader<T>\n"
+                            ]
+                        }
+                    },
+                    "singer/src/main/java/com/pinterest/singer/utils/SimpleThriftLogger.java": {
+                        "24": {
+                            "lines": [
+                                {
+                                    "line_no": 23,
+                                    "content": "import org.apache.thrift.protocol.TProtocol;"
+                                },
+                                {
+                                    "line_no": 24,
+                                    "content": "import org.apache.thrift.transport.TFastFramedTransport;"
+                                },
+                                {
+                                    "line_no": 25,
+                                    "content": "import org.apache.thrift.transport.TIOStreamTransport;"
+                                }
+                            ],
+                            "error_texts": [
+                                "[24,35] cannot find symbol\nsymbol: class TFastFramedTransport\nlocation: package org.apache.thrift.transport\n",
+                                "[24,35] cannot find symbol\n"
+                            ]
+                        },
+                        "45": {
+                            "lines": [
+                                {
+                                    "line_no": 44,
+                                    "content": ""
+                                },
+                                {
+                                    "line_no": 45,
+                                    "content": "  private static final class ByteOffsetTFramedTransport extends TFastFramedTransport {"
+                                },
+                                {
+                                    "line_no": 46,
+                                    "content": ""
+                                }
+                            ],
+                            "error_texts": [
+                                "[45,65] cannot find symbol\nsymbol: class TFastFramedTransport\nlocation: class com.pinterest.singer.utils.SimpleThriftLogger<T>\n",
+                                "[45,65] cannot find symbol\n"
+                            ]
+                        }
+                    }
+                }
+            },
+            "error": "cannot find symbol\n",
+            "span_id": 5941094996823186833
+        },
+        {
+            "input": "```diff\n--- singer/src/main/java/com/pinterest/singer/reader/ThriftReader.java\n+++ singer/src/main/java/com/pinterest/singer/reader/ThriftReader.java\n@@ -5,7 +5,7 @@ import com.google.common.base.Strings;\n import org.apache.thrift.TBase;\n import org.apache.thrift.TException;\n import org.apache.thrift.protocol.TProtocol;\n-import org.apache.thrift.transport.TFramedTransport;\n+import org.apache.thrift.transport.TFramedTransport;\n import org.apache.thrift.transport.TIOStreamTransport;\n import org.apache.thrift.transport.TTransport;\n \n@@ -37,7 +37,7 @@ public class ThriftReader<T extends TBase> implements Closeable {\n   private final ByteOffsetInputStream byteOffsetInputStream;\n \n   // The framed framedTransport.\n-  private final TFramedTransport framedTransport;\n+  private final TFramedTransport framedTransport;\n \n   // TProtocol implementation.\n   private final TProtocol protocol;\n@@ -52,7 +52,7 @@ public class ThriftReader<T extends TBase> implements Closeable {\n \n     this.byteOffsetInputStream = new ByteOffsetInputStream(\n         new RandomAccessFile(path, \"r\"), readBufferSize);\n-    this.framedTransport = new TFramedTransport(new TIOStreamTransport(this\n+    this.framedTransport = new TFramedTransport(new TIOStreamTransport(this\n         .byteOffsetInputStream), maxMessageSize);\n     this.baseFactory = Preconditions.checkNotNull(baseFactory);\n     this.protocol = protocolFactory.get(this.framedTransport);\n--- singer/src/main/java/com/pinterest/singer/utils/SimpleThriftLogger.java\n+++ singer/src/main/java/com/pinterest/singer/utils/SimpleThriftLogger.java\n@@ -5,7 +5,7 @@ import com.pinterest.singer.thrift.LogFile;\n import org.apache.thrift.TBase;\n import org.apache.thrift.protocol.TBinaryProtocol;\n import org.apache.thrift.protocol.TProtocol;\n-import org.apache.thrift.transport.TFramedTransport;\n+import org.apache.thrift.transport.TFramedTransport;\n import org.apache.thrift.transport.TIOStreamTransport;\n import org.apache.thrift.transport.TTransport;\n import org.apache.thrift.transport.TTransportException;\n@@ -24,7 +24,7 @@ import java.nio.file.FileSystems;\n @SuppressWarnings(\"rawtypes\")\n public final class SimpleThriftLogger<T extends TBase> implements Closeable {\n \n-  private static final class ByteOffsetTFramedTransport extends TFramedTransport {\n+  private static final class ByteOffsetTFramedTransport extends TFramedTransport {\n \n     private long byteOffset;\n \n@@ -42,7 +42,7 @@ public final class SimpleThriftLogger<T extends TBase> implements Closeable {\n     @Override\n     public void flush() throws TTransportException {\n       super.flush();\n-      // Add 4 bytes for the frame size.\n+      // Add 4 bytes for the frame size (TFramedTransport uses 4 bytes for frame size).\n       byteOffset += 4;\n     }\n```",
+            "output": {
+                "compilation_has_succeeded": false,
+                "test_has_succeeded": false,
+                "error_text": "cannot find symbol\n",
+                "updated_files": {
+                    "singer/src/main/java/com/pinterest/singer/utils/SimpleThriftLogger.java": "/**\n * Copyright 2019 Pinterest, Inc.\n * \n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n * \n *    http://www.apache.org/licenses/LICENSE-2.0\n * \n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\npackage com.pinterest.singer.utils;\n\nimport com.pinterest.singer.thrift.LogFile;\n\nimport org.apache.commons.io.FileUtils;\nimport org.apache.thrift.TBase;\nimport org.apache.thrift.protocol.TBinaryProtocol;\nimport org.apache.thrift.protocol.TProtocol;\nimport org.apache.thrift.transport.TFastFramedTransport;\nimport org.apache.thrift.transport.TIOStreamTransport;\nimport org.apache.thrift.transport.TTransport;\nimport org.apache.thrift.transport.TTransportException;\n\nimport java.io.BufferedOutputStream;\nimport java.io.Closeable;\nimport java.io.File;\nimport java.io.FileOutputStream;\nimport java.io.IOException;\nimport java.nio.file.FileSystems;\n\n/**\n * Thrift Logger which is used to log thrift log messages into a log file.\n *\n * This class is used by unit test and ThriftLogGenerator to write log messages to thrift log\n * file. It provides APIs for client to control the flush behavior and log file rotation.\n */\n@SuppressWarnings(\"rawtypes\")\npublic final class SimpleThriftLogger<T extends TBase> implements Closeable {\n\n  private static final class ByteOffsetTFramedTransport extends TFastFramedTransport {\n\n    private long byteOffset;\n\n    public ByteOffsetTFramedTransport(TTransport transport) {\n      super(transport);\n      byteOffset = 0;\n    }\n\n    @Override\n    public void write(byte[] buf, int off, int len) throws TTransportException {\n      super.write(buf, off, len);\n      byteOffset += len;\n    }\n\n    @Override\n    public void flush() throws TTransportException {\n      super.flush();\n      // Add 4 bytes for the frame size (TFramedTransport uses 4 bytes for frame size).\n      // Add 4 bytes for the frame size (TFastFramedTransport uses 4 bytes for frame size).\n      byteOffset += 4;\n    }\n\n    public long getByteOffset() {\n      return byteOffset;\n    }\n  }\n\n  private final String fileName;\n\n  private BufferedOutputStream bufferedOutputStream;\n  private ByteOffsetTFramedTransport transport;\n  private TProtocol protocol;\n\n  public SimpleThriftLogger(String filename) throws Exception {\n    this.fileName = filename;\n    bufferedOutputStream = new BufferedOutputStream(new FileOutputStream(fileName, true));\n    transport = new ByteOffsetTFramedTransport(new TIOStreamTransport(bufferedOutputStream));\n    protocol = new TBinaryProtocol(transport);\n  }\n\n  /**\n   * Write a thrift message to log file.\n   * @param message to be written\n   * @throws Exception on write error.\n   */\n  public void logThrift(T message) throws Exception {\n    message.write(protocol);\n    // Flush to make sure one message per frame.\n    transport.flush();\n  }\n\n  /**\n   * Simple implementation of log file rotation.\n   * @throws java.io.IOException\n   */\n  public void rotate() throws IOException {\n    close();\n\n    int i = 0;\n    while (new File(String.format(\"%s.%d\", fileName, ++i)).exists()) {\n      ;\n    }\n\n    for (int j = i - 1; j >= 1; --j) {\n      FileUtils.moveFile(\n          new File(String.format(\"%s.%d\", fileName, j)),\n          new File(String.format(\"%s.%d\", fileName, j + 1)));\n    }\n    FileUtils.moveFile(new File(fileName), new File(fileName + \".1\"));\n    bufferedOutputStream = new BufferedOutputStream(new FileOutputStream(fileName, true));\n    transport = new ByteOffsetTFramedTransport(new TIOStreamTransport(bufferedOutputStream));\n    protocol = new TBinaryProtocol(transport);\n  }\n\n  public void flush() throws IOException {\n    bufferedOutputStream.flush();\n  }\n\n  public LogFile getLogFile() throws IOException {\n    long inode = SingerUtils.getFileInode(FileSystems.getDefault().getPath(fileName));\n    return new LogFile(inode);\n  }\n\n  public long getByteOffset() {\n    return transport.getByteOffset();\n  }\n\n  public void close() throws IOException {\n    transport.close();\n  }\n}\n"
+                },
+                "compile_error_details": {
+                    "singer/src/main/java/com/pinterest/singer/reader/ThriftReader.java": {
+                        "23": {
+                            "lines": [
+                                {
+                                    "line_no": 22,
+                                    "content": "import org.apache.thrift.protocol.TProtocol;"
+                                },
+                                {
+                                    "line_no": 23,
+                                    "content": "import org.apache.thrift.transport.TFastFramedTransport;"
+                                },
+                                {
+                                    "line_no": 24,
+                                    "content": "import org.apache.thrift.transport.TIOStreamTransport;"
+                                }
+                            ],
+                            "error_texts": [
+                                "[23,35] cannot find symbol\nsymbol: class TFastFramedTransport\nlocation: package org.apache.thrift.transport\n",
+                                "[23,35] cannot find symbol\n"
+                            ]
+                        },
+                        "64": {
+                            "lines": [
+                                {
+                                    "line_no": 63,
+                                    "content": "  // The framed framedTransport."
+                                },
+                                {
+                                    "line_no": 64,
+                                    "content": "  private final TFastFramedTransport framedTransport;"
+                                },
+                                {
+                                    "line_no": 65,
+                                    "content": ""
+                                }
+                            ],
+                            "error_texts": [
+                                "[64,17] cannot find symbol\n",
+                                "[64,17] cannot find symbol\nsymbol: class TFastFramedTransport\nlocation: class com.pinterest.singer.reader.ThriftReader<T>\n"
+                            ]
+                        }
+                    },
+                    "singer/src/main/java/com/pinterest/singer/utils/SimpleThriftLogger.java": {
+                        "24": {
+                            "lines": [
+                                {
+                                    "line_no": 23,
+                                    "content": "import org.apache.thrift.protocol.TProtocol;"
+                                },
+                                {
+                                    "line_no": 24,
+                                    "content": "import org.apache.thrift.transport.TFastFramedTransport;"
+                                },
+                                {
+                                    "line_no": 25,
+                                    "content": "import org.apache.thrift.transport.TIOStreamTransport;"
+                                }
+                            ],
+                            "error_texts": [
+                                "[24,35] cannot find symbol\nsymbol: class TFastFramedTransport\nlocation: package org.apache.thrift.transport\n",
+                                "[24,35] cannot find symbol\n"
+                            ]
+                        },
+                        "45": {
+                            "lines": [
+                                {
+                                    "line_no": 44,
+                                    "content": ""
+                                },
+                                {
+                                    "line_no": 45,
+                                    "content": "  private static final class ByteOffsetTFramedTransport extends TFastFramedTransport {"
+                                },
+                                {
+                                    "line_no": 46,
+                                    "content": ""
+                                }
+                            ],
+                            "error_texts": [
+                                "[45,65] cannot find symbol\nsymbol: class TFastFramedTransport\nlocation: class com.pinterest.singer.utils.SimpleThriftLogger<T>\n",
+                                "[45,65] cannot find symbol\n"
+                            ]
+                        }
+                    }
+                }
+            },
+            "error": "cannot find symbol\n",
+            "span_id": 4594941301994446128
+        },
+        {
+            "input": "```diff\n--- singer/src/main/java/com/pinterest/singer/reader/ThriftReader.java\n+++ singer/src/main/java/com/pinterest/singer/reader/ThriftReader.java\n@@ -5,7 +5,7 @@ import com.google.common.base.Strings;\n import org.apache.thrift.TBase;\n import org.apache.thrift.TException;\n import org.apache.thrift.protocol.TProtocol;\n-import org.apache.thrift.transport.TFastFramedTransport;\n+import org.apache.thrift.transport.TFramedTransport;\n import org.apache.thrift.transport.TIOStreamTransport;\n import org.apache.thrift.transport.TTransport;\n \n@@ -37,7 +37,7 @@ public class ThriftReader<T extends TBase> implements Closeable {\n   private final ByteOffsetInputStream byteOffsetInputStream;\n \n   // The framed framedTransport.\n-  private final TFastFramedTransport framedTransport;\n+  private final TFramedTransport framedTransport;\n \n   // TProtocol implementation.\n   private final TProtocol protocol;\n@@ -52,7 +52,7 @@ public class ThriftReader<T extends TBase> implements Closeable {\n \n     this.byteOffsetInputStream = new ByteOffsetInputStream(\n         new RandomAccessFile(path, \"r\"), readBufferSize);\n-    this.framedTransport = new TFastFramedTransport(new TIOStreamTransport(this\n+    this.framedTransport = new TFramedTransport(new TIOStreamTransport(this\n         .byteOffsetInputStream), maxMessageSize);\n     this.baseFactory = Preconditions.checkNotNull(baseFactory);\n     this.protocol = protocolFactory.get(this.framedTransport);\n--- singer/src/main/java/com/pinterest/singer/utils/SimpleThriftLogger.java\n+++ singer/src/main/java/com/pinterest/singer/utils/SimpleThriftLogger.java\n@@ -5,7 +5,7 @@ import com.pinterest.singer.thrift.LogFile;\n import org.apache.thrift.TBase;\n import org.apache.thrift.protocol.TBinaryProtocol;\n import org.apache.thrift.protocol.TProtocol;\n-import org.apache.thrift.transport.TFastFramedTransport;\n+import org.apache.thrift.transport.TFramedTransport;\n import org.apache.thrift.transport.TIOStreamTransport;\n import org.apache.thrift.transport.TTransport;\n import org.apache.thrift.transport.TTransportException;\n@@ -24,7 +24,7 @@ import java.nio.file.FileSystems;\n @SuppressWarnings(\"rawtypes\")\n public final class SimpleThriftLogger<T extends TBase> implements Closeable {\n \n-  private static final class ByteOffsetTFramedTransport extends TFastFramedTransport {\n+  private static final class ByteOffsetTFramedTransport extends TFramedTransport {\n \n     private long byteOffset;\n \n@@ -42,8 +42,7 @@ public final class SimpleThriftLogger<T extends TBase> implements Closeable {\n     @Override\n     public void flush() throws TTransportException {\n       super.flush();\n-      // Add 4 bytes for the frame size (TFastFramedTransport uses 4 bytes for frame size).\n-      // Add 4 bytes for the frame size (TFramedTransport uses 4 bytes for frame size).\n+      // Add 4 bytes for the frame size.\n       byteOffset += 4;\n     }\n```",
+            "output": {
+                "compilation_has_succeeded": false,
+                "test_has_succeeded": false,
+                "error_text": "cannot find symbol\n",
+                "updated_files": {
+                    "singer/src/main/java/com/pinterest/singer/reader/ThriftReader.java": "/**\n * Copyright 2019 Pinterest, Inc.\n * \n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n * \n *    http://www.apache.org/licenses/LICENSE-2.0\n * \n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\npackage com.pinterest.singer.reader;\n\nimport com.google.common.base.Preconditions;\nimport com.google.common.base.Strings;\nimport org.apache.thrift.TBase;\nimport org.apache.thrift.TException;\nimport org.apache.thrift.protocol.TProtocol;\nimport org.apache.thrift.transport.TFramedTransport;\nimport org.apache.thrift.transport.TIOStreamTransport;\nimport org.apache.thrift.transport.TTransport;\n\nimport java.io.Closeable;\nimport java.io.IOException;\nimport java.io.RandomAccessFile;\n\n/**\n * Reader that reads Thrift messages of thrift type from a file\n * <p/>\n * This class is NOT thread-safe.\n */\n@SuppressWarnings(\"rawtypes\")\npublic class ThriftReader<T extends TBase> implements Closeable {\n\n  /**\n   * Factory that get a TBase instance of the thrift type to be read.\n   *\n   * @param <T> The thrift message type to be read.\n   */\n  public static interface TBaseFactory<T> {\n\n    T get();\n  }\n\n  /**\n   * Factory that get a TProtocol instance.\n   */\n  public static interface TProtocolFactory {\n\n    TProtocol get(TTransport transport);\n  }\n\n  // Factory that creates empty objects that will be initialized with values from the file.\n  private final TBaseFactory<T> baseFactory;\n\n  // The ByteOffsetInputStream to read from.\n  private final ByteOffsetInputStream byteOffsetInputStream;\n\n  // The framed framedTransport.\n  private final TFramedTransport framedTransport;\n\n  // TProtocol implementation.\n  private final TProtocol protocol;\n\n  public ThriftReader(\n      String path,\n      TBaseFactory<T> baseFactory,\n      TProtocolFactory protocolFactory,\n      int readBufferSize,\n      int maxMessageSize) throws IOException {\n    Preconditions.checkArgument(!Strings.isNullOrEmpty(path));\n    Preconditions.checkNotNull(protocolFactory);\n\n    this.byteOffsetInputStream = new ByteOffsetInputStream(\n        new RandomAccessFile(path, \"r\"), readBufferSize);\n    this.framedTransport = new TFramedTransport(new TIOStreamTransport(this\n        .byteOffsetInputStream), maxMessageSize);\n    this.baseFactory = Preconditions.checkNotNull(baseFactory);\n    this.protocol = protocolFactory.get(this.framedTransport);\n  }\n\n  /**\n   * Read one thrift message.\n   *\n   * @return next thrift message from the reader. null if no thrift message in the reader.\n   * @throws IOException when file error.\n   * @throws TException  when parse error.\n   */\n  public T read() throws IOException, TException {\n    // If frame buffer is empty and we are at EOF of underlying input stream, return null.\n    if (framedTransport.getBytesRemainingInBuffer() == 0 && byteOffsetInputStream.isEOF()) {\n      return null;\n    }\n\n    T t = baseFactory.get();\n    t.read(protocol);\n    return t;\n  }\n\n  /**\n   * @return byte offset of the next message.\n   * @throws IOException on file error.\n   */\n  public long getByteOffset() throws IOException {\n    Preconditions.checkState(\n        byteOffsetInputStream.getByteOffset() >= framedTransport.getBytesRemainingInBuffer());\n    return byteOffsetInputStream.getByteOffset() - framedTransport.getBytesRemainingInBuffer();\n  }\n\n  /**\n   * Set byte offset of the next message to be read.\n   *\n   * @param byteOffset byte offset.\n   * @throws IOException on file error.\n   */\n  public void setByteOffset(long byteOffset) throws IOException {\n    // If we already at the byte offset, return.\n    if (getByteOffset() == byteOffset) {\n      return;\n    }\n\n    // Clear the buffer\n    framedTransport.consumeBuffer(framedTransport.getBytesRemainingInBuffer());\n\n    // Set underlying stream byte offset\n    byteOffsetInputStream.setByteOffset(byteOffset);\n  }\n\n  /**\n   * Close the reader.\n   *\n   * @throws IOException on file error.\n   */\n  public void close() throws IOException {\n    framedTransport.close();\n  }\n}\n",
+                    "singer/src/main/java/com/pinterest/singer/utils/SimpleThriftLogger.java": "/**\n * Copyright 2019 Pinterest, Inc.\n * \n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n * \n *    http://www.apache.org/licenses/LICENSE-2.0\n * \n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\npackage com.pinterest.singer.utils;\n\nimport com.pinterest.singer.thrift.LogFile;\n\nimport org.apache.commons.io.FileUtils;\nimport org.apache.thrift.TBase;\nimport org.apache.thrift.protocol.TBinaryProtocol;\nimport org.apache.thrift.protocol.TProtocol;\nimport org.apache.thrift.transport.TFramedTransport;\nimport org.apache.thrift.transport.TIOStreamTransport;\nimport org.apache.thrift.transport.TTransport;\nimport org.apache.thrift.transport.TTransportException;\n\nimport java.io.BufferedOutputStream;\nimport java.io.Closeable;\nimport java.io.File;\nimport java.io.FileOutputStream;\nimport java.io.IOException;\nimport java.nio.file.FileSystems;\n\n/**\n * Thrift Logger which is used to log thrift log messages into a log file.\n *\n * This class is used by unit test and ThriftLogGenerator to write log messages to thrift log\n * file. It provides APIs for client to control the flush behavior and log file rotation.\n */\n@SuppressWarnings(\"rawtypes\")\npublic final class SimpleThriftLogger<T extends TBase> implements Closeable {\n\n  private static final class ByteOffsetTFramedTransport extends TFramedTransport {\n\n    private long byteOffset;\n\n    public ByteOffsetTFramedTransport(TTransport transport) {\n      super(transport);\n      byteOffset = 0;\n    }\n\n    @Override\n    public void write(byte[] buf, int off, int len) throws TTransportException {\n      super.write(buf, off, len);\n      byteOffset += len;\n    }\n\n    @Override\n    public void flush() throws TTransportException {\n      super.flush();\n-      // Add 4 bytes for the frame size (TFastFramedTransport uses 4 bytes for frame size).\n-      // Add 4 bytes for the frame size (TFramedTransport uses 4 bytes for frame size).\n+      // Add 4 bytes for the frame size.\n      byteOffset += 4;\n    }\n\n    public long getByteOffset() {\n      return byteOffset;\n    }\n  }\n\n  private final String fileName;\n\n  private BufferedOutputStream bufferedOutputStream;\n  private ByteOffsetTFramedTransport transport;\n  private TProtocol protocol;\n\n  public SimpleThriftLogger(String filename) throws Exception {\n    this.fileName = filename;\n    bufferedOutputStream = new BufferedOutputStream(new FileOutputStream(fileName, true));\n    transport = new ByteOffsetTFramedTransport(new TIOStreamTransport(bufferedOutputStream));\n    protocol = new TBinaryProtocol(transport);\n  }\n\n  /**\n   * Write a thrift message to log file.\n   * @param message to be written\n   * @throws Exception on write error.\n   */\n  public void logThrift(T message) throws Exception {\n    message.write(protocol);\n    // Flush to make sure one message per frame.\n    transport.flush();\n  }\n\n  /**\n   * Simple implementation of log file rotation.\n   * @throws java.io.IOException\n   */\n  public void rotate() throws IOException {\n    close();\n\n    int i = 0;\n    while (new File(String.format(\"%s.%d\", fileName, ++i)).exists()) {\n      ;\n    }\n\n    for (int j = i - 1; j >= 1; --j) {\n      FileUtils.moveFile(\n          new File(String.format(\"%s.%d\", fileName, j)),\n          new File(String.format(\"%s.%d\", fileName, j + 1)));\n    }\n    FileUtils.moveFile(new File(fileName), new File(fileName + \".1\"));\n    bufferedOutputStream = new BufferedOutputStream(new FileOutputStream(fileName, true));\n    transport = new ByteOffsetTFramedTransport(new TIOStreamTransport(bufferedOutputStream));\n    protocol = new TBinaryProtocol(transport);\n  }\n\n  public void flush() throws IOException {\n    bufferedOutputStream.flush();\n  }\n\n  public LogFile getLogFile() throws IOException {\n    long inode = SingerUtils.getFileInode(FileSystems.getDefault().getPath(fileName));\n    return new LogFile(inode);\n  }\n\n  public long getByteOffset() {\n    return transport.getByteOffset();\n  }\n\n  public void close() throws IOException {\n    transport.close();\n  }\n}\n"
+                },
+                "compile_error_details": {
+                    "singer/src/main/java/com/pinterest/singer/reader/ThriftReader.java": {
+                        "23": {
+                            "lines": [
+                                {
+                                    "line_no": 22,
+                                    "content": "import org.apache.thrift.protocol.TProtocol;"
+                                },
+                                {
+                                    "line_no": 23,
+                                    "content": "import org.apache.thrift.transport.TFramedTransport;"
+                                },
+                                {
+                                    "line_no": 24,
+                                    "content": "import org.apache.thrift.transport.TIOStreamTransport;"
+                                }
+                            ],
+                            "error_texts": [
+                                "[23,35] cannot find symbol\nsymbol: class TFramedTransport\nlocation: package org.apache.thrift.transport\n",
+                                "[23,35] cannot find symbol\n"
+                            ]
+                        },
+                        "64": {
+                            "lines": [
+                                {
+                                    "line_no": 63,
+                                    "content": "  // The framed framedTransport."
+                                },
+                                {
+                                    "line_no": 64,
+                                    "content": "  private final TFramedTransport framedTransport;"
+                                },
+                                {
+                                    "line_no": 65,
+                                    "content": ""
+                                }
+                            ],
+                            "error_texts": [
+                                "[64,17] cannot find symbol\n",
+                                "[64,17] cannot find symbol\nsymbol: class TFramedTransport\nlocation: class com.pinterest.singer.reader.ThriftReader<T>\n"
+                            ]
+                        }
+                    },
+                    "singer/src/main/java/com/pinterest/singer/utils/SimpleThriftLogger.java": {
+                        "24": {
+                            "lines": [
+                                {
+                                    "line_no": 23,
+                                    "content": "import org.apache.thrift.protocol.TProtocol;"
+                                },
+                                {
+                                    "line_no": 24,
+                                    "content": "import org.apache.thrift.transport.TFramedTransport;"
+                                },
+                                {
+                                    "line_no": 25,
+                                    "content": "import org.apache.thrift.transport.TIOStreamTransport;"
+                                }
+                            ],
+                            "error_texts": [
+                                "[24,35] cannot find symbol\n",
+                                "[24,35] cannot find symbol\nsymbol: class TFramedTransport\nlocation: package org.apache.thrift.transport\n"
+                            ]
+                        },
+                        "45": {
+                            "lines": [
+                                {
+                                    "line_no": 44,
+                                    "content": ""
+                                },
+                                {
+                                    "line_no": 45,
+                                    "content": "  private static final class ByteOffsetTFramedTransport extends TFramedTransport {"
+                                },
+                                {
+                                    "line_no": 46,
+                                    "content": ""
+                                }
+                            ],
+                            "error_texts": [
+                                "[45,65] cannot find symbol\nsymbol: class TFramedTransport\nlocation: class com.pinterest.singer.utils.SimpleThriftLogger<T>\n",
+                                "[45,65] cannot find symbol\n"
+                            ]
+                        }
+                    }
+                }
+            },
+            "error": "cannot find symbol\n",
+            "span_id": 6606209054143141265
+        }
+    ],
+    "read_file": [
+        {
+            "input": "singer/src/main/java/com/pinterest/singer/reader/ThriftReader.java",
+            "output": "/**\n * Copyright 2019 Pinterest, Inc.\n * \n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n * \n *    http://www.apache.org/licenses/LICENSE-2.0\n * \n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\npackage com.pinterest.singer.reader;\n\nimport com.google.common.base.Preconditions;\nimport com.google.common.base.Strings;\nimport org.apache.thrift.TBase;\nimport org.apache.thrift.TException;\nimport org.apache.thrift.protocol.TProtocol;\nimport org.apache.thrift.transport.TFramedTransport;\nimport org.apache.thrift.transport.TIOStreamTransport;\nimport org.apache.thrift.transport.TTransport;\n\nimport java.io.Closeable;\nimport java.io.IOException;\nimport java.io.RandomAccessFile;\n\n/**\n * Reader that reads Thrift messages of thrift type from a file\n * <p/>\n * This class is NOT thread-safe.\n */\n@SuppressWarnings(\"rawtypes\")\npublic class ThriftReader<T extends TBase> implements Closeable {\n\n  /**\n   * Factory that get a TBase instance of the thrift type to be read.\n   *\n   * @param <T> The thrift message type to be read.\n   */\n  public static interface TBaseFactory<T> {\n\n    T get();\n  }\n\n  /**\n   * Factory that get a TProtocol instance.\n   */\n  public static interface TProtocolFactory {\n\n    TProtocol get(TTransport transport);\n  }\n\n  // Factory that creates empty objects that will be initialized with values from the file.\n  private final TBaseFactory<T> baseFactory;\n\n  // The ByteOffsetInputStream to read from.\n  private final ByteOffsetInputStream byteOffsetInputStream;\n\n  // The framed framedTransport.\n  private final TFramedTransport framedTransport;\n\n  // TProtocol implementation.\n  private final TProtocol protocol;\n\n  public ThriftReader(\n      String path,\n      TBaseFactory<T> baseFactory,\n      TProtocolFactory protocolFactory,\n      int readBufferSize,\n      int maxMessageSize) throws IOException {\n    Preconditions.checkArgument(!Strings.isNullOrEmpty(path));\n    Preconditions.checkNotNull(protocolFactory);\n\n    this.byteOffsetInputStream = new ByteOffsetInputStream(\n        new RandomAccessFile(path, \"r\"), readBufferSize);\n    this.framedTransport = new TFramedTransport(new TIOStreamTransport(this\n        .byteOffsetInputStream), maxMessageSize);\n    this.baseFactory = Preconditions.checkNotNull(baseFactory);\n    this.protocol = protocolFactory.get(this.framedTransport);\n  }\n\n  /**\n   * Read one thrift message.\n   *\n   * @return next thrift message from the reader. null if no thrift message in the reader.\n   * @throws IOException when file error.\n   * @throws TException  when parse error.\n   */\n  public T read() throws IOException, TException {\n    // If frame buffer is empty and we are at EOF of underlying input stream, return null.\n    if (framedTransport.getBytesRemainingInBuffer() == 0 && byteOffsetInputStream.isEOF()) {\n      return null;\n    }\n\n    T t = baseFactory.get();\n    t.read(protocol);\n    return t;\n  }\n\n  /**\n   * @return byte offset of the next message.\n   * @throws IOException on file error.\n   */\n  public long getByteOffset() throws IOException {\n    Preconditions.checkState(\n        byteOffsetInputStream.getByteOffset() >= framedTransport.getBytesRemainingInBuffer());\n    return byteOffsetInputStream.getByteOffset() - framedTransport.getBytesRemainingInBuffer();\n  }\n\n  /**\n   * Set byte offset of the next message to be read.\n   *\n   * @param byteOffset byte offset.\n   * @throws IOException on file error.\n   */\n  public void setByteOffset(long byteOffset) throws IOException {\n    // If we already at the byte offset, return.\n    if (getByteOffset() == byteOffset) {\n      return;\n    }\n\n    // Clear the buffer\n    framedTransport.consumeBuffer(framedTransport.getBytesRemainingInBuffer());\n\n    // Set underlying stream byte offset\n    byteOffsetInputStream.setByteOffset(byteOffset);\n  }\n\n  /**\n   * Close the reader.\n   *\n   * @throws IOException on file error.\n   */\n  public void close() throws IOException {\n    framedTransport.close();\n  }\n}\n",
+            "error": "",
+            "span_id": 12302195029805496831
+        },
+        {
+            "input": "singer/src/main/java/com/pinterest/singer/utils/SimpleThriftLogger.java",
+            "output": "/**\n * Copyright 2019 Pinterest, Inc.\n * \n * Licensed under the Apache License, Version 2.0 (the \"License\");\n * you may not use this file except in compliance with the License.\n * You may obtain a copy of the License at\n * \n *    http://www.apache.org/licenses/LICENSE-2.0\n * \n * Unless required by applicable law or agreed to in writing, software\n * distributed under the License is distributed on an \"AS IS\" BASIS,\n * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n * See the License for the specific language governing permissions and\n * limitations under the License.\n */\npackage com.pinterest.singer.utils;\n\nimport com.pinterest.singer.thrift.LogFile;\n\nimport org.apache.commons.io.FileUtils;\nimport org.apache.thrift.TBase;\nimport org.apache.thrift.protocol.TBinaryProtocol;\nimport org.apache.thrift.protocol.TProtocol;\nimport org.apache.thrift.transport.TFramedTransport;\nimport org.apache.thrift.transport.TIOStreamTransport;\nimport org.apache.thrift.transport.TTransport;\nimport org.apache.thrift.transport.TTransportException;\n\nimport java.io.BufferedOutputStream;\nimport java.io.Closeable;\nimport java.io.File;\nimport java.io.FileOutputStream;\nimport java.io.IOException;\nimport java.nio.file.FileSystems;\n\n/**\n * Thrift Logger which is used to log thrift log messages into a log file.\n *\n * This class is used by unit test and ThriftLogGenerator to write log messages to thrift log\n * file. It provides APIs for client to control the flush behavior and log file rotation.\n */\n@SuppressWarnings(\"rawtypes\")\npublic final class SimpleThriftLogger<T extends TBase> implements Closeable {\n\n  private static final class ByteOffsetTFramedTransport extends TFramedTransport {\n\n    private long byteOffset;\n\n    public ByteOffsetTFramedTransport(TTransport transport) {\n      super(transport);\n      byteOffset = 0;\n    }\n\n    @Override\n    public void write(byte[] buf, int off, int len) throws TTransportException {\n      super.write(buf, off, len);\n      byteOffset += len;\n    }\n\n    @Override\n    public void flush() throws TTransportException {\n      super.flush();\n      // Add 4 bytes for the frame size.\n      byteOffset += 4;\n    }\n\n    public long getByteOffset() {\n      return byteOffset;\n    }\n  }\n\n  private final String fileName;\n\n  private BufferedOutputStream bufferedOutputStream;\n  private ByteOffsetTFramedTransport transport;\n  private TProtocol protocol;\n\n  public SimpleThriftLogger(String filename) throws Exception {\n    this.fileName = filename;\n    bufferedOutputStream = new BufferedOutputStream(new FileOutputStream(fileName, true));\n    transport = new ByteOffsetTFramedTransport(new TIOStreamTransport(bufferedOutputStream));\n    protocol = new TBinaryProtocol(transport);\n  }\n\n  /**\n   * Write a thrift message to log file.\n   * @param message to be written\n   * @throws Exception on write error.\n   */\n  public void logThrift(T message) throws Exception {\n    message.write(protocol);\n    // Flush to make sure one message per frame.\n    transport.flush();\n  }\n\n  /**\n   * Simple implementation of log file rotation.\n   * @throws java.io.IOException\n   */\n  public void rotate() throws IOException {\n    close();\n\n    int i = 0;\n    while (new File(String.format(\"%s.%d\", fileName, ++i)).exists()) {\n      ;\n    }\n\n    for (int j = i - 1; j >= 1; --j) {\n      FileUtils.moveFile(\n          new File(String.format(\"%s.%d\", fileName, j)),\n          new File(String.format(\"%s.%d\", fileName, j + 1)));\n    }\n    FileUtils.moveFile(new File(fileName), new File(fileName + \".1\"));\n    bufferedOutputStream = new BufferedOutputStream(new FileOutputStream(fileName, true));\n    transport = new ByteOffsetTFramedTransport(new TIOStreamTransport(bufferedOutputStream));\n    protocol = new TBinaryProtocol(transport);\n  }\n\n  public void flush() throws IOException {\n    bufferedOutputStream.flush();\n  }\n\n  public LogFile getLogFile() throws IOException {\n    long inode = SingerUtils.getFileInode(FileSystems.getDefault().getPath(fileName));\n    return new LogFile(inode);\n  }\n\n  public long getByteOffset() {\n    return transport.getByteOffset();\n  }\n\n  public void close() throws IOException {\n    transport.close();\n  }\n}\n",
+            "error": "",
+            "span_id": 4137431769325247623
+        }
+    ],
+    "get_directory_tree": [],
+    "get_language_server_suggestions": [],
+    "reset_repo": []
+}

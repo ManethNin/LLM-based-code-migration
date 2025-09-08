@@ -1,0 +1,73 @@
+diff --git a/src/main/java/io/github/hapjava/server/impl/connections/ConnectionImpl.java b/src/main/java/io/github/hapjava/server/impl/connections/ConnectionImpl.java
+index ab2ff444..46e9aae0 100644
+--- a/src/main/java/io/github/hapjava/server/impl/connections/ConnectionImpl.java
++++ b/src/main/java/io/github/hapjava/server/impl/connections/ConnectionImpl.java
+@@ -15,6 +15,7 @@ import java.nio.ByteBuffer;
+ import java.nio.ByteOrder;
+ import java.util.Collection;
+ import java.util.function.Consumer;
++import org.bouncycastle.crypto.InvalidCipherTextException;
+ import org.bouncycastle.util.Pack;
+ import org.slf4j.Logger;
+ import org.slf4j.LoggerFactory;
+@@ -128,10 +129,14 @@ class ConnectionImpl implements HomekitClientConnection {
+             .order(ByteOrder.LITTLE_ENDIAN)
+             .putShort((short) (msg.length - 16))
+             .array();
++    return decryptChaCha20Poly1305(mac, additionalData, ciphertext);
++  }
++
++  private byte[] decryptChaCha20Poly1305(byte[] mac, byte[] additionalData, byte[] ciphertext) {
+     try {
+       byte[] nonce = Pack.longToLittleEndian(inboundBinaryMessageCount++);
+       return new ChachaDecoder(readKey, nonce).decodeCiphertext(mac, additionalData, ciphertext);
+-    } catch (IOException e) {
++    } catch (IOException | InvalidCipherTextException e) {
+       throw new RuntimeException(e);
+     }
+   }
+diff --git a/src/main/java/io/github/hapjava/server/impl/crypto/ChachaDecoder.java b/src/main/java/io/github/hapjava/server/impl/crypto/ChachaDecoder.java
+index 4c74a469..12b52f2b 100644
+--- a/src/main/java/io/github/hapjava/server/impl/crypto/ChachaDecoder.java
++++ b/src/main/java/io/github/hapjava/server/impl/crypto/ChachaDecoder.java
+@@ -1,12 +1,11 @@
+ package io.github.hapjava.server.impl.crypto;
+ 
+ import java.io.IOException;
++import org.bouncycastle.crypto.InvalidCipherTextException;
+ import org.bouncycastle.crypto.engines.ChaChaEngine;
+ import org.bouncycastle.crypto.generators.Poly1305KeyGenerator;
+ import org.bouncycastle.crypto.params.KeyParameter;
+ import org.bouncycastle.crypto.params.ParametersWithIV;
+-import org.bouncycastle.crypto.tls.AlertDescription;
+-import org.bouncycastle.crypto.tls.TlsFatalAlert;
+ import org.bouncycastle.util.Arrays;
+ 
+ public class ChachaDecoder {
+@@ -21,14 +20,14 @@ public class ChachaDecoder {
+   }
+ 
+   public byte[] decodeCiphertext(byte[] receivedMAC, byte[] additionalData, byte[] ciphertext)
+-      throws IOException {
++      throws IOException, InvalidCipherTextException {
+ 
+     KeyParameter macKey = initRecordMAC(decryptCipher);
+ 
+     byte[] calculatedMAC = PolyKeyCreator.create(macKey, additionalData, ciphertext);
+ 
+     if (!Arrays.constantTimeAreEqual(calculatedMAC, receivedMAC)) {
+-      throw new TlsFatalAlert(AlertDescription.bad_record_mac);
++      throw new InvalidCipherTextException("Bad record MAC");
+     }
+ 
+     byte[] output = new byte[ciphertext.length];
+@@ -37,7 +36,8 @@ public class ChachaDecoder {
+     return output;
+   }
+ 
+-  public byte[] decodeCiphertext(byte[] receivedMAC, byte[] ciphertext) throws IOException {
++  public byte[] decodeCiphertext(byte[] receivedMAC, byte[] ciphertext)
++      throws IOException, InvalidCipherTextException {
+     return decodeCiphertext(receivedMAC, null, ciphertext);
+   }
+ 

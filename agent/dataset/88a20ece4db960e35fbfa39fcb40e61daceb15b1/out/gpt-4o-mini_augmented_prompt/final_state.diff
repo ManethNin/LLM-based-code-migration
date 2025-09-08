@@ -1,0 +1,97 @@
+diff --git a/src/main/java/com/google/pubsublite/kafka/sink/PubSubLiteSinkTask.java b/src/main/java/com/google/pubsublite/kafka/sink/PubSubLiteSinkTask.java
+index 98d3001..12004f0 100644
+--- a/src/main/java/com/google/pubsublite/kafka/sink/PubSubLiteSinkTask.java
++++ b/src/main/java/com/google/pubsublite/kafka/sink/PubSubLiteSinkTask.java
+@@ -19,7 +19,7 @@ import static com.google.pubsublite.kafka.sink.Schemas.encodeToBytes;
+ 
+ import com.google.api.core.ApiService.State;
+ import com.google.cloud.pubsublite.Message;
+-import com.google.cloud.pubsublite.PublishMetadata;
++import com.google.cloud.pubsublite.internal.PublishMetadata;
+ import com.google.cloud.pubsublite.internal.Publisher;
+ import com.google.common.annotations.VisibleForTesting;
+ import com.google.common.collect.ImmutableListMultimap;
+@@ -93,15 +93,15 @@ public class PubSubLiteSinkTask extends SinkTask {
+         attributes.put(Constants.KAFKA_TOPIC_HEADER, ByteString.copyFromUtf8(record.topic()));
+       }
+       if (record.kafkaPartition() != null) {
+-        attributes.put(
++                  attributes.put(
+             Constants.KAFKA_PARTITION_HEADER,
+             ByteString.copyFromUtf8(record.kafkaPartition().toString()));
+-        attributes.put(
++                  attributes.put(
+             Constants.KAFKA_OFFSET_HEADER,
+             ByteString.copyFromUtf8(Long.toString(record.kafkaOffset())));
+       }
+       if (record.timestamp() != null) {
+-        attributes.put(
++                  attributes.put(
+             Constants.KAFKA_EVENT_TIME_TYPE_HEADER,
+             ByteString.copyFromUtf8(record.timestampType().name));
+         message.setEventTime(Timestamps.fromMillis(record.timestamp()));
+@@ -124,7 +124,7 @@ public class PubSubLiteSinkTask extends SinkTask {
+   @Override
+   public void flush(Map<TopicPartition, OffsetAndMetadata> currentOffsets) {
+     try {
+-      if (publisher != null) {
++    if (publisher != null) {
+         publisher.flush();
+       }
+     } catch (IOException e) {
+@@ -138,7 +138,7 @@ public class PubSubLiteSinkTask extends SinkTask {
+       throw new IllegalStateException("Called stop when publisher doesn't exist.");
+     }
+     try {
+-      publisher.flush();
++        publisher.flush();
+       publisher.stopAsync().awaitTerminated();
+     } catch (IOException e) {
+       throw new RuntimeException(e);
+@@ -146,4 +146,4 @@ public class PubSubLiteSinkTask extends SinkTask {
+       publisher = null;
+     }
+   }
+-}
++}
+\ No newline at end of file
+diff --git a/src/main/java/com/google/pubsublite/kafka/sink/PublisherFactory.java b/src/main/java/com/google/pubsublite/kafka/sink/PublisherFactory.java
+index b5e2c73..f5130df 100644
+--- a/src/main/java/com/google/pubsublite/kafka/sink/PublisherFactory.java
++++ b/src/main/java/com/google/pubsublite/kafka/sink/PublisherFactory.java
+@@ -15,11 +15,11 @@
+  */
+ package com.google.pubsublite.kafka.sink;
+ 
+-import com.google.cloud.pubsublite.PublishMetadata;
++import com.google.cloud.pubsublite.internal.PublishMetadata;
+ import com.google.cloud.pubsublite.internal.Publisher;
+ import java.util.Map;
+ 
+ interface PublisherFactory {
+ 
+   Publisher<PublishMetadata> newPublisher(Map<String, String> params);
+-}
++}
+\ No newline at end of file
+diff --git a/src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java b/src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java
+index 8d19dc4..d5fd25c 100644
+--- a/src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java
++++ b/src/main/java/com/google/pubsublite/kafka/sink/PublisherFactoryImpl.java
+@@ -17,7 +17,7 @@ package com.google.pubsublite.kafka.sink;
+ 
+ import com.google.cloud.pubsublite.CloudZone;
+ import com.google.cloud.pubsublite.ProjectPath;
+-import com.google.cloud.pubsublite.PublishMetadata;
++import com.google.cloud.pubsublite.internal.PublishMetadata;
+ import com.google.cloud.pubsublite.TopicName;
+ import com.google.cloud.pubsublite.TopicPath;
+ import com.google.cloud.pubsublite.internal.Publisher;
+@@ -54,4 +54,5 @@ class PublisherFactoryImpl implements PublisherFactory {
+                 .build());
+     return builder.build();
+   }
+-}
++
++// Updated method to use the new interface}
+\ No newline at end of file

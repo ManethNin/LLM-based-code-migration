@@ -1,0 +1,117 @@
+{
+    "validate_diffs": [],
+    "compile_maven": [
+        {
+            "input": "```diff\n--- a/JRedisGraph/src/main/java/com/redislabs/redisgraph/impl/api/RedisGraphTransaction.java\n+++ b/JRedisGraph/src/main/java/com/redislabs/redisgraph/impl/api/RedisGraphTransaction.java\n@@ -4,28 +4,7 @@\n import com.redislabs.redisgraph.RedisGraph;\n import com.redislabs.redisgraph.ResultSet;\n import com.redislabs.redisgraph.exceptions.RedisGraphException;\n-import redis.clients.jedis.commands.BasicRedisPipeline;\n-import redis.clients.jedis.commands.BinaryRedisPipeline;\n-import redis.clients.jedis.commands.BinaryScriptingCommandsPipeline;\n-import redis.clients.jedis.commands.ClusterPipeline;\n-import redis.clients.jedis.commands.MultiKeyBinaryRedisPipeline;\n-import redis.clients.jedis.commands.MultiKeyCommandsPipeline;\n-import redis.clients.jedis.commands.RedisPipeline;\n-import redis.clients.jedis.commands.ScriptingCommandsPipeline;\n-import redis.clients.jedis.Client;\n import java.util.List;\n-\n-public class RedisGraphTransaction extends AbstractRedisGraphTransaction {\n-    //region Pipeline Types\n-    private <T> T exec(MultiKeyBinaryRedisPipeline pipeline) {\n-        return null;\n-    }\n-\n-    private <T> T exec(MultiKeyCommandsPipeline pipeline) {\n-        return null;\n-    }\n-    //endregion\n \n     public RedisGraphTransaction(Client client, String graphId) {\n         super(client, graphId);\n@@ -33,17 +12,6 @@\n \n     @Override\n     protected void commitInternal(List<String> queries) {\n-        if (client instanceof ClusterPipeline)\n-            exec((ClusterPipeline) client);\n-        else if (client instanceof BinaryScriptingCommandsPipeline)\n-            exec((BinaryScriptingCommandsPipeline) client);\n-        else if (client instanceof ScriptingCommandsPipeline)\n-            exec((ScriptingCommandsPipeline) client);\n-        else if (client instanceof BasicRedisPipeline)\n-            exec((BasicRedisPipeline) client);\n-        else if (client instanceof BinaryRedisPipeline)\n-            exec((BinaryRedisPipeline) client);\n-        else if (client instanceof RedisPipeline)\n-            exec((RedisPipeline) client);\n+        exec();\n     }\n }\n\n```\n```diff\n--- a/JRedisGraph/src/main/java/com/redislabs/redisgraph/RedisGraphTransaction.java\n+++ b/JRedisGraph/src/main/java/com/redislabs/redisgraph/RedisGraphTransaction.java\n@@ -1,10 +1,8 @@\n package com.redislabs.redisgraph;\n \n-import redis.clients.jedis.Client;\n-\n public interface RedisGraphTransaction extends AutoCloseable {\n-    <T> T exec(Client client);\n+    <T> T exec();\n \n-    <T> T exec(Client client, boolean ignorePipelineMode);\n+    <T> T exec(boolean ignorePipelineMode);\n \n     void close();\n }\n\n```\n```diff\n--- a/JRedisGraph/src/main/java/com/redislabs/redisgraph/impl/api/ContextedRedisGraph.java\n+++ b/JRedisGraph/src/main/java/com/redislabs/redisgraph/impl/api/ContextedRedisGraph.java\n@@ -1,6 +1,5 @@\n package com.redislabs.redisgraph.impl.api;\n \n-import redis.clients.jedis.Client;\n import redis.clients.jedis.Jedis;\n import redis.clients.jedis.JedisPool;\n \n@@ -12,7 +11,7 @@\n     private final String readContext;\n     private final String writeContext;\n \n-    public ContextedRedisGraph(Client client, String graphId, String readContext, String writeContext) {\n+    public ContextedRedisGraph(Jedis jedis, String graphId, String readContext, String writeContext) {\n         super(jedis, graphId);\n         this.readContext = readContext;\n         this.writeContext = writeContext;\n@@ -140,7 +139,7 @@\n         return super.callProcedure(procedure, arguments);\n     }\n \n-    private void acquireContext(Client client, String context) {\n+    private void acquireContext(Jedis client, String context) {\n         if (context != null) {\n             client.watch(context);\n             String contextResponse = client.get(context);\n@@ -155,7 +154,7 @@\n         }\n     }\n \n-    private void releaseContext(Client client, String context) {\n+    private void releaseContext(Jedis client, String context) {\n         if (context != null) {\n             client.unwatch();\n         }\n\n```\n```diff\n--- a/JRedisGraph/src/main/java/com/redislabs/redisgraph/RedisGraphPipeline.java\n+++ b/JRedisGraph/src/main/java/com/redislabs/redisgraph/RedisGraphPipeline.java\n@@ -1,16 +1,6 @@\n package com.redislabs.redisgraph;\n \n-import redis.clients.jedis.commands.BasicRedisPipeline;\n-import redis.clients.jedis.commands.BinaryRedisPipeline;\n-import redis.clients.jedis.commands.BinaryScriptingCommandsPipeline;\n-import redis.clients.jedis.commands.ClusterPipeline;\n-import redis.clients.jedis.commands.MultiKeyBinaryRedisPipeline;\n-import redis.clients.jedis.commands.MultiKeyCommandsPipeline;\n-import redis.clients.jedis.commands.RedisPipeline;\n-import redis.clients.jedis.commands.ScriptingCommandsPipeline;\n-import redis.clients.jedis.Client;\n import java.util.List;\n-\n public interface RedisGraphPipeline extends AutoCloseable {\n     <T> T exec();\n \n\n```\n```diff\n--- a/JRedisGraph/src/main/java/com/redislabs/redisgraph/impl/api/RedisGraphPipeline.java\n+++ b/JRedisGraph/src/main/java/com/redislabs/redisgraph/impl/api/RedisGraphPipeline.java\n@@ -1,33 +1,11 @@\n package com.redislabs.redisgraph.impl.api;\n \n-import com.redislabs.redisgraph.RedisGraph;\n import com.redislabs.redisgraph.ResultSet;\n-import com.redislabs.redisgraph.exceptions.RedisGraphException;\n-import redis.clients.jedis.commands.BasicRedisPipeline;\n-import redis.clients.jedis.commands.BinaryRedisPipeline;\n-import redis.clients.jedis.commands.BinaryScriptingCommandsPipeline;\n-import redis.clients.jedis.commands.ClusterPipeline;\n-import redis.clients.jedis.commands.MultiKeyBinaryRedisPipeline;\n-import redis.clients.jedis.commands.MultiKeyCommandsPipeline;\n-import redis.clients.jedis.commands.RedisPipeline;\n-import redis.clients.jedis.commands.ScriptingCommandsPipeline;\n-import redis.clients.jedis.Client;\n+import redis.clients.jedis.Pipeline;\n+import redis.clients.jedis.Response;\n import java.util.List;\n import java.util.Map;\n \n-public class RedisGraphPipeline extends AbstractRedisGraph implements com.redislabs.redisgraph.RedisGraphPipeline {\n-    //region Pipeline Types\n-    private <T> T exec(MultiKeyBinaryRedisPipeline pipeline) {\n-        return null;\n-    }\n-\n-    private <T> T exec(MultiKeyCommandsPipeline pipeline) {\n-        return null;\n-    }\n-    //endregion\n-\n-    public RedisGraphPipeline(Client client, String graphId) {\n-        super(client, graphId);\n-    }\n+public class RedisGraphPipeline extends AbstractRedisGraph implements com.redislabs.redisgraph.RedisGraphPipeline  {\n \n     @Override\n     public <T> T exec() {\n@@ -35,17 +13,10 @@\n     }\n \n     @Override\n-    protected void sendCommand(List<String> command) {\n-        if (client instanceof ClusterPipeline)\n-            ((ClusterPipeline) client).sendCommand(client.get kapcsolat(), command.toArray(new String[0]));\n-        else if (client instanceof BinaryScriptingCommandsPipeline)\n-            ((BinaryScriptingCommandsPipeline) client).sendCommand(command.toArray(new String[0]));\n-        else if (client instanceof ScriptingCommandsPipeline)\n-            ((ScriptingCommandsPipeline) client).sendCommand(command.toArray(new String[0]));\n-        else if (client instanceof BasicRedisPipeline)\n-            ((BasicRedisPipeline) client).sendCommand(command.toArray(new String[0]));\n-        else if (client instanceof BinaryRedisPipeline)\n-            ((BinaryRedisPipeline) client).sendCommand(command.toArray(new String[0]));\n-        else if (client instanceof RedisPipeline)\n-            ((RedisPipeline) client).sendCommand(command.toArray(new String[0]));\n+    protected void sendCommand(List<String> command) {        \n+        ((Pipeline)client).sendCommand(client.getConnection(), command.toArray(new String[0]));\n     }\n+\n+    public RedisGraphPipeline(Pipeline client, String graphId) {\n+        super(client, graphId);\n+    }\n }\n\n```",
+            "output": {
+                "compilation_has_succeeded": false,
+                "test_has_succeeded": false,
+                "error_text": "Failed to prepare diffs: [Errno 2] No such file or directory: '/tmp/tmpreanh0fj/JRedisGraph/src/main/java/com/redislabs/redisgraph/impl/api/RedisGraphTransaction.java'",
+                "updated_files": {},
+                "compile_error_details": {}
+            },
+            "error": "Failed to prepare diffs: [Errno 2] No such file or directory: '/tmp/tmpreanh0fj/JRedisGraph/src/main/java/com/redislabs/redisgraph/impl/api/RedisGraphTransaction.java'",
+            "span_id": 17929222687578076280
+        },
+        {
+            "input": "```diff\n--- a/JRedisGraph/src/main/java/com/redislabs/redisgraph/impl/api/RedisGraphTransaction.java\n+++ b/JRedisGraph/src/main/java/com/redislabs/redisgraph/impl/api/RedisGraphTransaction.java\n@@ -7,7 +7,7 @@\n import java.util.List;\n \n     public RedisGraphTransaction(Client client, String graphId) {\n-        super(client, graphId);\n+        super((redis.clients.jedis.Pipeline)client, graphId);\n     }\n \n     @Override\n\n```",
+            "output": {
+                "compilation_has_succeeded": false,
+                "test_has_succeeded": false,
+                "error_text": "Failed to prepare diffs: [Errno 2] No such file or directory: '/tmp/tmpreanh0fj/JRedisGraph/src/main/java/com/redislabs/redisgraph/impl/api/RedisGraphTransaction.java'",
+                "updated_files": {},
+                "compile_error_details": {}
+            },
+            "error": "Failed to prepare diffs: [Errno 2] No such file or directory: '/tmp/tmpreanh0fj/JRedisGraph/src/main/java/com/redislabs/redisgraph/impl/api/RedisGraphTransaction.java'",
+            "span_id": 10721640944309747371
+        },
+        {
+            "input": "```diff\n--- a/JRedisGraph/src/main/java/com/redislabs/redisgraph/impl/api/RedisGraphTransaction.java\n+++ b/JRedisGraph/src/main/java/com/redislabs/redisgraph/impl/api/RedisGraphTransaction.java\n@@ -4,9 +4,10 @@\n import com.redislabs.redisgraph.RedisGraph;\n import com.redislabs.redisgraph.ResultSet;\n import com.redislabs.redisgraph.exceptions.RedisGraphException;\n+import redis.clients.jedis.Pipeline;\n import java.util.List;\n \n-    public RedisGraphTransaction(Client client, String graphId) {\n+    public RedisGraphTransaction(Pipeline client, String graphId) {\n         super((redis.clients.jedis.Pipeline)client, graphId);\n     }\n \n\n```",
+            "output": {
+                "compilation_has_succeeded": false,
+                "test_has_succeeded": false,
+                "error_text": "Failed to prepare diffs: [Errno 2] No such file or directory: '/tmp/tmpreanh0fj/JRedisGraph/src/main/java/com/redislabs/redisgraph/impl/api/RedisGraphTransaction.java'",
+                "updated_files": {},
+                "compile_error_details": {}
+            },
+            "error": "Failed to prepare diffs: [Errno 2] No such file or directory: '/tmp/tmpreanh0fj/JRedisGraph/src/main/java/com/redislabs/redisgraph/impl/api/RedisGraphTransaction.java'",
+            "span_id": 10693390324034277619
+        },
+        {
+            "input": "```diff\n--- a/JRedisGraph/src/main/java/com/redislabs/redisgraph/impl/api/RedisGraphTransaction.java\n+++ b/JRedisGraph/src/main/java/com/redislabs/redisgraph/impl/api/RedisGraphTransaction.java\n@@ -4,10 +4,10 @@\n import com.redislabs.redisgraph.RedisGraph;\n import com.redislabs.redisgraph.ResultSet;\n import com.redislabs.redisgraph.exceptions.RedisGraphException;\n-import redis.clients.jedis.Pipeline;\n+import redis.clients.jedis.Client;\n import java.util.List;\n \n-    public RedisGraphTransaction(Pipeline client, String graphId) {\n+    public RedisGraphTransaction(Client client, String graphId) {\n         super((redis.clients.jedis.Pipeline)client, graphId);\n     }\n \n\n```",
+            "output": {
+                "compilation_has_succeeded": false,
+                "test_has_succeeded": false,
+                "error_text": "Failed to prepare diffs: [Errno 2] No such file or directory: '/tmp/tmpreanh0fj/JRedisGraph/src/main/java/com/redislabs/redisgraph/impl/api/RedisGraphTransaction.java'",
+                "updated_files": {},
+                "compile_error_details": {}
+            },
+            "error": "Failed to prepare diffs: [Errno 2] No such file or directory: '/tmp/tmpreanh0fj/JRedisGraph/src/main/java/com/redislabs/redisgraph/impl/api/RedisGraphTransaction.java'",
+            "span_id": 4945602820386970320
+        },
+        {
+            "input": "```diff\n--- a/JRedisGraph/src/main/java/com/redislabs/redisgraph/impl/api/RedisGraphTransaction.java\n+++ b/JRedisGraph/src/main/java/com/redislabs/redisgraph/impl/api/RedisGraphTransaction.java\n@@ -7,7 +7,7 @@\n import java.util.List;\n \n     public RedisGraphTransaction(Client client, String graphId) {\n-        super((redis.clients.jedis.Pipeline)client, graphId);\n+        super((redis.clients.jedis.Pipeline) client, graphId);\n     }\n \n     @Override\n\n```",
+            "output": {
+                "compilation_has_succeeded": false,
+                "test_has_succeeded": false,
+                "error_text": "Failed to prepare diffs: [Errno 2] No such file or directory: '/tmp/tmpreanh0fj/JRedisGraph/src/main/java/com/redislabs/redisgraph/impl/api/RedisGraphTransaction.java'",
+                "updated_files": {},
+                "compile_error_details": {}
+            },
+            "error": "Failed to prepare diffs: [Errno 2] No such file or directory: '/tmp/tmpreanh0fj/JRedisGraph/src/main/java/com/redislabs/redisgraph/impl/api/RedisGraphTransaction.java'",
+            "span_id": 2113600012348941804
+        },
+        {
+            "input": "```diff\n--- a/JRedisGraph/src/main/java/com/redislabs/redisgraph/impl/api/RedisGraphTransaction.java\n+++ b/JRedisGraph/src/main/java/com/redislabs/redisgraph/impl/api/RedisGraphTransaction.java\n@@ -4,6 +4,7 @@\n import com.redislabs.redisgraph.RedisGraph;\n import com.redislabs.redisgraph.ResultSet;\n import com.redislabs.redisgraph.exceptions.RedisGraphException;\n+import redis.clients.jedis.Pipeline;\n import redis.clients.jedis.Client;\n import java.util.List;\n \n\n```",
+            "output": {
+                "compilation_has_succeeded": false,
+                "test_has_succeeded": false,
+                "error_text": "Failed to prepare diffs: [Errno 2] No such file or directory: '/tmp/tmpreanh0fj/JRedisGraph/src/main/java/com/redislabs/redisgraph/impl/api/RedisGraphTransaction.java'",
+                "updated_files": {},
+                "compile_error_details": {}
+            },
+            "error": "Failed to prepare diffs: [Errno 2] No such file or directory: '/tmp/tmpreanh0fj/JRedisGraph/src/main/java/com/redislabs/redisgraph/impl/api/RedisGraphTransaction.java'",
+            "span_id": 15259057436834180144
+        },
+        {
+            "input": "```diff\n--- a/JRedisGraph/src/main/java/com/redislabs/redisgraph/impl/api/RedisGraphTransaction.java\n+++ b/JRedisGraph/src/main/java/com/redislabs/redisgraph/impl/api/RedisGraphTransaction.java\n@@ -5,10 +5,10 @@\n import com.redislabs.redisgraph.ResultSet;\n import com.redislabs.redisgraph.exceptions.RedisGraphException;\n import redis.clients.jedis.Pipeline;\n-import redis.clients.jedis.Client;\n import java.util.List;\n \n-    public RedisGraphTransaction(Client client, String graphId) {\n+\n+    public RedisGraphTransaction(Pipeline client, String graphId) {\n         super((redis.clients.jedis.Pipeline) client, graphId);\n     }\n \n\n```",
+            "output": {
+                "compilation_has_succeeded": false,
+                "test_has_succeeded": false,
+                "error_text": "Failed to prepare diffs: [Errno 2] No such file or directory: '/tmp/tmpreanh0fj/JRedisGraph/src/main/java/com/redislabs/redisgraph/impl/api/RedisGraphTransaction.java'",
+                "updated_files": {},
+                "compile_error_details": {}
+            },
+            "error": "Failed to prepare diffs: [Errno 2] No such file or directory: '/tmp/tmpreanh0fj/JRedisGraph/src/main/java/com/redislabs/redisgraph/impl/api/RedisGraphTransaction.java'",
+            "span_id": 11012467219694772636
+        },
+        {
+            "input": "```diff\n--- a/JRedisGraph/src/main/java/com/redislabs/redisgraph/impl/api/RedisGraphTransaction.java\n+++ b/JRedisGraph/src/main/java/com/redislabs/redisgraph/impl/api/RedisGraphTransaction.java\n@@ -5,11 +5,10 @@\n import com.redislabs.redisgraph.ResultSet;\n import com.redislabs.redisgraph.exceptions.RedisGraphException;\n import redis.clients.jedis.Pipeline;\n+import redis.clients.jedis.Client;\n import java.util.List;\n \n-\n-    public RedisGraphTransaction(Pipeline client, String graphId) {\n-        super((redis.clients.jedis.Pipeline) client, graphId);\n+    public RedisGraphTransaction(Client client, String graphId) {\n+        super((Pipeline) client, graphId);\n     }\n \n     @Override\n\n```",
+            "output": {
+                "compilation_has_succeeded": false,
+                "test_has_succeeded": false,
+                "error_text": "Failed to prepare diffs: [Errno 2] No such file or directory: '/tmp/tmpreanh0fj/JRedisGraph/src/main/java/com/redislabs/redisgraph/impl/api/RedisGraphTransaction.java'",
+                "updated_files": {},
+                "compile_error_details": {}
+            },
+            "error": "Failed to prepare diffs: [Errno 2] No such file or directory: '/tmp/tmpreanh0fj/JRedisGraph/src/main/java/com/redislabs/redisgraph/impl/api/RedisGraphTransaction.java'",
+            "span_id": 12951457586567659664
+        },
+        {
+            "input": "```diff\n--- a/JRedisGraph/src/main/java/com/redislabs/redisgraph/impl/api/RedisGraphTransaction.java\n+++ b/JRedisGraph/src/main/java/com/redislabs/redisgraph/impl/api/RedisGraphTransaction.java\n@@ -5,10 +5,9 @@\n import com.redislabs.redisgraph.ResultSet;\n import com.redislabs.redisgraph.exceptions.RedisGraphException;\n import redis.clients.jedis.Pipeline;\n-import redis.clients.jedis.Client;\n import java.util.List;\n \n-    public RedisGraphTransaction(Client client, String graphId) {\n+    public RedisGraphTransaction(Pipeline client, String graphId) {\n         super((Pipeline) client, graphId);\n     }\n \n\n```",
+            "output": {
+                "compilation_has_succeeded": false,
+                "test_has_succeeded": false,
+                "error_text": "Failed to prepare diffs: [Errno 2] No such file or directory: '/tmp/tmpreanh0fj/JRedisGraph/src/main/java/com/redislabs/redisgraph/impl/api/RedisGraphTransaction.java'",
+                "updated_files": {},
+                "compile_error_details": {}
+            },
+            "error": "Failed to prepare diffs: [Errno 2] No such file or directory: '/tmp/tmpreanh0fj/JRedisGraph/src/main/java/com/redislabs/redisgraph/impl/api/RedisGraphTransaction.java'",
+            "span_id": 15469991263665174560
+        }
+    ],
+    "read_file": [],
+    "get_directory_tree": [],
+    "get_language_server_suggestions": [],
+    "reset_repo": []
+}
