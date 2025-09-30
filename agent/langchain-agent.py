@@ -19,11 +19,8 @@ from masterthesis.dataset.find_compilation_errors import find_compilation_errors
 # language_model = "mistralai/mistral-large-2-instruct"
 # language_model = "ft:gpt-4o-mini-2024-07-18:personal:agent-5:9zY4dyXP"
 
-# Using HuggingFace API
-language_model = "WizardLM/WizardCoder-15B-V1.0"
-
 # Using Groq API
-# language_model = "llama-3.3-70b-versatile"
+language_model = "llama-3.3-70b-versatile"
 
 
 class TrialType(Enum):
@@ -68,101 +65,12 @@ signal.signal(signal.SIGTERM, sigterm_handler)
 
 
 from collections import defaultdict
-import requests
-import json
+from langchain_groq import ChatGroq
 
-class HuggingFaceLLM:
-    """Simple wrapper to mimic ChatGroq interface using Hugging Face API"""
-    
-    def __init__(self, api_key, model_name="WizardLM/WizardCoder-15B-V1.0", temperature=0, max_retries=3, timeout=240):
-        self.api_key = api_key
-        self.model_name = model_name
-        self.temperature = temperature
-        self.max_retries = max_retries
-        self.timeout = timeout
-        self.api_url = f"https://api-inference.huggingface.co/models/{model_name}"
-        self.headers = {"Authorization": f"Bearer {api_key}"}
-    
-    def bind_tools(self, tools):
-        """Mock method to maintain compatibility with langchain interface"""
-        return self
-    
-    def invoke(self, messages):
-        """Convert messages to HuggingFace format and make API call"""
-        # Convert langchain messages to text format
-        if isinstance(messages, list):
-            # Extract text content from messages
-            text_content = ""
-            for msg in messages:
-                if hasattr(msg, 'content'):
-                    text_content += f"{msg.content}\n"
-                elif isinstance(msg, str):
-                    text_content += f"{msg}\n"
-        else:
-            text_content = str(messages)
-        
-        data = {
-            "inputs": text_content.strip(),
-            "parameters": {
-                "temperature": self.temperature,
-                "max_new_tokens": 2048,
-                "return_full_text": False
-            }
-        }
-        
-        # Make request to HuggingFace API
-        for attempt in range(self.max_retries):
-            try:
-                response = requests.post(
-                    self.api_url, 
-                    headers=self.headers, 
-                    json=data,
-                    timeout=self.timeout
-                )
-                
-                # Better error handling with more informative messages
-                if response.status_code == 404:
-                    raise Exception(f"Model '{self.model_name}' not found. Please check if the model exists on Hugging Face.")
-                elif response.status_code == 401:
-                    raise Exception("Authentication failed. Please check your HF_API_KEY.")
-                elif response.status_code == 403:
-                    raise Exception("Access forbidden. This model may require special permissions.")
-                elif response.status_code >= 500:
-                    raise Exception(f"Server error ({response.status_code}). Hugging Face API may be temporarily unavailable.")
-                
-                response.raise_for_status()
-                result = response.json()
-                
-                # Handle different response formats
-                if isinstance(result, list) and len(result) > 0:
-                    generated_text = result[0].get('generated_text', '')
-                elif isinstance(result, dict):
-                    generated_text = result.get('generated_text', str(result))
-                else:
-                    generated_text = str(result)
-                
-                # Create a mock response object similar to langchain's AIMessage
-                return MockAIMessage(content=generated_text)
-                
-            except Exception as e:
-                print(f"Attempt {attempt + 1} failed: {str(e)}")
-                if attempt == self.max_retries - 1:
-                    raise e
-                continue
-        
-        raise Exception(f"Failed to get response after {self.max_retries} attempts")
-
-class MockAIMessage:
-    """Mock AI message to maintain compatibility"""
-    def __init__(self, content):
-        self.content = content
-        self.additional_kwargs = {}
-        self.tool_calls = []
-
-# Initialize HuggingFace LLM
-llm = HuggingFaceLLM(
-    api_key=os.getenv("HF_API_KEY"),
-    model_name="WizardLM/WizardCoder-15B-V1.0",
+# Initialize Groq LLM
+llm = ChatGroq(
+    groq_api_key=os.getenv("GROQ_API_KEY"),
+    model_name=language_model,
     temperature=0,
     max_retries=3,
     timeout=240
